@@ -135,6 +135,7 @@ public class IndexCalculatorService {
         Map<Long, Map<String, KlineData>> timeSeriesData = new TreeMap<>();
 
         int processedCount = 0;
+        int failedCount = 0;
         for (String symbol : symbols) {
             try {
                 List<KlineData> klines = binanceApiService.getKlinesWithPagination(
@@ -152,15 +153,29 @@ public class IndexCalculatorService {
 
                 processedCount++;
                 if (processedCount % 50 == 0) {
-                    log.info("已处理 {}/{} 个币种", processedCount, symbols.size());
+                    log.info("已处理 {}/{} 个币种（失败：{}）", processedCount, symbols.size(), failedCount);
                 }
 
             } catch (Exception e) {
-                log.error("获取K线失败 {}: {}", symbol, e.getMessage());
+                failedCount++;
+                log.error("获取K线失败 {}: {} - {}", symbol, e.getClass().getSimpleName(), e.getMessage());
+                log.debug("详细错误堆栈：", e);
+                
+                // 如果连续失败多次，可能是被限流，等待更长时间
+                if (failedCount % 10 == 0) {
+                    log.warn("连续失败 {} 次，等待5秒后继续...", failedCount);
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
         }
-
-        log.info("K线数据获取完成，共 {} 个时间点，开始计算指数...", timeSeriesData.size());
+        
+        log.info("K线数据获取完成，成功：{}，失败：{}，共 {} 个时间点", 
+                processedCount, failedCount, timeSeriesData.size());
 
         // 计算每个时间点的指数
         // 需要先确定基准价格（最早时间点的价格）
