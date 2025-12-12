@@ -5,6 +5,17 @@ function IndexChart({ data }) {
         return null
     }
 
+    // 处理数据
+    const chartData = data
+        .filter(item => item.timestamp && item.indexValue !== null && item.indexValue !== undefined)
+        .map(item => [item.timestamp, item.indexValue])
+
+    console.log('Chart data points:', chartData.length)
+    if (chartData.length > 0) {
+        console.log('First:', new Date(chartData[0][0]).toLocaleString(), chartData[0][1])
+        console.log('Last:', new Date(chartData[chartData.length - 1][0]).toLocaleString(), chartData[chartData.length - 1][1])
+    }
+
     const option = {
         backgroundColor: 'transparent',
         tooltip: {
@@ -16,18 +27,19 @@ function IndexChart({ data }) {
                 color: '#f1f5f9'
             },
             formatter: function (params) {
+                if (!params || !params[0]) return ''
                 const point = params[0]
                 const time = new Date(point.data[0]).toLocaleString('zh-CN')
                 const value = point.data[1].toFixed(4)
                 const color = point.data[1] >= 0 ? '#10b981' : '#ef4444'
                 return `
-          <div style="padding: 8px;">
-            <div style="color: #94a3b8; margin-bottom: 8px;">${time}</div>
-            <div style="color: ${color}; font-size: 18px; font-weight: 600;">
-              ${point.data[1] >= 0 ? '+' : ''}${value}%
-            </div>
-          </div>
-        `
+                    <div style="padding: 8px;">
+                        <div style="color: #94a3b8; margin-bottom: 8px;">${time}</div>
+                        <div style="color: ${color}; font-size: 18px; font-weight: 600;">
+                            ${point.data[1] >= 0 ? '+' : ''}${value}%
+                        </div>
+                    </div>
+                `
             }
         },
         grid: {
@@ -48,10 +60,10 @@ function IndexChart({ data }) {
                 color: '#64748b',
                 formatter: function (value) {
                     const date = new Date(value)
-                    const hours = date.getHours().toString().padStart(2, '0')
-                    const minutes = date.getMinutes().toString().padStart(2, '0')
                     const month = (date.getMonth() + 1).toString().padStart(2, '0')
                     const day = date.getDate().toString().padStart(2, '0')
+                    const hours = date.getHours().toString().padStart(2, '0')
+                    const minutes = date.getMinutes().toString().padStart(2, '0')
                     return `${month}-${day}\n${hours}:${minutes}`
                 }
             },
@@ -78,8 +90,7 @@ function IndexChart({ data }) {
             {
                 type: 'inside',
                 start: 0,
-                end: 100,
-                minValueSpan: 3600 * 1000 * 2 // 最小2小时
+                end: 100
             },
             {
                 type: 'slider',
@@ -95,33 +106,18 @@ function IndexChart({ data }) {
                 },
                 textStyle: {
                     color: '#64748b'
-                },
-                dataBackground: {
-                    lineStyle: {
-                        color: 'rgba(99, 102, 241, 0.5)'
-                    },
-                    areaStyle: {
-                        color: 'rgba(99, 102, 241, 0.1)'
-                    }
                 }
             }
         ],
-        visualMap: {
-            show: false,
-            pieces: [
-                { lte: 0, color: '#ef4444' },
-                { gt: 0, color: '#10b981' }
-            ]
-        },
         series: [
             {
                 name: '市场指数',
                 type: 'line',
                 smooth: true,
-                symbol: 'none',
-                sampling: 'lttb',
+                showSymbol: false,
                 lineStyle: {
-                    width: 2
+                    width: 2,
+                    color: '#6366f1'
                 },
                 areaStyle: {
                     color: {
@@ -136,10 +132,7 @@ function IndexChart({ data }) {
                         ]
                     }
                 },
-                // 后端现在返回毫秒时间戳，直接使用
-                data: data
-                    .filter(item => item.timestamp && item.indexValue !== null && item.indexValue !== undefined)
-                    .map(item => [item.timestamp, item.indexValue]),
+                data: chartData,
                 markLine: {
                     silent: true,
                     symbol: 'none',
@@ -156,18 +149,12 @@ function IndexChart({ data }) {
         ]
     }
 
-    // 调试日志
-    console.log('Chart data points:', option.series[0].data.length)
-    if (option.series[0].data.length > 0) {
-        console.log('First:', new Date(option.series[0].data[0][0]).toLocaleString(), option.series[0].data[0][1])
-        console.log('Last:', new Date(option.series[0].data[option.series[0].data.length - 1][0]).toLocaleString(), option.series[0].data[option.series[0].data.length - 1][1])
-    }
-
     return (
         <ReactECharts
             option={option}
             style={{ height: '450px', width: '100%' }}
             opts={{ renderer: 'canvas' }}
+            notMerge={true}
         />
     )
 }
