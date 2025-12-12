@@ -158,8 +158,9 @@ public class BinanceApiService {
                             double closePrice = klineNode.get(4).asDouble();
                             double quoteVolume = klineNode.get(7).asDouble();
 
+                            // 使用UTC时区，保持与币安API一致
                             LocalDateTime timestamp = LocalDateTime.ofInstant(
-                                    Instant.ofEpochMilli(openTime), ZoneId.systemDefault());
+                                    Instant.ofEpochMilli(openTime), ZoneId.of("UTC"));
 
                             KlineData kline = new KlineData(symbol, timestamp, openPrice, closePrice, quoteVolume);
                             klines.add(kline);

@@ -136,10 +136,10 @@ function IndexChart({ data }) {
                         ]
                     }
                 },
-                data: data.map(item => [
-                    new Date(item.timestamp).getTime(),
-                    item.indexValue
-                ]),
+                // 后端现在返回毫秒时间戳，直接使用
+                data: data
+                    .filter(item => item.timestamp && item.indexValue !== null && item.indexValue !== undefined)
+                    .map(item => [item.timestamp, item.indexValue]),
                 markLine: {
                     silent: true,
                     symbol: 'none',
@@ -154,6 +154,13 @@ function IndexChart({ data }) {
                 }
             }
         ]
+    }
+
+    // 调试日志
+    console.log('Chart data points:', option.series[0].data.length)
+    if (option.series[0].data.length > 0) {
+        console.log('First:', new Date(option.series[0].data[0][0]).toLocaleString(), option.series[0].data[0][1])
+        console.log('Last:', new Date(option.series[0].data[option.series[0].data.length - 1][0]).toLocaleString(), option.series[0].data[option.series[0].data.length - 1][1])
     }
 
     return (

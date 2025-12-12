@@ -69,8 +69,8 @@ public class IndexCalculatorService {
 
         double indexValue = totalWeightedChange / totalVolume;
 
-        // 时间对齐到5分钟
-        LocalDateTime now = LocalDateTime.now();
+        // 时间对齐到5分钟（使用UTC时间）
+        LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
         LocalDateTime alignedTime = alignToFiveMinutes(now);
 
         // 检查是否已存在该时间点的数据
