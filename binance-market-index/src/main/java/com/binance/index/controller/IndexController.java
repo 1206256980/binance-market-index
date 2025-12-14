@@ -105,6 +105,12 @@ public class IndexController {
             double first = last72h.get(0).getIndexValue();
             double last = last72h.get(last72h.size() - 1).getIndexValue();
             stats.put("change3d", last - first);
+
+            // 3天最高最低
+            double max3d = last72h.stream().mapToDouble(MarketIndex::getIndexValue).max().orElse(0);
+            double min3d = last72h.stream().mapToDouble(MarketIndex::getIndexValue).min().orElse(0);
+            stats.put("high3d", max3d);
+            stats.put("low3d", min3d);
         }
 
         // 7天变化
@@ -112,12 +118,13 @@ public class IndexController {
             double first = last168h.get(0).getIndexValue();
             double last = last168h.get(last168h.size() - 1).getIndexValue();
             stats.put("change7d", last - first);
-        }
 
-        // 数据点数量
-        stats.put("dataPoints24h", last24h.size());
-        stats.put("dataPoints3d", last72h.size());
-        stats.put("dataPoints7d", last168h.size());
+            // 7天最高最低
+            double max7d = last168h.stream().mapToDouble(MarketIndex::getIndexValue).max().orElse(0);
+            double min7d = last168h.stream().mapToDouble(MarketIndex::getIndexValue).min().orElse(0);
+            stats.put("high7d", max7d);
+            stats.put("low7d", min7d);
+        }
 
         response.put("stats", stats);
         return ResponseEntity.ok(response);

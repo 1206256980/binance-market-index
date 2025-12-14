@@ -88,13 +88,13 @@ function App() {
                     label="📆 3天变化"
                     value={formatPercent(stats?.change3d)}
                     valueClass={getValueClass(stats?.change3d)}
-                    subValue={`${stats?.dataPoints3d || 0} 个数据点`}
+                    subValue={stats?.high3d !== undefined ? `高: ${formatPercent(stats.high3d)} / 低: ${formatPercent(stats.low3d)}` : ''}
                 />
                 <StatsCard
                     label="📅 7天变化"
                     value={formatPercent(stats?.change7d)}
                     valueClass={getValueClass(stats?.change7d)}
-                    subValue={`${stats?.dataPoints7d || 0} 个数据点`}
+                    subValue={stats?.high7d !== undefined ? `高: ${formatPercent(stats.high7d)} / 低: ${formatPercent(stats.low7d)}` : ''}
                 />
                 <StatsCard
                     label="🪙 参与币种"
