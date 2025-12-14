@@ -1,7 +1,6 @@
 package com.binance.index.service;
 
 import com.binance.index.dto.KlineData;
-import com.binance.index.dto.TickerData;
 import com.binance.index.entity.MarketIndex;
 import com.binance.index.repository.MarketIndexRepository;
 import org.slf4j.Logger;
@@ -12,6 +11,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,20 +22,23 @@ public class IndexCalculatorService {
 
     private final BinanceApiService binanceApiService;
     private final MarketIndexRepository marketIndexRepository;
+    private final ExecutorService executorService;
 
     // 缓存各币种的基准价格（回补起始时间的价格）
     private Map<String, Double> basePrices = new HashMap<>();
     private LocalDateTime basePriceTime;
 
     public IndexCalculatorService(BinanceApiService binanceApiService,
-            MarketIndexRepository marketIndexRepository) {
+            MarketIndexRepository marketIndexRepository,
+            ExecutorService klineExecutorService) {
         this.binanceApiService = binanceApiService;
         this.marketIndexRepository = marketIndexRepository;
+        this.executorService = klineExecutorService;
     }
 
     /**
      * 计算并保存当前时刻的市场指数（实时采集用）
-     * 使用回补起始时间的固定基准价格计算涨跌幅
+     * 使用并发获取K线数据，获取准确的5分钟成交额
      */
     public MarketIndex calculateAndSaveCurrentIndex() {
         // 如果没有基准价格，需要先刷新
@@ -43,33 +47,63 @@ public class IndexCalculatorService {
             return null;
         }
 
-        List<TickerData> tickers = binanceApiService.getAll24hTickers();
-        if (tickers.isEmpty()) {
-            log.warn("无法获取行情数据");
+        // 时间对齐到5分钟（使用UTC时间）
+        LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
+        LocalDateTime alignedTime = alignToFiveMinutes(now);
+
+        // 检查是否已存在该时间点的数据（防止与回补数据重叠）
+        if (marketIndexRepository.existsByTimestamp(alignedTime)) {
+            log.debug("时间点 {} 已存在数据，跳过", alignedTime);
             return null;
         }
 
-        // 简单平均：使用回补起始时间的基准价格计算涨跌幅
+        // 获取所有需要处理的币种
+        List<String> symbols = binanceApiService.getAllUsdtSymbols();
+        if (symbols.isEmpty()) {
+            log.warn("无法获取交易对列表");
+            return null;
+        }
+
+        log.info("开始并发获取 {} 个币种的K线数据...", symbols.size());
+        long startTime = System.currentTimeMillis();
+
+        // 并发获取所有币种的最新K线
+        List<CompletableFuture<KlineData>> futures = symbols.stream()
+                .map(symbol -> CompletableFuture.supplyAsync(
+                        () -> binanceApiService.getLatestKline(symbol),
+                        executorService))
+                .collect(Collectors.toList());
+
+        // 等待所有请求完成
+        List<KlineData> allKlines = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.info("K线数据获取完成，成功 {} 个，耗时 {}ms", allKlines.size(), elapsed);
+
+        // 计算指数和成交额
         double totalChange = 0;
         double totalVolume = 0;
         int validCount = 0;
 
-        for (TickerData ticker : tickers) {
-            String symbol = ticker.getSymbol();
+        for (KlineData kline : allKlines) {
+            String symbol = kline.getSymbol();
             Double basePrice = basePrices.get(symbol);
 
             // 新币处理：如果没有基准价格，使用当前价格作为基准
             if (basePrice == null || basePrice <= 0) {
-                if (ticker.getLastPrice() > 0) {
-                    basePrices.put(symbol, ticker.getLastPrice());
-                    log.info("新币种 {} 设置基准价格: {}", symbol, ticker.getLastPrice());
+                if (kline.getClosePrice() > 0) {
+                    basePrices.put(symbol, kline.getClosePrice());
+                    log.info("新币种 {} 设置基准价格: {}", symbol, kline.getClosePrice());
                 }
                 continue; // 第一次采集时跳过计算，下次开始参与
             }
 
             // 计算相对于基准时间的涨跌幅
-            double changePercent = (ticker.getLastPrice() - basePrice) / basePrice * 100;
-            double volume = ticker.getQuoteVolume();
+            double changePercent = (kline.getClosePrice() - basePrice) / basePrice * 100;
+            double volume = kline.getVolume(); // 5分钟成交额
 
             // 过滤异常值
             if (Math.abs(changePercent) > 200 || volume <= 0) {
@@ -89,20 +123,18 @@ public class IndexCalculatorService {
         // 简单平均
         double indexValue = totalChange / validCount;
 
-        // 时间对齐到5分钟（使用UTC时间）
-        LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
-        LocalDateTime alignedTime = alignToFiveMinutes(now);
-
-        // 检查是否已存在该时间点的数据
+        // 再次检查是否已存在该时间点的数据（双重检查）
         if (marketIndexRepository.existsByTimestamp(alignedTime)) {
-            log.debug("时间点 {} 已存在数据，跳过", alignedTime);
+            log.debug("时间点 {} 已存在数据（并发写入），跳过", alignedTime);
             return null;
         }
 
         MarketIndex index = new MarketIndex(alignedTime, indexValue, totalVolume, validCount);
         marketIndexRepository.save(index);
 
-        log.info("保存指数: 时间={}, 值={}%, 币种数={}", alignedTime, String.format("%.4f", indexValue), validCount);
+        log.info("保存指数: 时间={}, 值={}%, 成交额={}, 币种数={}",
+                alignedTime, String.format("%.4f", indexValue),
+                String.format("%.2f", totalVolume), validCount);
         return index;
     }
 

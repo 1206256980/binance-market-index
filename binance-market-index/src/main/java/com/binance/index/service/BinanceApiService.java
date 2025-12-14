@@ -109,12 +109,12 @@ public class BinanceApiService {
                     if (root.isArray()) {
                         for (JsonNode tickerNode : root) {
                             String symbol = tickerNode.get("symbol").asText();
-                            
+
                             // 只保留USDT交易对
                             if (!symbol.endsWith("USDT")) {
                                 continue;
                             }
-                            
+
                             // 跳过排除的币种
                             if (getExcludeSymbols().contains(symbol)) {
                                 continue;
@@ -139,18 +139,19 @@ public class BinanceApiService {
 
     /**
      * 获取单个交易对的K线数据
-     * @param symbol 交易对
-     * @param interval K线间隔 (5m, 15m, 1h等)
+     * 
+     * @param symbol    交易对
+     * @param interval  K线间隔 (5m, 15m, 1h等)
      * @param startTime 开始时间戳(毫秒)
-     * @param endTime 结束时间戳(毫秒)
-     * @param limit 数量限制
+     * @param endTime   结束时间戳(毫秒)
+     * @param limit     数量限制
      */
     public List<KlineData> getKlines(String symbol, String interval, long startTime, long endTime, int limit) {
         List<KlineData> klines = new ArrayList<>();
         try {
             String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=%s&startTime=%d&endTime=%d&limit=%d",
                     baseUrl, symbol, interval, startTime, endTime, limit);
-            
+
             Request request = new Request.Builder().url(url).get().build();
 
             try (Response response = httpClient.newCall(request).execute()) {
@@ -159,7 +160,8 @@ public class BinanceApiService {
 
                     if (root.isArray()) {
                         for (JsonNode klineNode : root) {
-                            // K线数据格式: [openTime, open, high, low, close, volume, closeTime, quoteVolume, ...]
+                            // K线数据格式: [openTime, open, high, low, close, volume, closeTime, quoteVolume,
+                            // ...]
                             long openTime = klineNode.get(0).asLong();
                             double openPrice = klineNode.get(1).asDouble();
                             double closePrice = klineNode.get(4).asDouble();
@@ -184,7 +186,8 @@ public class BinanceApiService {
     /**
      * 获取多个时间段的K线（分批请求）
      */
-    public List<KlineData> getKlinesWithPagination(String symbol, String interval, long startTime, long endTime, int batchLimit) {
+    public List<KlineData> getKlinesWithPagination(String symbol, String interval, long startTime, long endTime,
+            int batchLimit) {
         List<KlineData> allKlines = new ArrayList<>();
         long currentStart = startTime;
 
@@ -201,7 +204,7 @@ public class BinanceApiService {
                     .atZone(ZoneId.systemDefault())
                     .toInstant()
                     .toEpochMilli();
-            
+
             // 5分钟 = 300000毫秒
             currentStart = lastTime + 300000;
 
@@ -219,5 +222,45 @@ public class BinanceApiService {
 
     public int getRequestIntervalMs() {
         return requestIntervalMs;
+    }
+
+    /**
+     * 获取单个交易对最新的一根K线数据（用于实时采集）
+     * 
+     * @param symbol 交易对
+     * @return 最新的K线数据，如果获取失败返回null
+     */
+    public KlineData getLatestKline(String symbol) {
+        try {
+            // 获取最新的1根5分钟K线
+            String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=5m&limit=1",
+                    baseUrl, symbol);
+
+            Request request = new Request.Builder().url(url).get().build();
+
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (response.isSuccessful() && response.body() != null) {
+                    JsonNode root = objectMapper.readTree(response.body().string());
+
+                    if (root.isArray() && root.size() > 0) {
+                        JsonNode klineNode = root.get(0);
+                        // K线数据格式: [openTime, open, high, low, close, volume, closeTime, quoteVolume,
+                        // ...]
+                        long openTime = klineNode.get(0).asLong();
+                        double openPrice = klineNode.get(1).asDouble();
+                        double closePrice = klineNode.get(4).asDouble();
+                        double quoteVolume = klineNode.get(7).asDouble();
+
+                        LocalDateTime timestamp = LocalDateTime.ofInstant(
+                                Instant.ofEpochMilli(openTime), ZoneId.of("UTC"));
+
+                        return new KlineData(symbol, timestamp, openPrice, closePrice, quoteVolume);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("获取最新K线失败 {}: {}", symbol, e.getMessage());
+        }
+        return null;
     }
 }
