@@ -70,6 +70,7 @@ public class IndexController {
         List<MarketIndex> last24h = indexCalculatorService.getHistoryData(24);
         List<MarketIndex> last72h = indexCalculatorService.getHistoryData(72);
         List<MarketIndex> last168h = indexCalculatorService.getHistoryData(168);
+        List<MarketIndex> last720h = indexCalculatorService.getHistoryData(720);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -124,6 +125,19 @@ public class IndexController {
             double min7d = last168h.stream().mapToDouble(MarketIndex::getIndexValue).min().orElse(0);
             stats.put("high7d", max7d);
             stats.put("low7d", min7d);
+        }
+
+        // 30天变化
+        if (!last720h.isEmpty() && last720h.size() > 1) {
+            double first = last720h.get(0).getIndexValue();
+            double last = last720h.get(last720h.size() - 1).getIndexValue();
+            stats.put("change30d", last - first);
+
+            // 30天最高最低
+            double max30d = last720h.stream().mapToDouble(MarketIndex::getIndexValue).max().orElse(0);
+            double min30d = last720h.stream().mapToDouble(MarketIndex::getIndexValue).min().orElse(0);
+            stats.put("high30d", max30d);
+            stats.put("low30d", min30d);
         }
 
         response.put("stats", stats);

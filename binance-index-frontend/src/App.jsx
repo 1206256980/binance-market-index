@@ -97,6 +97,12 @@ function App() {
                     subValue={stats?.high7d !== undefined ? `高: ${formatPercent(stats.high7d)} / 低: ${formatPercent(stats.low7d)}` : ''}
                 />
                 <StatsCard
+                    label="🗓️ 30天变化"
+                    value={formatPercent(stats?.change30d)}
+                    valueClass={getValueClass(stats?.change30d)}
+                    subValue={stats?.high30d !== undefined ? `高: ${formatPercent(stats.high30d)} / 低: ${formatPercent(stats.low30d)}` : ''}
+                />
+                <StatsCard
                     label="🪙 参与币种"
                     value={stats?.coinCount || '--'}
                     subValue="排除 BTC、ETH"
