@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import IndexChart from './components/IndexChart'
-import VolumeChart from './components/VolumeChart'
+import CombinedChart from './components/CombinedChart'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
 
@@ -140,7 +139,7 @@ function App() {
             {/* 图表区域 */}
             <div className="chart-container">
                 <div className="chart-title">
-                    📉 市场指数走势
+                    📊 市场指数 & 成交额走势
                 </div>
 
                 {loading && historyData.length === 0 ? (
@@ -163,18 +162,7 @@ function App() {
                         <p>服务启动后需要等待数据回补完成</p>
                     </div>
                 ) : (
-                    <IndexChart data={historyData} />
-                )}
-            </div>
-
-            {/* 成交额图表区域 */}
-            <div className="chart-container" style={{ marginTop: '1rem' }}>
-                <div className="chart-title">
-                    💰 成交额走势
-                </div>
-
-                {historyData.length > 0 && (
-                    <VolumeChart data={historyData} />
+                    <CombinedChart data={historyData} />
                 )}
             </div>
 
