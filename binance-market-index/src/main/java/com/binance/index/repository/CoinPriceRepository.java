@@ -1,0 +1,51 @@
+package com.binance.index.repository;
+
+import com.binance.index.entity.CoinPrice;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface CoinPriceRepository extends JpaRepository<CoinPrice, Long> {
+
+    /**
+     * 获取指定时间点附近的所有币种价格
+     * 查找最接近目标时间且不晚于目标时间的记录
+     */
+    @Query("SELECT cp FROM CoinPrice cp WHERE cp.timestamp = " +
+           "(SELECT MAX(cp2.timestamp) FROM CoinPrice cp2 WHERE cp2.timestamp <= :targetTime)")
+    List<CoinPrice> findPricesAtTime(@Param("targetTime") LocalDateTime targetTime);
+
+    /**
+     * 获取指定时间点的价格（精确匹配）
+     */
+    List<CoinPrice> findByTimestamp(LocalDateTime timestamp);
+
+    /**
+     * 获取指定时间范围内最早的时间点的价格
+     */
+    @Query("SELECT cp FROM CoinPrice cp WHERE cp.timestamp = " +
+           "(SELECT MIN(cp2.timestamp) FROM CoinPrice cp2 WHERE cp2.timestamp >= :startTime)")
+    List<CoinPrice> findEarliestPricesAfter(@Param("startTime") LocalDateTime startTime);
+
+    /**
+     * 获取最新时间点的所有币种价格
+     */
+    @Query("SELECT cp FROM CoinPrice cp WHERE cp.timestamp = " +
+           "(SELECT MAX(cp2.timestamp) FROM CoinPrice cp2)")
+    List<CoinPrice> findLatestPrices();
+
+    /**
+     * 检查某时间点是否已有数据
+     */
+    boolean existsByTimestamp(LocalDateTime timestamp);
+
+    /**
+     * 删除指定时间之前的数据（用于清理旧数据）
+     */
+    void deleteByTimestampBefore(LocalDateTime timestamp);
+}

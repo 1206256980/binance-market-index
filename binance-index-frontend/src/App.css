@@ -298,6 +298,147 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+/* ===== 涨幅分布模块 ===== */
+.distribution-module {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.distribution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.distribution-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.time-base-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.time-base-selector .label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.time-base-selector .time-btn {
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-base-selector .time-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.time-base-selector .time-btn.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+}
+
+.time-base-selector .loading-text {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: var(--spacing-sm);
+}
+
+/* 分布统计 */
+.distribution-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.distribution-stats .stat-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-card-hover);
+  border-radius: var(--radius-sm);
+}
+
+.distribution-stats .stat-item .icon {
+  font-size: 1.2rem;
+}
+
+.distribution-stats .stat-item .label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.distribution-stats .stat-item .value {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.distribution-stats .stat-item .percent {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.distribution-stats .stat-item.up .value {
+  color: var(--success);
+}
+
+.distribution-stats .stat-item.down .value {
+  color: var(--danger);
+}
+
+.distribution-stats .stat-item.total .value {
+  color: var(--accent-primary);
+}
+
+/* 图表区域 */
+.distribution-charts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.chart-section {
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+}
+
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
   .app {
@@ -324,6 +465,20 @@ body {
   .chart-container {
     min-height: 300px;
   }
+  
+  .distribution-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .distribution-stats {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .time-base-selector {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 480px) {
@@ -340,4 +495,10 @@ body {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: 0.8rem;
   }
+  
+  .time-base-selector .time-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+  }
 }
+

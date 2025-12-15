@@ -1,5 +1,6 @@
 package com.binance.index.controller;
 
+import com.binance.index.dto.DistributionData;
 import com.binance.index.dto.IndexDataPoint;
 import com.binance.index.entity.MarketIndex;
 import com.binance.index.service.IndexCalculatorService;
@@ -154,4 +155,27 @@ public class IndexController {
                 index.getDownCount(),
                 index.getAdr());
     }
+
+    /**
+     * 获取涨幅分布数据
+     * @param hours 基准时间（多少小时前），默认168小时（7天）
+     */
+    @GetMapping("/distribution")
+    public ResponseEntity<Map<String, Object>> getDistribution(
+            @RequestParam(defaultValue = "168") int hours) {
+        
+        DistributionData data = indexCalculatorService.getDistribution(hours);
+        
+        Map<String, Object> response = new HashMap<>();
+        if (data != null) {
+            response.put("success", true);
+            response.put("data", data);
+        } else {
+            response.put("success", false);
+            response.put("message", "获取分布数据失败");
+        }
+        
+        return ResponseEntity.ok(response);
+    }
 }
+

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import CombinedChart from './components/CombinedChart'
+import DistributionModule from './components/DistributionModule'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
 
@@ -165,6 +166,9 @@ function App() {
                     <CombinedChart data={historyData} />
                 )}
             </div>
+
+            {/* 涨幅分布模块 */}
+            <DistributionModule historyData={historyData} />
 
             <footer className="footer">
                 <p>数据来源: 币安合约API | 每5分钟采集一次 | {stats?.coinCount || 0} 个币种参与计算</p>

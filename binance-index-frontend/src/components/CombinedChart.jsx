@@ -10,15 +10,6 @@ function CombinedChart({ data }) {
         .filter(item => item.timestamp && item.indexValue !== null && item.indexValue !== undefined)
         .map(item => [item.timestamp, item.indexValue])
 
-    // 处理涨跌数据
-    const upData = data
-        .filter(item => item.timestamp && item.upCount !== null)
-        .map(item => [item.timestamp, item.upCount || 0])
-
-    const downData = data
-        .filter(item => item.timestamp && item.downCount !== null)
-        .map(item => [item.timestamp, item.downCount || 0])
-
     // 处理成交额数据 - 转换为亿
     const volumeData = data
         .filter(item => item.timestamp && item.totalVolume !== null && item.totalVolume !== undefined)
@@ -52,18 +43,6 @@ function CombinedChart({ data }) {
                             <span style="color: #94a3b8; margin-right: 8px;">指数:</span>
                             <span style="color: ${color}; font-weight: 600;">${param.data[1] >= 0 ? '+' : ''}${value}%</span>
                         </div>`
-                    } else if (param.seriesName === '上涨') {
-                        html += `<div style="display: flex; align-items: center; margin: 4px 0;">
-                            <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 50%; margin-right: 8px;"></span>
-                            <span style="color: #94a3b8; margin-right: 8px;">上涨:</span>
-                            <span style="color: #10b981; font-weight: 600;">${param.data[1]}</span>
-                        </div>`
-                    } else if (param.seriesName === '下跌') {
-                        html += `<div style="display: flex; align-items: center; margin: 4px 0;">
-                            <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 50%; margin-right: 8px;"></span>
-                            <span style="color: #94a3b8; margin-right: 8px;">下跌:</span>
-                            <span style="color: #ef4444; font-weight: 600;">${param.data[1]}</span>
-                        </div>`
                     } else if (param.seriesName === '成交额') {
                         const value = param.data[1].toFixed(2)
                         html += `<div style="display: flex; align-items: center; margin: 4px 0;">
@@ -85,22 +64,15 @@ function CombinedChart({ data }) {
             {
                 left: '3%',
                 right: '4%',
-                top: '2%',
+                top: '5%',
+                height: '38%',
+                containLabel: true
+            },
+            {
+                left: '3%',
+                right: '4%',
+                top: '52%',
                 height: '28%',
-                containLabel: true
-            },
-            {
-                left: '3%',
-                right: '4%',
-                top: '38%',
-                height: '15%',
-                containLabel: true
-            },
-            {
-                left: '3%',
-                right: '4%',
-                top: '61%',
-                height: '20%',
                 containLabel: true
             }
         ],
@@ -117,14 +89,6 @@ function CombinedChart({ data }) {
                 type: 'time',
                 gridIndex: 1,
                 axisLine: { lineStyle: { color: 'rgba(245, 158, 11, 0.2)' } },
-                axisLabel: { show: false },
-                splitLine: { show: false },
-                axisPointer: { show: true }
-            },
-            {
-                type: 'time',
-                gridIndex: 2,
-                axisLine: { lineStyle: { color: 'rgba(100, 116, 139, 0.2)' } },
                 axisLabel: {
                     color: '#64748b',
                     formatter: function (value) {
@@ -158,27 +122,18 @@ function CombinedChart({ data }) {
                 axisLine: { show: false },
                 axisLabel: { color: '#64748b' },
                 splitLine: { lineStyle: { color: 'rgba(245, 158, 11, 0.1)' } }
-            },
-            {
-                type: 'value',
-                gridIndex: 2,
-                name: '涨/跌数',
-                nameTextStyle: { color: '#64748b' },
-                axisLine: { show: false },
-                axisLabel: { color: '#64748b' },
-                splitLine: { lineStyle: { color: 'rgba(100, 116, 139, 0.1)' } }
             }
         ],
         dataZoom: [
             {
                 type: 'inside',
-                xAxisIndex: [0, 1, 2],
+                xAxisIndex: [0, 1],
                 start: 0,
                 end: 100
             },
             {
                 type: 'slider',
-                xAxisIndex: [0, 1, 2],
+                xAxisIndex: [0, 1],
                 start: 0,
                 end: 100,
                 height: 40,
@@ -236,26 +191,6 @@ function CombinedChart({ data }) {
                     }
                 },
                 data: volumeData
-            },
-            {
-                name: '上涨',
-                type: 'line',
-                xAxisIndex: 2,
-                yAxisIndex: 2,
-                smooth: true,
-                showSymbol: false,
-                lineStyle: { width: 2, color: '#10b981' },
-                data: upData
-            },
-            {
-                name: '下跌',
-                type: 'line',
-                xAxisIndex: 2,
-                yAxisIndex: 2,
-                smooth: true,
-                showSymbol: false,
-                lineStyle: { width: 2, color: '#ef4444' },
-                data: downData
             }
         ]
     }
@@ -263,7 +198,7 @@ function CombinedChart({ data }) {
     return (
         <ReactECharts
             option={option}
-            style={{ height: '650px', width: '100%' }}
+            style={{ height: '480px', width: '100%' }}
             opts={{ renderer: 'canvas' }}
             notMerge={true}
         />
