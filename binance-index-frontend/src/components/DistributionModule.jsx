@@ -140,11 +140,27 @@ function DistributionModule() {
                             <div style="color: #94a3b8;">该区间暂无币种</div>
                         </div>`
                     }
-                    return `<div style="padding: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 4px;">${bucket.range}</div>
-                        <div>币种数量: <span style="color: #6366f1; font-weight: 600;">${bucket.count}</span></div>
-                        <div style="font-size: 11px; color: #10b981; margin-top: 4px; font-weight: 500;">👆 点击查看详情</div>
-                    </div>`
+                    let html = `<div style="padding: 8px; max-width: 320px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">${bucket.range}</div>
+                        <div>币种数量: <span style="color: #6366f1; font-weight: 600;">${bucket.count}</span></div>`
+                    if (bucket.coins && bucket.coins.length > 0) {
+                        const displayCoins = bucket.coins.slice(0, 20)
+                        const moreCount = bucket.coins.length - 20
+                        // 每4个一行显示
+                        let coinsHtml = '<div style="margin-top: 6px; font-size: 11px; color: #94a3b8;">'
+                        for (let i = 0; i < displayCoins.length; i += 4) {
+                            const row = displayCoins.slice(i, i + 4).join(', ')
+                            coinsHtml += `<div style="margin: 2px 0;">${row}</div>`
+                        }
+                        if (moreCount > 0) {
+                            coinsHtml += `<div style="margin-top: 4px; color: #64748b;">等 ${moreCount} 个...</div>`
+                        }
+                        coinsHtml += '</div>'
+                        html += coinsHtml
+                    }
+                    html += '<div style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500;">👆 点击查看完整排行</div>'
+                    html += '</div>'
+                    return html
                 }
             },
             grid: {
@@ -315,7 +331,7 @@ function DistributionModule() {
                                         title="点击复制"
                                     >
                                         <span className="rank">{index + 1}</span>
-                                        <span className="symbol">{coin.symbol.replace('USDT', '')}</span>
+                                        <span className="symbol">{coin.symbol}</span>
                                         <span className={`change ${coin.changePercent >= 0 ? 'positive' : 'negative'}`}>
                                             {coin.changePercent >= 0 ? '+' : ''}{coin.changePercent.toFixed(2)}%
                                         </span>
