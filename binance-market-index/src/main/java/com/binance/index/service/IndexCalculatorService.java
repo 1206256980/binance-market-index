@@ -114,11 +114,6 @@ public class IndexCalculatorService {
             double changePercent = (kline.getClosePrice() - basePrice) / basePrice * 100;
             double volume = kline.getVolume(); // 5分钟成交额
 
-            // 过滤异常值
-            if (Math.abs(changePercent) > 200 || volume <= 0) {
-                continue;
-            }
-
             // 统计涨跌数量
             if (changePercent > 0) {
                 upCount++;
@@ -201,7 +196,7 @@ public class IndexCalculatorService {
 
     /**
      * 回补历史数据
-     * 
+     *
      * @param days 回补天数
      */
     public void backfillHistoricalData(int days) {
@@ -312,11 +307,6 @@ public class IndexCalculatorService {
                 double changePercent = (kline.getClosePrice() - basePrice) / basePrice * 100;
                 double volume = kline.getVolume();
 
-                // 过滤异常值
-                if (Math.abs(changePercent) > 200 || volume <= 0) {
-                    continue;
-                }
-
                 // 统计涨跌数量
                 if (changePercent > 0) {
                     upCount++;
@@ -405,7 +395,7 @@ public class IndexCalculatorService {
 
     /**
      * 获取涨幅分布数据（从数据库读取，速度快）
-     * 
+     *
      * @param hours 基准时间（多少小时前），支持小数
      * @return 涨幅分布数据
      */
@@ -470,26 +460,20 @@ public class IndexCalculatorService {
 
             if (basePrice != null && basePrice > 0 && currentPrice != null && currentPrice > 0) {
                 double changePercent = (currentPrice - basePrice) / basePrice * 100;
-                // 过滤异常值
-                if (Math.abs(changePercent) <= 200) {
-                    changeMap.put(symbol, changePercent);
+                changeMap.put(symbol, changePercent);
 
-                    // 计算最高涨跌幅
-                    if (maxPrice != null && maxPrice > 0) {
-                        double maxChangePercent = (maxPrice - basePrice) / basePrice * 100;
-                        if (Math.abs(maxChangePercent) <= 200) {
-                            maxChangeMap.put(symbol, maxChangePercent);
-                        }
-                    }
-
-                    // 计算最低涨跌幅
-                    if (minPrice != null && minPrice > 0) {
-                        double minChangePercent = (minPrice - basePrice) / basePrice * 100;
-                        if (Math.abs(minChangePercent) <= 200) {
-                            minChangeMap.put(symbol, minChangePercent);
-                        }
-                    }
+                // 计算最高涨跌幅
+                if (maxPrice != null && maxPrice > 0) {
+                    double maxChangePercent = (maxPrice - basePrice) / basePrice * 100;
+                    maxChangeMap.put(symbol, maxChangePercent);
                 }
+
+                // 计算最低涨跌幅
+                if (minPrice != null && minPrice > 0) {
+                    double minChangePercent = (minPrice - basePrice) / basePrice * 100;
+                    minChangeMap.put(symbol, minChangePercent);
+                }
+
             }
         }
 
