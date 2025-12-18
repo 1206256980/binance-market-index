@@ -311,10 +311,11 @@ public class BinanceApiService {
     }
 
     /**
-     * 获取单个交易对最新的一根K线数据（用于实时采集）
+     * 获取单个交易对最新的一根【已闭合】K线数据（用于实时采集）
+     * 注意：limit=2 返回的第一根是已闭合的，第二根是正在形成的
      * 
      * @param symbol 交易对
-     * @return 最新的K线数据，如果获取失败返回null
+     * @return 最新的已闭合K线数据，如果获取失败返回null
      */
     public KlineData getLatestKline(String symbol) {
         // 检查是否被限流
@@ -323,8 +324,8 @@ public class BinanceApiService {
         }
         
         try {
-            // 获取最新的1根5分钟K线
-            String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=5m&limit=1",
+            // 获取最新的2根5分钟K线，取第一根（已闭合的那根）
+            String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=5m&limit=2",
                     baseUrl, symbol);
 
             Request request = new Request.Builder().url(url).get().build();
@@ -341,8 +342,9 @@ public class BinanceApiService {
                 if (response.isSuccessful() && response.body() != null) {
                     JsonNode root = objectMapper.readTree(response.body().string());
 
-                    if (root.isArray() && root.size() > 0) {
-                        JsonNode klineNode = root.get(0);
+                    // 取第一根K线（已闭合的那根，而不是正在形成的第二根）
+                    if (root.isArray() && root.size() >= 2) {
+                        JsonNode klineNode = root.get(0);  // 取第一根，已闭合
                         // K线数据格式: [openTime, open, high, low, close, volume, closeTime, quoteVolume,
                         // ...]
                         long openTime = klineNode.get(0).asLong();

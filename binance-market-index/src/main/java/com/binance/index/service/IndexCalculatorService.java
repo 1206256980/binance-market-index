@@ -176,7 +176,16 @@ public class IndexCalculatorService {
 
         List<String> symbols = binanceApiService.getAllUsdtSymbols();
         long now = System.currentTimeMillis();
-        long startTime = now - (long) days * 24 * 60 * 60 * 1000;
+        
+        // 对齐到上一个5分钟边界（确保只获取已闭合的K线）
+        // 例如：当前 09:02，对齐到 09:00，这样只会拿到 <=08:55 的已闭合K线
+        long fiveMinutesMs = 5 * 60 * 1000;
+        long alignedEndTime = (now / fiveMinutesMs) * fiveMinutesMs;
+        long startTime = alignedEndTime - (long) days * 24 * 60 * 60 * 1000;
+        
+        log.info("回补时间范围: {} -> {} (对齐到5分钟边界)", 
+                LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(startTime), ZoneId.systemDefault()),
+                LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(alignedEndTime), ZoneId.systemDefault()));
 
         // 存储每个时间点的所有币种数据: timestamp -> (symbol -> KlineData)
         Map<Long, Map<String, KlineData>> timeSeriesData = new TreeMap<>();
@@ -186,7 +195,7 @@ public class IndexCalculatorService {
         for (String symbol : symbols) {
             try {
                 List<KlineData> klines = binanceApiService.getKlinesWithPagination(
-                        symbol, "5m", startTime, now, 500);
+                        symbol, "5m", startTime, alignedEndTime, 500);
 
                 for (KlineData kline : klines) {
                     long timestamp = kline.getTimestamp()
