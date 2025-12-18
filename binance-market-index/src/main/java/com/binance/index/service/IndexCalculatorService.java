@@ -249,13 +249,23 @@ public class IndexCalculatorService {
         // 计算每个时间点的指数
         List<MarketIndex> indexList = new ArrayList<>();
 
+        // 批量查询已存在的时间戳（优化：1次查询替代2000+次查询）
+        LocalDateTime backfillStart = LocalDateTime.now().minusDays(days);
+        LocalDateTime backfillEnd = LocalDateTime.now();
+        Set<LocalDateTime> existingIndexTimestamps = new HashSet<>(
+                marketIndexRepository.findAllTimestampsBetween(backfillStart, backfillEnd));
+        Set<LocalDateTime> existingPriceTimestamps = new HashSet<>(
+                coinPriceRepository.findAllDistinctTimestampsBetween(backfillStart, backfillEnd));
+        log.info("已存在指数时间点: {} 个, 价格时间点: {} 个",
+                existingIndexTimestamps.size(), existingPriceTimestamps.size());
+
         for (Map.Entry<Long, Map<String, KlineData>> entry : timeSeriesData.entrySet()) {
             LocalDateTime timestamp = LocalDateTime.ofInstant(
                     java.time.Instant.ofEpochMilli(entry.getKey()),
                     ZoneId.systemDefault());
 
-            // 跳过已存在的数据
-            if (marketIndexRepository.existsByTimestamp(timestamp)) {
+            // 跳过已存在的数据（使用内存Set快速判断）
+            if (existingIndexTimestamps.contains(timestamp)) {
                 continue;
             }
 
@@ -315,8 +325,8 @@ public class IndexCalculatorService {
                     java.time.Instant.ofEpochMilli(entry.getKey()),
                     ZoneId.systemDefault());
 
-            // 跳过已有价格数据的时间点
-            if (coinPriceRepository.existsByTimestamp(timestamp)) {
+            // 跳过已有价格数据的时间点（使用内存Set快速判断）
+            if (existingPriceTimestamps.contains(timestamp)) {
                 continue;
             }
 

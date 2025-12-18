@@ -47,4 +47,11 @@ public interface MarketIndexRepository extends JpaRepository<MarketIndex, Long> 
      * 统计指定时间范围内的记录数
      */
     long countByTimestampBetween(LocalDateTime start, LocalDateTime end);
+
+    /**
+     * 批量查询时间范围内所有已存在的时间戳（用于优化回补时的存在性检查）
+     */
+    @Query("SELECT m.timestamp FROM MarketIndex m WHERE m.timestamp >= :startTime AND m.timestamp <= :endTime")
+    List<LocalDateTime> findAllTimestampsBetween(@Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }
