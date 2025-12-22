@@ -33,6 +33,13 @@ public interface CoinPriceRepository extends JpaRepository<CoinPrice, Long> {
         List<CoinPrice> findEarliestPricesAfter(@Param("startTime") LocalDateTime startTime);
 
         /**
+         * 获取指定时间之前最晚的时间点的价格
+         */
+        @Query("SELECT cp FROM CoinPrice cp WHERE cp.timestamp = " +
+                        "(SELECT MAX(cp2.timestamp) FROM CoinPrice cp2 WHERE cp2.timestamp <= :endTime)")
+        List<CoinPrice> findLatestPricesBefore(@Param("endTime") LocalDateTime endTime);
+
+        /**
          * 获取最新时间点的所有币种价格
          */
         @Query("SELECT cp FROM CoinPrice cp WHERE cp.timestamp = " +

@@ -159,17 +159,82 @@ public class IndexController {
     /**
      * 获取涨幅分布数据
      * 
-     * @param hours 基准时间（多少小时前），支持小数如0.25表示15分钟，默认168小时（7天）
+     * 支持两种模式：
+     * 1. 相对时间模式: hours=24 (表示从24小时前到现在)
+     * 2. 绝对时间模式: start=2024-12-12 10:05&end=2024-12-12 10:15 (指定时间范围)
+     * 
+     * 绝对时间模式优先级更高，如果同时传了start/end和hours，使用绝对时间模式
+     * 
+     * @param hours    相对基准时间（多少小时前），支持小数如0.25表示15分钟，默认168小时（7天）
+     * @param start    开始时间（基准价格时间），格式: yyyy-MM-dd HH:mm
+     * @param end      结束时间（当前价格时间），格式: yyyy-MM-dd HH:mm
+     * @param timezone 输入时间的时区，默认 Asia/Shanghai
      */
     @GetMapping("/distribution")
     public ResponseEntity<Map<String, Object>> getDistribution(
-            @RequestParam(defaultValue = "168") double hours) {
-
-        DistributionData data = indexCalculatorService.getDistribution(hours);
+            @RequestParam(defaultValue = "168") double hours,
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
 
         Map<String, Object> response = new HashMap<>();
+
+        // 如果提供了 start 和 end，使用绝对时间模式
+        if (start != null && end != null && !start.isEmpty() && !end.isEmpty()) {
+            try {
+                // 解析时间
+                java.time.LocalDateTime startLocal = parseDateTime(start);
+                java.time.LocalDateTime endLocal = parseDateTime(end);
+
+                // 将输入时间从用户时区转换为UTC
+                java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+                java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+
+                java.time.LocalDateTime startUtc = startLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                        .toLocalDateTime();
+                java.time.LocalDateTime endUtc = endLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                        .toLocalDateTime();
+
+                // 验证时间范围
+                if (startUtc.isAfter(endUtc)) {
+                    response.put("success", false);
+                    response.put("message", "开始时间不能晚于结束时间");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                DistributionData data = indexCalculatorService.getDistributionByTimeRange(startUtc, endUtc);
+
+                if (data != null) {
+                    response.put("success", true);
+                    response.put("mode", "timeRange");
+                    response.put("inputTimezone", timezone);
+                    response.put("inputStart", start);
+                    response.put("inputEnd", end);
+                    response.put("utcStart", startUtc.toString());
+                    response.put("utcEnd", endUtc.toString());
+                    response.put("data", data);
+                } else {
+                    response.put("success", false);
+                    response.put("message", "获取分布数据失败，可能指定时间范围内无数据");
+                }
+
+                return ResponseEntity.ok(response);
+
+            } catch (Exception e) {
+                response.put("success", false);
+                response.put("message", "时间格式错误，请使用格式: yyyy-MM-dd HH:mm");
+                response.put("error", e.getMessage());
+                return ResponseEntity.badRequest().body(response);
+            }
+        }
+
+        // 否则使用相对时间模式（原逻辑）
+        DistributionData data = indexCalculatorService.getDistribution(hours);
+
         if (data != null) {
             response.put("success", true);
+            response.put("mode", "hours");
+            response.put("hours", hours);
             response.put("data", data);
         } else {
             response.put("success", false);

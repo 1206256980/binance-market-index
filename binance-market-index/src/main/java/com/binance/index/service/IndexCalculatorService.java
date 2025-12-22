@@ -923,4 +923,200 @@ public class IndexCalculatorService {
         log.info("分布统计完成: 上涨={}, 下跌={}, 区间大小={}%", upCount, downCount, bucketSize);
         return data;
     }
+
+    /**
+     * 获取指定时间范围的涨幅分布数据
+     *
+     * @param startTime 开始时间（基准价格时间点）
+     * @param endTime   结束时间（当前价格时间点）
+     * @return 涨幅分布数据
+     */
+    public DistributionData getDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
+        log.info("计算涨幅分布，时间范围: {} -> {}", startTime, endTime);
+
+        long now = System.currentTimeMillis();
+
+        // 从数据库获取开始时间点（基准）的价格
+        List<CoinPrice> basePriceList = coinPriceRepository.findEarliestPricesAfter(startTime);
+        if (basePriceList.isEmpty()) {
+            log.warn("找不到开始时间 {} 附近的价格数据", startTime);
+            return null;
+        }
+        LocalDateTime actualStartTime = basePriceList.get(0).getTimestamp();
+
+        // 从数据库获取结束时间点的价格
+        List<CoinPrice> endPriceList = coinPriceRepository.findLatestPricesBefore(endTime);
+        if (endPriceList.isEmpty()) {
+            log.warn("找不到结束时间 {} 附近的价格数据", endTime);
+            return null;
+        }
+        LocalDateTime actualEndTime = endPriceList.get(0).getTimestamp();
+
+        log.info("[时间调试] 请求范围: {} -> {}, 实际数据范围: {} -> {}",
+                startTime, endTime, actualStartTime, actualEndTime);
+
+        // 转换为Map便于查找
+        // 基准价格使用开盘价
+        Map<String, Double> basePriceMap = basePriceList.stream()
+                .filter(cp -> cp.getOpenPrice() != null)
+                .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getOpenPrice, (a, b) -> a));
+        // 结束价格使用收盘价
+        Map<String, Double> endPriceMap = endPriceList.stream()
+                .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+
+        // 获取时间区间内的最高/最低价格
+        List<Object[]> maxPricesResult = coinPriceRepository.findMaxPricesBySymbolInRange(actualStartTime, actualEndTime);
+        List<Object[]> minPricesResult = coinPriceRepository.findMinPricesBySymbolInRange(actualStartTime, actualEndTime);
+
+        Map<String, Double> maxPriceMap = maxPricesResult.stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Double) row[1],
+                        (a, b) -> a));
+        Map<String, Double> minPriceMap = minPricesResult.stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Double) row[1],
+                        (a, b) -> a));
+
+        log.info("从数据库获取价格: 基准={} 个, 结束={} 个, 最高={} 个, 最低={} 个",
+                basePriceMap.size(), endPriceMap.size(), maxPriceMap.size(), minPriceMap.size());
+
+        // 计算涨跌幅（使用结束价格与基准价格比较）
+        Map<String, Double> changeMap = new HashMap<>();
+        Map<String, Double> maxChangeMap = new HashMap<>();
+        Map<String, Double> minChangeMap = new HashMap<>();
+
+        for (Map.Entry<String, Double> entry : endPriceMap.entrySet()) {
+            String symbol = entry.getKey();
+            Double endPrice = entry.getValue();
+            Double basePrice = basePriceMap.get(symbol);
+            Double maxPrice = maxPriceMap.get(symbol);
+            Double minPrice = minPriceMap.get(symbol);
+
+            if (basePrice != null && basePrice > 0 && endPrice != null && endPrice > 0) {
+                double changePercent = (endPrice - basePrice) / basePrice * 100;
+                changeMap.put(symbol, changePercent);
+
+                // 计算最高涨跌幅
+                if (maxPrice != null && maxPrice > 0) {
+                    double maxChangePercent = (maxPrice - basePrice) / basePrice * 100;
+                    maxChangeMap.put(symbol, maxChangePercent);
+                }
+
+                // 计算最低涨跌幅
+                if (minPrice != null && minPrice > 0) {
+                    double minChangePercent = (minPrice - basePrice) / basePrice * 100;
+                    minChangeMap.put(symbol, minChangePercent);
+                }
+            }
+        }
+
+        log.info("涨跌幅计算完成: {} 个币种", changeMap.size());
+
+        if (changeMap.isEmpty()) {
+            log.warn("没有有效的涨跌幅数据");
+            return null;
+        }
+
+        // 计算涨跌幅范围
+        double minChange = changeMap.values().stream().mapToDouble(Double::doubleValue).min().orElse(0);
+        double maxChange = changeMap.values().stream().mapToDouble(Double::doubleValue).max().orElse(0);
+
+        // 根据数据范围动态确定区间大小
+        double range = maxChange - minChange;
+        double bucketSize;
+        if (range <= 2) {
+            bucketSize = 0.2;
+        } else if (range <= 5) {
+            bucketSize = 0.5;
+        } else if (range <= 20) {
+            bucketSize = 1;
+        } else if (range <= 50) {
+            bucketSize = 2;
+        } else {
+            bucketSize = 5;
+        }
+
+        // 计算区间边界
+        double bucketMin = Math.floor(minChange / bucketSize) * bucketSize;
+        double bucketMax = Math.ceil(maxChange / bucketSize) * bucketSize;
+
+        // 创建区间
+        Map<String, List<String>> buckets = new LinkedHashMap<>();
+        for (double start = bucketMin; start < bucketMax; start += bucketSize) {
+            String rangeKey;
+            if (bucketSize < 1) {
+                rangeKey = String.format("%.1f%%~%.1f%%", start, start + bucketSize);
+            } else {
+                rangeKey = String.format("%.0f%%~%.0f%%", start, start + bucketSize);
+            }
+            buckets.put(rangeKey, new ArrayList<>());
+        }
+
+        // 分配币种到区间
+        int upCount = 0;
+        int downCount = 0;
+
+        for (Map.Entry<String, Double> entry : changeMap.entrySet()) {
+            String symbol = entry.getKey();
+            double change = entry.getValue();
+
+            if (change > 0)
+                upCount++;
+            else if (change < 0)
+                downCount++;
+
+            double bucketStart = Math.floor(change / bucketSize) * bucketSize;
+            String rangeKey;
+            if (bucketSize < 1) {
+                rangeKey = String.format("%.1f%%~%.1f%%", bucketStart, bucketStart + bucketSize);
+            } else {
+                rangeKey = String.format("%.0f%%~%.0f%%", bucketStart, bucketStart + bucketSize);
+            }
+
+            if (buckets.containsKey(rangeKey)) {
+                buckets.get(rangeKey).add(symbol);
+            }
+        }
+
+        // 构建响应
+        DistributionData data = new DistributionData();
+        data.setTimestamp(now);
+        data.setTotalCoins(changeMap.size());
+        data.setUpCount(upCount);
+        data.setDownCount(downCount);
+
+        List<DistributionBucket> distribution = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : buckets.entrySet()) {
+            List<String> coins = entry.getValue();
+
+            List<DistributionBucket.CoinDetail> coinDetails = coins.stream()
+                    .map(symbol -> new DistributionBucket.CoinDetail(
+                            symbol,
+                            changeMap.getOrDefault(symbol, 0.0),
+                            maxChangeMap.getOrDefault(symbol, 0.0),
+                            minChangeMap.getOrDefault(symbol, 0.0)))
+                    .sorted((a, b) -> Double.compare(b.getChangePercent(), a.getChangePercent()))
+                    .collect(Collectors.toList());
+
+            distribution.add(new DistributionBucket(entry.getKey(), coins.size(), coins, coinDetails));
+        }
+        data.setDistribution(distribution);
+
+        // 构建所有币种排行榜
+        List<DistributionBucket.CoinDetail> allCoinsRanking = changeMap.entrySet().stream()
+                .map(e -> new DistributionBucket.CoinDetail(
+                        e.getKey(),
+                        e.getValue(),
+                        maxChangeMap.getOrDefault(e.getKey(), 0.0),
+                        minChangeMap.getOrDefault(e.getKey(), 0.0)))
+                .sorted((a, b) -> Double.compare(b.getChangePercent(), a.getChangePercent()))
+                .collect(Collectors.toList());
+        data.setAllCoinsRanking(allCoinsRanking);
+
+        log.info("分布统计完成: 时间范围 {} -> {}, 上涨={}, 下跌={}, 区间大小={}%",
+                actualStartTime, actualEndTime, upCount, downCount, bucketSize);
+        return data;
+    }
 }

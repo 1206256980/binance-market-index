@@ -23,8 +23,27 @@ const TIME_OPTIONS = [
     { label: '100天', value: 2400 }
 ]
 
+// 格式化日期时间为 yyyy-MM-dd HH:mm 格式
+const formatDateTime = (date) => {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+// 获取默认时间范围（当前时间往前推1天）
+const getDefaultTimeRange = () => {
+    const now = new Date()
+    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 1天前
+    return {
+        start: formatDateTime(start),
+        end: formatDateTime(now)
+    }
+}
+
 function DistributionModule() {
+    const [timeMode, setTimeMode] = useState('hours') // 'hours' 或 'range'
     const [timeBase, setTimeBase] = useState(24) // 默认24小时
+    const [startTime, setStartTime] = useState(getDefaultTimeRange().start)
+    const [endTime, setEndTime] = useState(getDefaultTimeRange().end)
     const [distributionData, setDistributionData] = useState(null)
     const [loading, setLoading] = useState(false)
     const [selectedBucket, setSelectedBucket] = useState(null) // 选中的区间
@@ -34,46 +53,58 @@ function DistributionModule() {
     const [sortOrder, setSortOrder] = useState('desc') // 排序方向: asc, desc
     const chartRef = useRef(null)
 
+    // 构建API URL
+    const buildApiUrl = useCallback(() => {
+        if (timeMode === 'range') {
+            return `/api/index/distribution?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
+        }
+        return `/api/index/distribution?hours=${timeBase}`
+    }, [timeMode, timeBase, startTime, endTime])
+
     // 获取分布数据（首次加载或切换时间时关闭面板）
     const fetchDistribution = useCallback(async () => {
         setLoading(true)
         setSelectedBucket(null) // 切换时间时关闭面板
         setShowAllRanking(false)
         try {
-            const res = await axios.get(`/api/index/distribution?hours=${timeBase}`)
+            const res = await axios.get(buildApiUrl())
             if (res.data.success) {
                 setDistributionData(res.data.data)
+            } else {
+                console.error('获取分布数据失败:', res.data.message)
             }
         } catch (err) {
             console.error('获取分布数据失败:', err)
         }
         setLoading(false)
-    }, [timeBase])
+    }, [buildApiUrl])
 
     // 静默刷新（不关闭面板，用于自动刷新）
     const silentRefresh = useCallback(async () => {
         try {
-            const res = await axios.get(`/api/index/distribution?hours=${timeBase}`)
+            const res = await axios.get(buildApiUrl())
             if (res.data.success) {
                 setDistributionData(res.data.data)
             }
         } catch (err) {
             console.error('自动刷新分布数据失败:', err)
         }
-    }, [timeBase])
+    }, [buildApiUrl])
 
     useEffect(() => {
         fetchDistribution()
     }, [fetchDistribution])
 
-    // 自动刷新（每分钟）
+    // 自动刷新（每分钟，仅在相对时间模式下）
     useEffect(() => {
+        if (timeMode !== 'hours') return // 绝对时间模式不自动刷新
+
         const interval = setInterval(() => {
             silentRefresh()
-        }, 60000) // 每分钟刷新
+        }, 60000)
 
         return () => clearInterval(interval)
-    }, [silentRefresh])
+    }, [timeMode, silentRefresh])
 
     // 复制币种名称（支持 HTTP 环境的降级方案）
     const handleCopySymbol = async (symbol) => {
@@ -304,18 +335,62 @@ function DistributionModule() {
             <div className="distribution-header">
                 <div className="distribution-title">📊 涨幅分布分析</div>
                 <div className="time-base-selector">
-                    <span className="label">基准时间:</span>
-                    <select
-                        className="time-select"
-                        value={timeBase}
-                        onChange={(e) => setTimeBase(Number(e.target.value))}
-                    >
-                        {TIME_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
+                    {/* 时间模式切换 */}
+                    <div className="time-mode-toggle">
+                        <button
+                            className={`mode-btn ${timeMode === 'hours' ? 'active' : ''}`}
+                            onClick={() => setTimeMode('hours')}
+                        >
+                            相对时间
+                        </button>
+                        <button
+                            className={`mode-btn ${timeMode === 'range' ? 'active' : ''}`}
+                            onClick={() => setTimeMode('range')}
+                        >
+                            时间范围
+                        </button>
+                    </div>
+
+                    {/* 相对时间模式 */}
+                    {timeMode === 'hours' && (
+                        <>
+                            <span className="label">基准时间:</span>
+                            <select
+                                className="time-select"
+                                value={timeBase}
+                                onChange={(e) => setTimeBase(Number(e.target.value))}
+                            >
+                                {TIME_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </>
+                    )}
+
+                    {/* 绝对时间范围模式 */}
+                    {timeMode === 'range' && (
+                        <>
+                            <span className="label">开始:</span>
+                            <input
+                                type="text"
+                                className="time-input"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                placeholder="yyyy-MM-dd HH:mm"
+                            />
+                            <span className="label">结束:</span>
+                            <input
+                                type="text"
+                                className="time-input"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                placeholder="yyyy-MM-dd HH:mm"
+                            />
+                        </>
+                    )}
+
                     <button
                         className="refresh-btn"
                         onClick={fetchDistribution}

@@ -392,6 +392,67 @@ body {
   margin-left: var(--spacing-sm);
 }
 
+/* 时间模式切换按钮 */
+.time-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-primary);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.time-mode-toggle .mode-btn {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-mode-toggle .mode-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.time-mode-toggle .mode-btn.active {
+  background: var(--accent-gradient);
+  color: white;
+}
+
+/* 时间输入框 */
+.time-base-selector .time-input {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  width: 145px;
+  transition: all 0.2s ease;
+}
+
+.time-base-selector .time-input:hover {
+  border-color: var(--accent-primary);
+  background-color: var(--bg-card-hover);
+}
+
+.time-base-selector .time-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.time-base-selector .time-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* 分布统计 */
 .distribution-stats {
   display: flex;
