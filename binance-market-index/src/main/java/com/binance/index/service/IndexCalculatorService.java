@@ -831,6 +831,24 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 时间对齐到5分钟（向上取整）
+     */
+    private LocalDateTime alignToFiveMinutesCeil(LocalDateTime time) {
+        int minute = time.getMinute();
+        int second = time.getSecond();
+        int nano = time.getNano();
+        // 如果已经是整5分钟，直接返回
+        if (minute % 5 == 0 && second == 0 && nano == 0) {
+            return time.withSecond(0).withNano(0);
+        }
+        int alignedMinute = ((minute / 5) + 1) * 5;
+        if (alignedMinute >= 60) {
+            return time.plusHours(1).withMinute(0).withSecond(0).withNano(0);
+        }
+        return time.withMinute(alignedMinute).withSecond(0).withNano(0);
+    }
+
+    /**
      * 获取涨幅分布数据（从数据库读取，速度快）
      *
      * @param hours 基准时间（多少小时前），支持小数
@@ -1045,12 +1063,15 @@ public class IndexCalculatorService {
      * @return 涨幅分布数据
      */
     public DistributionData getDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
-        log.info("计算涨幅分布，时间范围: {} -> {}", startTime, endTime);
+        // 对齐时间到5分钟边界：统一向下取整
+        LocalDateTime alignedStart = alignToFiveMinutes(startTime);
+        LocalDateTime alignedEnd = alignToFiveMinutes(endTime);
+        log.info("计算涨幅分布，时间范围: {} -> {} (对齐后)", alignedStart, alignedEnd);
 
         long now = System.currentTimeMillis();
 
         // 从数据库获取开始时间点（基准）的价格
-        List<CoinPrice> basePriceList = coinPriceRepository.findEarliestPricesAfter(startTime);
+        List<CoinPrice> basePriceList = coinPriceRepository.findEarliestPricesAfter(alignedStart);
         if (basePriceList.isEmpty()) {
             log.warn("找不到开始时间 {} 附近的价格数据", startTime);
             return null;
@@ -1058,15 +1079,15 @@ public class IndexCalculatorService {
         LocalDateTime actualStartTime = basePriceList.get(0).getTimestamp();
 
         // 从数据库获取结束时间点的价格
-        List<CoinPrice> endPriceList = coinPriceRepository.findLatestPricesBefore(endTime);
+        List<CoinPrice> endPriceList = coinPriceRepository.findLatestPricesBefore(alignedEnd);
         if (endPriceList.isEmpty()) {
-            log.warn("找不到结束时间 {} 附近的价格数据", endTime);
+            log.warn("找不到结束时间 {} 附近的价格数据", alignedEnd);
             return null;
         }
         LocalDateTime actualEndTime = endPriceList.get(0).getTimestamp();
 
-        log.info("[时间调试] 请求范围: {} -> {}, 实际数据范围: {} -> {}",
-                startTime, endTime, actualStartTime, actualEndTime);
+        log.info("[时间调试] 请求范围: {} -> {}, 对齐后: {} -> {}, 实际数据范围: {} -> {}",
+                startTime, endTime, alignedStart, alignedEnd, actualStartTime, actualEndTime);
 
         // 转换为Map便于查找
         // 基准价格使用开盘价
@@ -1265,10 +1286,13 @@ public class IndexCalculatorService {
      */
     public UptrendData getUptrendDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime,
             double keepRatio, int noNewHighCandles, double minUptrend) {
-        log.info("计算单边涨幅分布: {} -> {}, 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
+        // 对齐时间到5分钟边界：统一向下取整
+        LocalDateTime alignedStart = alignToFiveMinutes(startTime);
+        LocalDateTime alignedEnd = alignToFiveMinutes(endTime);
+        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend);
 
         // 获取时间范围内所有币种
-        List<String> symbols = coinPriceRepository.findDistinctSymbolsInRange(startTime, endTime);
+        List<String> symbols = coinPriceRepository.findDistinctSymbolsInRange(alignedStart, alignedEnd);
         if (symbols.isEmpty()) {
             log.warn("时间范围内没有数据");
             return null;
@@ -1281,7 +1305,7 @@ public class IndexCalculatorService {
         int ongoingCount = 0;
 
         for (String symbol : symbols) {
-            List<UptrendData.CoinUptrend> waves = calculateSymbolAllWaves(symbol, startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
+            List<UptrendData.CoinUptrend> waves = calculateSymbolAllWaves(symbol, alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend);
             allWaves.addAll(waves);
             for (UptrendData.CoinUptrend wave : waves) {
                 if (wave.isOngoing()) {

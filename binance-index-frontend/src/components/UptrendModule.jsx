@@ -25,6 +25,9 @@ const formatTimestamp = (ts) => {
 
 function UptrendModule() {
     const [timeBase, setTimeBase] = useState(24) // 默认24小时
+    const [useCustomTime, setUseCustomTime] = useState(false) // 是否使用自定义时间
+    const [startTime, setStartTime] = useState('') // 开始时间
+    const [endTime, setEndTime] = useState('') // 结束时间
     const [keepRatio, setKeepRatio] = useState(0.75) // 默认0.75（保留75%涨幅）
     const [inputKeepRatio, setInputKeepRatio] = useState('75') // 输入框值（以%显示）
     const [noNewHighCandles, setNoNewHighCandles] = useState(6) // 默认6根K线
@@ -48,7 +51,16 @@ function UptrendModule() {
         setShowAllRanking(false)
         setSelectedSymbol(null)
         try {
-            const res = await axios.get(`/api/index/uptrend-distribution?hours=${timeBase}&keepRatio=${keepRatio}&noNewHighCandles=${noNewHighCandles}&minUptrend=${minUptrend}`)
+            let url = `/api/index/uptrend-distribution?keepRatio=${keepRatio}&noNewHighCandles=${noNewHighCandles}&minUptrend=${minUptrend}`
+            if (useCustomTime && startTime && endTime) {
+                // datetime-local格式: 2024-12-23T16:00 → API格式: 2024-12-23 16:00
+                const apiStart = startTime.replace('T', ' ')
+                const apiEnd = endTime.replace('T', ' ')
+                url += `&start=${encodeURIComponent(apiStart)}&end=${encodeURIComponent(apiEnd)}`
+            } else {
+                url += `&hours=${timeBase}`
+            }
+            const res = await axios.get(url)
             if (res.data.success) {
                 setUptrendData(res.data.data)
             } else {
@@ -58,7 +70,7 @@ function UptrendModule() {
             console.error('获取单边涨幅数据失败:', err)
         }
         setLoading(false)
-    }, [timeBase, keepRatio, noNewHighCandles, minUptrend])
+    }, [timeBase, keepRatio, noNewHighCandles, minUptrend, useCustomTime, startTime, endTime])
 
     useEffect(() => {
         fetchData()
@@ -346,18 +358,50 @@ function UptrendModule() {
             <div className="distribution-header">
                 <div className="distribution-title">🚀 单边上行涨幅分布 <span style={{ fontSize: '12px', color: '#94a3b8' }}>（马丁做空参考）</span></div>
                 <div className="time-base-selector">
-                    <span className="label">时间范围:</span>
-                    <select
-                        className="time-select"
-                        value={timeBase}
-                        onChange={(e) => setTimeBase(Number(e.target.value))}
-                    >
-                        {TIME_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
+                        <input
+                            type="checkbox"
+                            checked={useCustomTime}
+                            onChange={(e) => setUseCustomTime(e.target.checked)}
+                            style={{ marginRight: '4px' }}
+                        />
+                        <span className="label">自定义时间</span>
+                    </label>
+
+                    {useCustomTime ? (
+                        <>
+                            <input
+                                type="datetime-local"
+                                className="time-input"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                style={{ width: '160px', marginRight: '4px' }}
+                            />
+                            <span style={{ color: '#94a3b8' }}>至</span>
+                            <input
+                                type="datetime-local"
+                                className="time-input"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                style={{ width: '160px', marginLeft: '4px' }}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <span className="label">时间范围:</span>
+                            <select
+                                className="time-select"
+                                value={timeBase}
+                                onChange={(e) => setTimeBase(Number(e.target.value))}
+                            >
+                                {TIME_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </>
+                    )}
 
                     <span className="label" style={{ marginLeft: '12px' }}>保留:</span>
                     <input
