@@ -367,7 +367,7 @@ function UptrendModule() {
                         onChange={handleKeepRatioChange}
                         onBlur={applyKeepRatio}
                         onKeyDown={handleKeepRatioKeyDown}
-                        style={{ width: '40px', textAlign: 'center' }}
+                        style={{ width: '50px', textAlign: 'center' }}
                         title="位置比率低于此值视为波段结束"
                     />
                     <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
@@ -380,7 +380,7 @@ function UptrendModule() {
                         onChange={handleNoNewHighCandlesChange}
                         onBlur={applyNoNewHighCandles}
                         onKeyDown={handleNoNewHighCandlesKeyDown}
-                        style={{ width: '35px', textAlign: 'center' }}
+                        style={{ width: '45px', textAlign: 'center' }}
                         title="连续N根K线未创新高视为横盘结束"
                     />
                     <span style={{ color: '#94a3b8', marginLeft: '2px' }}>根</span>
@@ -393,7 +393,7 @@ function UptrendModule() {
                         onChange={handleMinUptrendChange}
                         onBlur={applyMinUptrend}
                         onKeyDown={handleMinUptrendKeyDown}
-                        style={{ width: '35px', textAlign: 'center' }}
+                        style={{ width: '45px', textAlign: 'center' }}
                         title="最小涨幅过滤"
                     />
                     <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
