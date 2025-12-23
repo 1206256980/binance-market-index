@@ -1002,8 +1002,8 @@ body {
 /* 单边涨幅排行项目样式 */
 .uptrend-item {
   display: grid;
-  grid-template-columns: 32px 1fr auto;
-  gap: 12px;
+  grid-template-columns: 32px 1fr auto 32px;
+  gap: 8px;
   align-items: center;
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
@@ -1018,6 +1018,11 @@ body {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  cursor: pointer;
+}
+
+.uptrend-item .coin-info:hover {
+  color: var(--danger);
 }
 
 .uptrend-item .symbol {
@@ -1029,13 +1034,14 @@ body {
 }
 
 .uptrend-item .ongoing-badge {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   padding: 2px 6px;
   background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-  color: white;
+  color: var(--warning);
   border-radius: 10px;
   font-weight: 500;
   white-space: nowrap;
+  margin-left: 6px;
 }
 
 .uptrend-item .time-range {
@@ -1059,4 +1065,25 @@ body {
 .uptrend-item .uptrend-value .price-range {
   font-size: 0.7rem;
   color: var(--text-muted);
+}
+
+/* 详情按钮 */
+.detail-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.detail-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  transform: scale(1.05);
 }

@@ -25,8 +25,12 @@ const formatTimestamp = (ts) => {
 
 function UptrendModule() {
     const [timeBase, setTimeBase] = useState(24) // 默认24小时
-    const [pullbackThreshold, setPullbackThreshold] = useState(6) // 默认6%
-    const [inputThreshold, setInputThreshold] = useState('6') // 输入框值
+    const [keepRatio, setKeepRatio] = useState(0.75) // 默认0.75（保留75%涨幅）
+    const [inputKeepRatio, setInputKeepRatio] = useState('75') // 输入框值（以%显示）
+    const [noNewHighCandles, setNoNewHighCandles] = useState(6) // 默认6根K线
+    const [inputNoNewHighCandles, setInputNoNewHighCandles] = useState('6')
+    const [minUptrend, setMinUptrend] = useState(4) // 默认4%
+    const [inputMinUptrend, setInputMinUptrend] = useState('4') // 输入框值
     const [uptrendData, setUptrendData] = useState(null)
     const [loading, setLoading] = useState(false)
     const [selectedBucket, setSelectedBucket] = useState(null) // 选中的区间
@@ -34,6 +38,7 @@ function UptrendModule() {
     const [copiedSymbol, setCopiedSymbol] = useState(null) // 复制提示
     const [sortOrder, setSortOrder] = useState('desc') // 排序方向
     const [filterOngoing, setFilterOngoing] = useState(false) // 只看进行中
+    const [selectedSymbol, setSelectedSymbol] = useState(null) // 选中的币种（查看详情）
     const chartRef = useRef(null)
 
     // 获取数据
@@ -41,8 +46,9 @@ function UptrendModule() {
         setLoading(true)
         setSelectedBucket(null)
         setShowAllRanking(false)
+        setSelectedSymbol(null)
         try {
-            const res = await axios.get(`/api/index/uptrend-distribution?hours=${timeBase}&pullback=${pullbackThreshold}`)
+            const res = await axios.get(`/api/index/uptrend-distribution?hours=${timeBase}&keepRatio=${keepRatio}&noNewHighCandles=${noNewHighCandles}&minUptrend=${minUptrend}`)
             if (res.data.success) {
                 setUptrendData(res.data.data)
             } else {
@@ -52,32 +58,75 @@ function UptrendModule() {
             console.error('获取单边涨幅数据失败:', err)
         }
         setLoading(false)
-    }, [timeBase, pullbackThreshold])
+    }, [timeBase, keepRatio, noNewHighCandles, minUptrend])
 
     useEffect(() => {
         fetchData()
     }, [fetchData])
 
-    // 处理阈值输入
-    const handleThresholdChange = (e) => {
-        setInputThreshold(e.target.value)
+    // 处理保留比率输入（用户输入75表示75%，内部存储0.75）
+    const handleKeepRatioChange = (e) => {
+        setInputKeepRatio(e.target.value)
     }
 
-    // 应用阈值
-    const applyThreshold = () => {
-        const val = parseFloat(inputThreshold)
-        if (!isNaN(val) && val > 0 && val <= 50) {
-            setPullbackThreshold(val)
+    const applyKeepRatio = () => {
+        const val = parseFloat(inputKeepRatio)
+        if (!isNaN(val) && val > 0 && val <= 100) {
+            setKeepRatio(val / 100) // 转换为0-1范围
         } else {
-            setInputThreshold(String(pullbackThreshold))
+            setInputKeepRatio(String(Math.round(keepRatio * 100)))
         }
     }
 
-    // 回车应用
-    const handleThresholdKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            applyThreshold()
+    const handleKeepRatioKeyDown = (e) => {
+        if (e.key === 'Enter') applyKeepRatio()
+    }
+
+    // 处理横盘K线数输入
+    const handleNoNewHighCandlesChange = (e) => {
+        setInputNoNewHighCandles(e.target.value)
+    }
+
+    const applyNoNewHighCandles = () => {
+        const val = parseInt(inputNoNewHighCandles)
+        if (!isNaN(val) && val >= 1 && val <= 100) {
+            setNoNewHighCandles(val)
+        } else {
+            setInputNoNewHighCandles(String(noNewHighCandles))
         }
+    }
+
+    const handleNoNewHighCandlesKeyDown = (e) => {
+        if (e.key === 'Enter') applyNoNewHighCandles()
+    }
+
+    // 处理最小涨幅输入
+    const handleMinUptrendChange = (e) => {
+        setInputMinUptrend(e.target.value)
+    }
+
+    // 应用最小涨幅
+    const applyMinUptrend = () => {
+        const val = parseFloat(inputMinUptrend)
+        if (!isNaN(val) && val >= 0 && val <= 50) {
+            setMinUptrend(val)
+        } else {
+            setInputMinUptrend(String(minUptrend))
+        }
+    }
+
+    // 回车应用最小涨幅
+    const handleMinUptrendKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            applyMinUptrend()
+        }
+    }
+
+    // 查看单个币种的所有波段
+    const handleViewSymbolWaves = (symbol) => {
+        setSelectedSymbol(symbol)
+        setSelectedBucket(null)
+        setShowAllRanking(false)
     }
 
     // 复制币种名称
@@ -106,6 +155,7 @@ function UptrendModule() {
     const closePanel = () => {
         setSelectedBucket(null)
         setShowAllRanking(false)
+        setSelectedSymbol(null)
     }
 
     // 图表点击事件
@@ -261,17 +311,26 @@ function UptrendModule() {
 
     // 获取排行数据
     const getRankingData = () => {
+        // 显示特定币种的所有波段
+        if (selectedSymbol && uptrendData?.allCoinsRanking) {
+            const symbolWaves = uptrendData.allCoinsRanking.filter(c => c.symbol === selectedSymbol)
+            return {
+                title: `${selectedSymbol} 波段详情`,
+                subtitle: `共 ${symbolWaves.length} 个波段`,
+                coins: sortCoins(symbolWaves)
+            }
+        }
         if (showAllRanking && uptrendData?.allCoinsRanking) {
             return {
-                title: '全部币种单边涨幅排行',
-                subtitle: `共 ${uptrendData.totalCoins} 个币种`,
+                title: '全部单边涨幅波段排行',
+                subtitle: `共 ${uptrendData.totalCoins} 个波段`,
                 coins: sortCoins(uptrendData.allCoinsRanking)
             }
         }
         if (selectedBucket) {
             return {
                 title: selectedBucket.range,
-                subtitle: `${selectedBucket.count} 个币种`,
+                subtitle: `${selectedBucket.count} 个波段`,
                 coins: sortCoins(selectedBucket.coins)
             }
         }
@@ -279,7 +338,7 @@ function UptrendModule() {
     }
 
     const rankingData = getRankingData()
-    const isPanelOpen = showAllRanking || selectedBucket
+    const isPanelOpen = showAllRanking || selectedBucket || selectedSymbol
 
     return (
         <div className="distribution-module uptrend-module">
@@ -300,15 +359,42 @@ function UptrendModule() {
                         ))}
                     </select>
 
-                    <span className="label" style={{ marginLeft: '12px' }}>回调阈值:</span>
+                    <span className="label" style={{ marginLeft: '12px' }}>保留:</span>
                     <input
                         type="text"
                         className="threshold-input"
-                        value={inputThreshold}
-                        onChange={handleThresholdChange}
-                        onBlur={applyThreshold}
-                        onKeyDown={handleThresholdKeyDown}
-                        style={{ width: '50px', textAlign: 'center' }}
+                        value={inputKeepRatio}
+                        onChange={handleKeepRatioChange}
+                        onBlur={applyKeepRatio}
+                        onKeyDown={handleKeepRatioKeyDown}
+                        style={{ width: '40px', textAlign: 'center' }}
+                        title="位置比率低于此值视为波段结束"
+                    />
+                    <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
+
+                    <span className="label" style={{ marginLeft: '8px' }}>横盘:</span>
+                    <input
+                        type="text"
+                        className="threshold-input"
+                        value={inputNoNewHighCandles}
+                        onChange={handleNoNewHighCandlesChange}
+                        onBlur={applyNoNewHighCandles}
+                        onKeyDown={handleNoNewHighCandlesKeyDown}
+                        style={{ width: '35px', textAlign: 'center' }}
+                        title="连续N根K线未创新高视为横盘结束"
+                    />
+                    <span style={{ color: '#94a3b8', marginLeft: '2px' }}>根</span>
+
+                    <span className="label" style={{ marginLeft: '8px' }}>最小:</span>
+                    <input
+                        type="text"
+                        className="threshold-input"
+                        value={inputMinUptrend}
+                        onChange={handleMinUptrendChange}
+                        onBlur={applyMinUptrend}
+                        onKeyDown={handleMinUptrendKeyDown}
+                        style={{ width: '35px', textAlign: 'center' }}
+                        title="最小涨幅过滤"
                     />
                     <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
 
@@ -328,8 +414,8 @@ function UptrendModule() {
             {uptrendData && (
                 <div className="distribution-stats">
                     <div className="stat-item" style={{ borderLeft: '3px solid #ef4444' }}>
-                        <span className="icon">🪙</span>
-                        <span className="label">总币种</span>
+                        <span className="icon">📊</span>
+                        <span className="label">总波段</span>
                         <span className="value">{uptrendData.totalCoins}</span>
                     </div>
                     <div className="stat-item" style={{ borderLeft: '3px solid #f59e0b' }}>
@@ -416,13 +502,11 @@ function UptrendModule() {
                             <div className="ranking-list">
                                 {rankingData.coins.map((coin, index) => (
                                     <div
-                                        key={coin.symbol}
+                                        key={`${coin.symbol}-${coin.waveStartTime}-${index}`}
                                         className="ranking-item uptrend-item"
-                                        onClick={() => handleCopySymbol(coin.symbol)}
-                                        title="点击复制"
                                     >
                                         <span className="rank">{index + 1}</span>
-                                        <div className="coin-info">
+                                        <div className="coin-info" onClick={() => handleCopySymbol(coin.symbol)} title="点击复制币名">
                                             <span className="symbol">
                                                 {coin.symbol}
                                                 {coin.ongoing && <span className="ongoing-badge">🔴进行中</span>}
@@ -437,6 +521,18 @@ function UptrendModule() {
                                                 {coin.startPrice?.toFixed(4)} → {coin.peakPrice?.toFixed(4)}
                                             </span>
                                         </div>
+                                        {!selectedSymbol && (
+                                            <button
+                                                className="detail-btn"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleViewSymbolWaves(coin.symbol)
+                                                }}
+                                                title="查看该币种所有波段"
+                                            >
+                                                📊
+                                            </button>
+                                        )}
                                         {copiedSymbol === coin.symbol && (
                                             <span className="copied-tip">已复制!</span>
                                         )}

@@ -249,20 +249,24 @@ public class IndexController {
     /**
      * 获取单边上行涨幅分布数据
      * 
-     * 支持两种模式：
-     * 1. 相对时间模式: hours=168&pullback=5 (表示从168小时前到现在，回调阈值5%)
-     * 2. 绝对时间模式: start=2024-12-12 10:05&end=2024-12-12 10:15&pullback=5
+     * 使用位置比率法 + 横盘检测：
+     * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
+     * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
      * 
-     * @param hours    相对基准时间（多少小时前），默认168小时（7天）
-     * @param pullback 回调阈值（百分比），默认5%
-     * @param start    开始时间，格式: yyyy-MM-dd HH:mm
-     * @param end      结束时间，格式: yyyy-MM-dd HH:mm
-     * @param timezone 输入时间的时区，默认 Asia/Shanghai
+     * @param hours             相对基准时间（多少小时前），默认168小时（7天）
+     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束），默认0.75
+     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束，默认6
+     * @param minUptrend        最小涨幅过滤（百分比），默认4%，低于此值的波段不返回
+     * @param start             开始时间，格式: yyyy-MM-dd HH:mm
+     * @param end               结束时间，格式: yyyy-MM-dd HH:mm
+     * @param timezone          输入时间的时区，默认 Asia/Shanghai
      */
     @GetMapping("/uptrend-distribution")
     public ResponseEntity<Map<String, Object>> getUptrendDistribution(
             @RequestParam(defaultValue = "168") double hours,
-            @RequestParam(defaultValue = "5") double pullback,
+            @RequestParam(defaultValue = "0.75") double keepRatio,
+            @RequestParam(defaultValue = "6") int noNewHighCandles,
+            @RequestParam(defaultValue = "4") double minUptrend,
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
@@ -289,19 +293,21 @@ public class IndexController {
                     return ResponseEntity.badRequest().body(response);
                 }
 
-                UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc, pullback);
+                UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc, keepRatio, noNewHighCandles, minUptrend);
 
                 if (data != null) {
                     response.put("success", true);
                     response.put("mode", "timeRange");
-                    response.put("pullback", pullback);
+                    response.put("keepRatio", keepRatio);
+                    response.put("noNewHighCandles", noNewHighCandles);
+                    response.put("minUptrend", minUptrend);
                     response.put("inputTimezone", timezone);
                     response.put("inputStart", start);
                     response.put("inputEnd", end);
                     response.put("data", data);
                 } else {
                     response.put("success", false);
-                    response.put("message", "获取单边涨幅数据失败，可能指定时间范围内无数据");
+                    response.put("message", "获取单边涨幅数据失败，可能指定时间范围内无数据或无符合条件的波段");
                 }
 
                 return ResponseEntity.ok(response);
@@ -315,13 +321,15 @@ public class IndexController {
         }
 
         // 否则使用相对时间模式
-        UptrendData data = indexCalculatorService.getUptrendDistribution(hours, pullback);
+        UptrendData data = indexCalculatorService.getUptrendDistribution(hours, keepRatio, noNewHighCandles, minUptrend);
 
         if (data != null) {
             response.put("success", true);
             response.put("mode", "hours");
             response.put("hours", hours);
-            response.put("pullback", pullback);
+            response.put("keepRatio", keepRatio);
+            response.put("noNewHighCandles", noNewHighCandles);
+            response.put("minUptrend", minUptrend);
             response.put("data", data);
         } else {
             response.put("success", false);

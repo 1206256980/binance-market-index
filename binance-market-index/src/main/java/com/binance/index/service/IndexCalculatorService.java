@@ -1237,18 +1237,20 @@ public class IndexCalculatorService {
      * 获取单边上行涨幅分布数据
      * 
      * @param hours             时间范围（小时）
-     * @param pullbackThreshold 回调阈值（百分比，如5表示5%）
+     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
+     * @param minUptrend        最小涨幅过滤（百分比，如4表示只返回>=4%的波段）
      * @return 单边涨幅分布数据
      */
-    public UptrendData getUptrendDistribution(double hours, double pullbackThreshold) {
-        log.info("计算单边上行涨幅分布，时间范围: {}小时，回调阈值: {}%", hours, pullbackThreshold);
+    public UptrendData getUptrendDistribution(double hours, double keepRatio, int noNewHighCandles, double minUptrend) {
+        log.info("计算单边上行涨幅分布，时间范围: {}小时，保留比率: {}，横盘K线数: {}, 最小涨幅: {}%", hours, keepRatio, noNewHighCandles, minUptrend);
 
         long minutes = (long) (hours * 60);
         LocalDateTime alignedNow = alignToFiveMinutes(LocalDateTime.now());
         LocalDateTime startTime = alignedNow.minusMinutes(minutes);
         LocalDateTime endTime = alignedNow;
 
-        return getUptrendDistributionByTimeRange(startTime, endTime, pullbackThreshold);
+        return getUptrendDistributionByTimeRange(startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
     }
 
     /**
@@ -1256,12 +1258,14 @@ public class IndexCalculatorService {
      * 
      * @param startTime         开始时间
      * @param endTime           结束时间
-     * @param pullbackThreshold 回调阈值（百分比）
+     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
+     * @param minUptrend        最小涨幅过滤（百分比）
      * @return 单边涨幅分布数据
      */
     public UptrendData getUptrendDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime,
-            double pullbackThreshold) {
-        log.info("计算单边涨幅分布: {} -> {}, 回调阈值: {}%", startTime, endTime, pullbackThreshold);
+            double keepRatio, int noNewHighCandles, double minUptrend) {
+        log.info("计算单边涨幅分布: {} -> {}, 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
 
         // 获取时间范围内所有币种
         List<String> symbols = coinPriceRepository.findDistinctSymbolsInRange(startTime, endTime);
@@ -1272,33 +1276,32 @@ public class IndexCalculatorService {
 
         log.info("找到 {} 个币种，开始计算单边涨幅...", symbols.size());
 
-        // 计算每个币种的单边涨幅
-        List<UptrendData.CoinUptrend> allCoins = new ArrayList<>();
-        double totalUptrend = 0;
+        // 计算每个币种的所有符合条件的波段
+        List<UptrendData.CoinUptrend> allWaves = new ArrayList<>();
         int ongoingCount = 0;
 
         for (String symbol : symbols) {
-            UptrendData.CoinUptrend uptrend = calculateSymbolUptrend(symbol, startTime, endTime, pullbackThreshold);
-            if (uptrend != null) {
-                allCoins.add(uptrend);
-                totalUptrend += uptrend.getUptrendPercent();
-                if (uptrend.isOngoing()) {
+            List<UptrendData.CoinUptrend> waves = calculateSymbolAllWaves(symbol, startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
+            allWaves.addAll(waves);
+            for (UptrendData.CoinUptrend wave : waves) {
+                if (wave.isOngoing()) {
                     ongoingCount++;
                 }
             }
         }
 
-        if (allCoins.isEmpty()) {
+        if (allWaves.isEmpty()) {
             log.warn("没有有效的单边涨幅数据");
             return null;
         }
 
         // 按单边涨幅降序排序
-        allCoins.sort((a, b) -> Double.compare(b.getUptrendPercent(), a.getUptrendPercent()));
+        allWaves.sort((a, b) -> Double.compare(b.getUptrendPercent(), a.getUptrendPercent()));
 
         // 计算统计信息
-        double avgUptrend = totalUptrend / allCoins.size();
-        double maxUptrend = allCoins.get(0).getUptrendPercent();
+        double totalUptrend = allWaves.stream().mapToDouble(UptrendData.CoinUptrend::getUptrendPercent).sum();
+        double avgUptrend = totalUptrend / allWaves.size();
+        double maxUptrend = allWaves.get(0).getUptrendPercent();
 
         // 构建分布区间 (0-5%, 5-10%, 10-15%, 15-20%, 20-30%, 30%+)
         double[] bucketBounds = { 0, 5, 10, 15, 20, 30, Double.MAX_VALUE };
@@ -1309,11 +1312,11 @@ public class IndexCalculatorService {
             bucketMap.put(i, new ArrayList<>());
         }
 
-        for (UptrendData.CoinUptrend coin : allCoins) {
-            double pct = coin.getUptrendPercent();
+        for (UptrendData.CoinUptrend wave : allWaves) {
+            double pct = wave.getUptrendPercent();
             for (int i = 0; i < bucketBounds.length - 1; i++) {
                 if (pct >= bucketBounds[i] && pct < bucketBounds[i + 1]) {
-                    bucketMap.get(i).add(coin);
+                    bucketMap.get(i).add(wave);
                     break;
                 }
             }
@@ -1321,149 +1324,156 @@ public class IndexCalculatorService {
 
         List<UptrendData.UptrendBucket> distribution = new ArrayList<>();
         for (int i = 0; i < bucketNames.length; i++) {
-            List<UptrendData.CoinUptrend> coins = bucketMap.get(i);
-            int bucketOngoing = (int) coins.stream().filter(UptrendData.CoinUptrend::isOngoing).count();
-            distribution.add(new UptrendData.UptrendBucket(bucketNames[i], coins.size(), bucketOngoing, coins));
+            List<UptrendData.CoinUptrend> waves = bucketMap.get(i);
+            int bucketOngoing = (int) waves.stream().filter(UptrendData.CoinUptrend::isOngoing).count();
+            distribution.add(new UptrendData.UptrendBucket(bucketNames[i], waves.size(), bucketOngoing, waves));
         }
 
         // 构建响应
         UptrendData data = new UptrendData();
         data.setTimestamp(System.currentTimeMillis());
-        data.setTotalCoins(allCoins.size());
+        data.setTotalCoins(allWaves.size()); // 现在是波段总数
         data.setPullbackThreshold(pullbackThreshold);
         data.setAvgUptrend(Math.round(avgUptrend * 100) / 100.0);
         data.setMaxUptrend(Math.round(maxUptrend * 100) / 100.0);
         data.setOngoingCount(ongoingCount);
         data.setDistribution(distribution);
-        data.setAllCoinsRanking(allCoins);
+        data.setAllCoinsRanking(allWaves);
 
-        log.info("单边涨幅分布计算完成: 总币种={}, 进行中={}, 平均涨幅={}%, 最大涨幅={}%",
-                allCoins.size(), ongoingCount, data.getAvgUptrend(), data.getMaxUptrend());
+        log.info("单边涨幅分布计算完成: 总波段数={}, 进行中={}, 平均涨幅={}%, 最大涨幅={}%",
+                allWaves.size(), ongoingCount, data.getAvgUptrend(), data.getMaxUptrend());
         return data;
     }
 
     /**
-     * 计算单个币种的最大单边涨幅
-     * 算法：遍历K线，跟踪波段起点和最高点，回调超阈值则认为波段结束
+     * 计算单个币种的所有符合条件的单边涨幅波段
+     * 
+     * 新算法：使用位置比率法 + 横盘检测
+     * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
+     * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
      * 
      * @param symbol            币种
      * @param startTime         开始时间
      * @param endTime           结束时间
-     * @param pullbackThreshold 回调阈值（百分比）
-     * @return 该币种的单边涨幅数据
+     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
+     * @param minUptrend        最小涨幅过滤（百分比），低于此值的波段不返回
+     * @return 该币种的所有符合条件的单边涨幅波段列表
      */
-    private UptrendData.CoinUptrend calculateSymbolUptrend(String symbol, LocalDateTime startTime,
-            LocalDateTime endTime, double pullbackThreshold) {
+    private List<UptrendData.CoinUptrend> calculateSymbolAllWaves(String symbol, LocalDateTime startTime,
+            LocalDateTime endTime, double keepRatio, int noNewHighCandles, double minUptrend) {
         // 获取该币种的所有K线数据
         List<CoinPrice> prices = coinPriceRepository.findBySymbolInRangeOrderByTime(symbol, startTime, endTime);
         if (prices == null || prices.size() < 2) {
-            return null;
+            return Collections.emptyList();
         }
 
-        // 波段跟踪变量
-        double waveLowPrice = 0;      // 波段内的最低点（真正的起点）
-        double wavePeakPrice = 0;     // 波段内的最高点
-        LocalDateTime waveLowTime = null;   // 最低点时间
-        LocalDateTime wavePeakTime = null;  // 最高点时间
+        List<UptrendData.CoinUptrend> waves = new ArrayList<>();
 
-        // 最大涨幅波段记录
-        double maxUptrendPercent = 0;
-        double maxWaveStartPrice = 0;
-        double maxWavePeakPrice = 0;
-        LocalDateTime maxWaveStartTime = null;
-        LocalDateTime maxWavePeakTime = null;
-        boolean maxWaveOngoing = false;
+        // 波段跟踪变量
+        double waveStartPrice = 0;    // 波段起点价格
+        double wavePeakPrice = 0;     // 波段最高价
+        LocalDateTime waveStartTime = null;
+        LocalDateTime wavePeakTime = null;
+        int candlesSinceNewHigh = 0;  // 连续未创新高的K线数
 
         // 当前波段状态
         boolean inWave = false;
 
         for (CoinPrice price : prices) {
-            // 使用K线的价格进行波段识别
-            // 关键：用收盘价作为"确认的低点"，用最高价作为峰值
             double highPrice = price.getHighPrice() != null ? price.getHighPrice() : price.getPrice();
-            double closePrice = price.getPrice(); // 收盘价（确认的价格）
+            double closePrice = price.getPrice();
             LocalDateTime timestamp = price.getTimestamp();
 
             if (!inWave) {
-                // 开始新波段：用收盘价初始化（不是lowPrice，避免影线误导）
-                waveLowPrice = closePrice;
-                waveLowTime = timestamp;
+                // 开始新波段
+                waveStartPrice = closePrice;
+                waveStartTime = timestamp;
                 wavePeakPrice = highPrice;
                 wavePeakTime = timestamp;
+                candlesSinceNewHigh = 0;
                 inWave = true;
             } else {
-                // 检查是否创新低（用收盘价判断，更稳定）
-                if (closePrice < waveLowPrice) {
-                    waveLowPrice = closePrice;
-                    waveLowTime = timestamp;
-                    // 新低点意味着之前的高点失效，重置
+                // 检查是否创新高
+                if (highPrice > wavePeakPrice) {
                     wavePeakPrice = highPrice;
                     wavePeakTime = timestamp;
-                } 
-                // 检查是否创新高（低点之后的新高才有效）
-                else if (highPrice > wavePeakPrice) {
-                    wavePeakPrice = highPrice;
-                    wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0; // 重置计数器
+                } else {
+                    candlesSinceNewHigh++; // 未创新高，计数+1
                 }
 
-                // 检查回调幅度：使用收盘价判断
-                double drawdown = wavePeakPrice > 0 ? (wavePeakPrice - closePrice) / wavePeakPrice * 100 : 0;
+                // 检查是否创新低（如果创新低，重置波段起点）
+                if (closePrice < waveStartPrice) {
+                    waveStartPrice = closePrice;
+                    waveStartTime = timestamp;
+                    wavePeakPrice = highPrice;
+                    wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0;
+                    continue; // 继续下一根K线
+                }
 
-                if (drawdown >= pullbackThreshold) {
-                    // 波段结束，计算从低点收盘价到高点的涨幅
-                    double uptrendPercent = waveLowPrice > 0 
-                            ? (wavePeakPrice - waveLowPrice) / waveLowPrice * 100 
+                // 计算位置比率
+                double range = wavePeakPrice - waveStartPrice;
+                double positionRatio = 1.0;
+                if (range > 0) {
+                    positionRatio = (closePrice - waveStartPrice) / range;
+                }
+
+                // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
+                boolean positionTrigger = positionRatio < keepRatio && range > 0;
+                boolean sidewaysTrigger = candlesSinceNewHigh >= noNewHighCandles;
+
+                if (positionTrigger || sidewaysTrigger) {
+                    // 波段结束，计算涨幅
+                    double uptrendPercent = waveStartPrice > 0 
+                            ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100 
                             : 0;
 
-                    // 只记录正向涨幅，且起点和终点必须是不同的K线
-                    boolean isDifferentCandle = !waveLowTime.equals(wavePeakTime);
-                    if (uptrendPercent > 0 && uptrendPercent > maxUptrendPercent && isDifferentCandle) {
-                        maxUptrendPercent = uptrendPercent;
-                        maxWaveStartPrice = waveLowPrice;
-                        maxWavePeakPrice = wavePeakPrice;
-                        maxWaveStartTime = waveLowTime;
-                        maxWavePeakTime = wavePeakTime;
-                        maxWaveOngoing = false;
+                    // 符合条件的波段加入列表
+                    boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
+                    if (uptrendPercent >= minUptrend && isDifferentCandle) {
+                        waves.add(new UptrendData.CoinUptrend(
+                                symbol,
+                                Math.round(uptrendPercent * 100) / 100.0,
+                                false, // 已结束的波段
+                                waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                                wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                                waveStartPrice,
+                                wavePeakPrice));
                     }
 
                     // 以当前收盘价开始新波段
-                    waveLowPrice = closePrice;
-                    waveLowTime = timestamp;
+                    waveStartPrice = closePrice;
+                    waveStartTime = timestamp;
                     wavePeakPrice = closePrice;
                     wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0;
                 }
             }
         }
 
         // 处理最后一个波段（进行中的波段）
-        if (inWave && waveLowPrice > 0) {
-            double uptrendPercent = (wavePeakPrice - waveLowPrice) / waveLowPrice * 100;
+        if (inWave && waveStartPrice > 0 && wavePeakPrice > waveStartPrice) {
+            double uptrendPercent = (wavePeakPrice - waveStartPrice) / waveStartPrice * 100;
 
-            // 只记录正向涨幅，且起点和终点必须是不同的K线
-            boolean isDifferentCandle = !waveLowTime.equals(wavePeakTime);
-            if (uptrendPercent > 0 && uptrendPercent > maxUptrendPercent && isDifferentCandle) {
-                maxUptrendPercent = uptrendPercent;
-                maxWaveStartPrice = waveLowPrice;
-                maxWavePeakPrice = wavePeakPrice;
-                maxWaveStartTime = waveLowTime;
-                maxWavePeakTime = wavePeakTime;
-                maxWaveOngoing = true; // 最后一波是进行中的
+            boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
+            // 最后波段：检查是否还处于"有效上涨"状态
+            boolean stillValid = candlesSinceNewHigh < noNewHighCandles;
+            
+            if (uptrendPercent >= minUptrend && isDifferentCandle) {
+                waves.add(new UptrendData.CoinUptrend(
+                        symbol,
+                        Math.round(uptrendPercent * 100) / 100.0,
+                        stillValid, // 如果还没触发横盘结束，标记为进行中
+                        waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                        wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                        waveStartPrice,
+                        wavePeakPrice));
             }
         }
 
-        // 如果没有有效波段
-        if (maxWaveStartTime == null) {
-            return null;
-        }
-
-        return new UptrendData.CoinUptrend(
-                symbol,
-                Math.round(maxUptrendPercent * 100) / 100.0,
-                maxWaveOngoing,
-                maxWaveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                maxWavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                maxWaveStartPrice,
-                maxWavePeakPrice);
+        return waves;
     }
 }
 
