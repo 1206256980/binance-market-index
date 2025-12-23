@@ -1419,10 +1419,12 @@ public class IndexCalculatorService {
                 inWave = true;
             } else {
                 // 检查是否创新高
+                boolean madeNewHigh = false;
                 if (highPrice > wavePeakPrice) {
                     wavePeakPrice = highPrice;
                     wavePeakTime = timestamp;
                     candlesSinceNewHigh = 0; // 重置计数器
+                    madeNewHigh = true;
                 } else {
                     candlesSinceNewHigh++; // 未创新高，计数+1
                 }
@@ -1445,7 +1447,8 @@ public class IndexCalculatorService {
                 }
 
                 // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
-                boolean positionTrigger = positionRatio < keepRatio && range > 0;
+                // 注意：刚创新高的K线不触发位置比率结束（因为收盘价总是低于最高价）
+                boolean positionTrigger = !madeNewHigh && positionRatio < keepRatio && range > 0;
                 boolean sidewaysTrigger = candlesSinceNewHigh >= noNewHighCandles;
 
                 if (positionTrigger || sidewaysTrigger) {
