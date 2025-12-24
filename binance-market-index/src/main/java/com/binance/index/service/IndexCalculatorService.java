@@ -550,7 +550,7 @@ public class IndexCalculatorService {
 
         // 更新全局基准价格并保存到数据库
         boolean basePricesWereLoaded = !existingBasePrices.isEmpty();
-        
+
         if (!basePricesWereLoaded && !historicalBasePrices.isEmpty()) {
             // 场景1：数据库没有基准价格（首次运行），使用本次回补数据初始化
             basePrices = new HashMap<>(historicalBasePrices);
@@ -565,13 +565,13 @@ public class IndexCalculatorService {
             // 场景2：数据库有基准价格，检查是否有新币需要添加
             Set<String> newSymbols = new HashSet<>(historicalBasePrices.keySet());
             newSymbols.removeAll(basePrices.keySet());
-            
+
             if (!newSymbols.isEmpty()) {
                 // 将新币的基准价格添加到内存缓存
                 for (String symbol : newSymbols) {
                     basePrices.put(symbol, historicalBasePrices.get(symbol));
                 }
-                
+
                 // 保存新币基准价格到数据库
                 List<BasePrice> newBasePriceList = newSymbols.stream()
                         .map(s -> new BasePrice(s, historicalBasePrices.get(s)))
@@ -801,8 +801,10 @@ public class IndexCalculatorService {
 
                 totalChange += changePercent;
                 validCount++;
-                if (changePercent > 0) upCount++;
-                else if (changePercent < 0) downCount++;
+                if (changePercent > 0)
+                    upCount++;
+                else if (changePercent < 0)
+                    downCount++;
             }
         }
 
@@ -822,7 +824,7 @@ public class IndexCalculatorService {
         response.put("upCount", upCount);
         response.put("downCount", downCount);
         response.put("calculatedIndex", Math.round(calculatedIndex * 10000) / 10000.0);
-        
+
         if (storedIndex != null) {
             response.put("storedIndex", Math.round(storedIndex.getIndexValue() * 10000) / 10000.0);
             response.put("storedIndexTime", storedIndex.getTimestamp().toString());
@@ -913,14 +915,14 @@ public class IndexCalculatorService {
     public Map<String, Object> repairMissingPriceData(LocalDateTime startTime, LocalDateTime endTime, int days) {
         Map<String, Object> result = new HashMap<>();
         List<Map<String, Object>> repairedSymbols = new ArrayList<>();
-        
+
         // 计算时间范围
         LocalDateTime now = LocalDateTime.now(java.time.ZoneOffset.UTC);
         LocalDateTime actualStartTime = startTime != null ? startTime : now.minusDays(days);
         LocalDateTime actualEndTime = endTime != null ? endTime : alignToFiveMinutes(now).minusMinutes(5);
-        
+
         log.info("开始检测并修复历史价格缺失数据: {} ~ {}", actualStartTime, actualEndTime);
-        
+
         // 获取当前活跃的所有币种
         List<String> activeSymbols = binanceApiService.getAllUsdtSymbols();
         if (activeSymbols.isEmpty()) {
@@ -928,33 +930,32 @@ public class IndexCalculatorService {
             result.put("message", "无法获取活跃币种列表");
             return result;
         }
-        
+
         log.info("检查 {} 个活跃币种的历史数据完整性...", activeSymbols.size());
-        
+
         int totalRepairedRecords = 0;
         int checkedSymbols = 0;
-        
+
         for (String symbol : activeSymbols) {
             checkedSymbols++;
-            
+
             // 获取该币种在时间范围内已有的所有时间戳
-            List<LocalDateTime> existingTimestamps = coinPriceRepository.findAllDistinctTimestampsBetween(actualStartTime, actualEndTime)
+            List<LocalDateTime> existingTimestamps = coinPriceRepository
+                    .findAllDistinctTimestampsBetween(actualStartTime, actualEndTime)
                     .stream()
                     .filter(ts -> {
                         // 检查该时间点是否有这个币种的数据
                         return coinPriceRepository.findBySymbolInRangeOrderByTime(symbol, ts, ts).size() > 0;
                     })
                     .collect(Collectors.toList());
-            
+
             // 计算期望的时间点数量
             long expectedCount = java.time.temporal.ChronoUnit.MINUTES.between(actualStartTime, actualEndTime) / 5;
-            
-            
-            
+
             // 找出缺失的时间段
             Set<LocalDateTime> existingSet = new HashSet<>(existingTimestamps);
             List<LocalDateTime> missingTimestamps = new ArrayList<>();
-            
+
             LocalDateTime checkTime = alignToFiveMinutes(actualStartTime);
             while (!checkTime.isAfter(actualEndTime)) {
                 if (!existingSet.contains(checkTime)) {
@@ -962,23 +963,23 @@ public class IndexCalculatorService {
                 }
                 checkTime = checkTime.plusMinutes(5);
             }
-            
+
             if (missingTimestamps.isEmpty()) {
                 continue;
             }
-            
+
             // 找出连续的缺失时间段
             List<long[]> missingRanges = findMissingRanges(missingTimestamps);
-            
+
             int repairedCount = 0;
             List<String> repairedRanges = new ArrayList<>();
-            
+
             for (long[] range : missingRanges) {
                 try {
                     // 从币安API获取缺失的K线数据
                     List<KlineData> klines = binanceApiService.getKlinesWithPagination(
                             symbol, "5m", range[0], range[1], 500);
-                    
+
                     if (!klines.isEmpty()) {
                         // 保存到数据库
                         List<CoinPrice> coinPrices = klines.stream()
@@ -986,11 +987,11 @@ public class IndexCalculatorService {
                                 .map(k -> new CoinPrice(k.getSymbol(), k.getTimestamp(),
                                         k.getOpenPrice(), k.getHighPrice(), k.getLowPrice(), k.getClosePrice()))
                                 .collect(Collectors.toList());
-                        
+
                         if (!coinPrices.isEmpty()) {
                             jdbcCoinPriceRepository.batchInsert(coinPrices);
                             repairedCount += coinPrices.size();
-                            
+
                             LocalDateTime rangeStart = LocalDateTime.ofInstant(
                                     java.time.Instant.ofEpochMilli(range[0]), ZoneId.of("UTC"));
                             LocalDateTime rangeEnd = LocalDateTime.ofInstant(
@@ -1002,35 +1003,35 @@ public class IndexCalculatorService {
                     log.warn("修复 {} 数据失败: {}", symbol, e.getMessage());
                 }
             }
-            
+
             if (repairedCount > 0) {
                 Map<String, Object> symbolInfo = new HashMap<>();
                 symbolInfo.put("symbol", symbol);
                 symbolInfo.put("repairedCount", repairedCount);
                 symbolInfo.put("repairedRanges", repairedRanges);
                 repairedSymbols.add(symbolInfo);
-                
+
                 totalRepairedRecords += repairedCount;
                 log.info("修复币种 {}: {} 条数据, 时间段: {}", symbol, repairedCount, repairedRanges);
             }
-            
+
             if (checkedSymbols % 50 == 0) {
                 log.info("已检查 {}/{} 个币种...", checkedSymbols, activeSymbols.size());
             }
         }
-        
+
         log.info("历史数据修复完成，共修复 {} 个币种，{} 条数据", repairedSymbols.size(), totalRepairedRecords);
-        
+
         result.put("success", true);
         result.put("checkedSymbols", activeSymbols.size());
         result.put("repairedSymbolCount", repairedSymbols.size());
         result.put("totalRepairedRecords", totalRepairedRecords);
         result.put("timeRange", actualStartTime + " ~ " + actualEndTime);
         result.put("repairedDetails", repairedSymbols);
-        
+
         return result;
     }
-    
+
     /**
      * 找出连续的缺失时间段，合并为时间范围
      */
@@ -1039,20 +1040,20 @@ public class IndexCalculatorService {
         if (missingTimestamps.isEmpty()) {
             return ranges;
         }
-        
+
         // 排序
         missingTimestamps.sort(LocalDateTime::compareTo);
-        
+
         LocalDateTime rangeStart = missingTimestamps.get(0);
         LocalDateTime rangeEnd = rangeStart;
-        
+
         for (int i = 1; i < missingTimestamps.size(); i++) {
             LocalDateTime current = missingTimestamps.get(i);
-            
+
             // 如果当前时间点与上一个相差超过5分钟，说明是新的时间段
             if (java.time.temporal.ChronoUnit.MINUTES.between(rangeEnd, current) > 5) {
                 // 保存当前时间段
-                ranges.add(new long[]{
+                ranges.add(new long[] {
                         rangeStart.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
                         rangeEnd.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
                 });
@@ -1060,13 +1061,13 @@ public class IndexCalculatorService {
             }
             rangeEnd = current;
         }
-        
+
         // 保存最后一个时间段
-        ranges.add(new long[]{
+        ranges.add(new long[] {
                 rangeStart.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
                 rangeEnd.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
         });
-        
+
         return ranges;
     }
 
@@ -1348,8 +1349,10 @@ public class IndexCalculatorService {
                 .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
 
         // 获取时间区间内的最高/最低价格
-        List<Object[]> maxPricesResult = coinPriceRepository.findMaxPricesBySymbolInRange(actualStartTime, actualEndTime);
-        List<Object[]> minPricesResult = coinPriceRepository.findMinPricesBySymbolInRange(actualStartTime, actualEndTime);
+        List<Object[]> maxPricesResult = coinPriceRepository.findMaxPricesBySymbolInRange(actualStartTime,
+                actualEndTime);
+        List<Object[]> minPricesResult = coinPriceRepository.findMinPricesBySymbolInRange(actualStartTime,
+                actualEndTime);
 
         Map<String, Double> maxPriceMap = maxPricesResult.stream()
                 .collect(Collectors.toMap(
@@ -1506,10 +1509,10 @@ public class IndexCalculatorService {
     /**
      * 获取单边上行涨幅分布数据
      * 
-     * @param hours             时间范围（小时）
-     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
-     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
-     * @param minUptrend        最小涨幅过滤（百分比，如4表示只返回>=4%的波段）
+     * @param hours            时间范围（小时）
+     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
+     * @param minUptrend       最小涨幅过滤（百分比，如4表示只返回>=4%的波段）
      * @return 单边涨幅分布数据
      */
     public UptrendData getUptrendDistribution(double hours, double keepRatio, int noNewHighCandles, double minUptrend) {
@@ -1526,11 +1529,11 @@ public class IndexCalculatorService {
     /**
      * 获取指定时间范围的单边上行涨幅分布数据
      * 
-     * @param startTime         开始时间
-     * @param endTime           结束时间
-     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
-     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
-     * @param minUptrend        最小涨幅过滤（百分比）
+     * @param startTime        开始时间
+     * @param endTime          结束时间
+     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
+     * @param minUptrend       最小涨幅过滤（百分比）
      * @return 单边涨幅分布数据
      */
     public UptrendData getUptrendDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime,
@@ -1538,21 +1541,29 @@ public class IndexCalculatorService {
         // 对齐时间到5分钟边界：统一向下取整
         LocalDateTime alignedStart = alignToFiveMinutes(startTime);
         LocalDateTime alignedEnd = alignToFiveMinutes(endTime);
-        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend);
+        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", alignedStart, alignedEnd, keepRatio,
+                noNewHighCandles, minUptrend);
 
-        // 获取时间范围内所有币种
-        List<String> symbols = coinPriceRepository.findDistinctSymbolsInRange(alignedStart, alignedEnd);
-        if (symbols.isEmpty()) {
+        // 【优化】一次性批量获取所有币种的K线数据，避免 N 次数据库查询
+        long queryStart = System.currentTimeMillis();
+        List<CoinPrice> allPrices = coinPriceRepository.findAllInRangeOrderBySymbolAndTime(alignedStart, alignedEnd);
+        long queryTime = System.currentTimeMillis() - queryStart;
+
+        if (allPrices.isEmpty()) {
             log.warn("时间范围内没有数据");
             return null;
         }
 
-        log.info("找到 {} 个币种，开始并行计算单边涨幅...", symbols.size());
+        // 按币种分组
+        Map<String, List<CoinPrice>> pricesBySymbol = allPrices.stream()
+                .collect(java.util.stream.Collectors.groupingBy(CoinPrice::getSymbol));
 
-        // 使用并行流处理，提高计算效率
-        // parallelStream 会自动使用 ForkJoinPool，默认并发数为 CPU 核心数
-        List<UptrendData.CoinUptrend> allWaves = symbols.parallelStream()
-                .flatMap(symbol -> calculateSymbolAllWaves(symbol, alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend).stream())
+        log.info("批量查询完成，耗时 {}ms，共 {} 条数据，{} 个币种", queryTime, allPrices.size(), pricesBySymbol.size());
+
+        // 使用并行流处理，直接使用内存中的数据
+        List<UptrendData.CoinUptrend> allWaves = pricesBySymbol.entrySet().parallelStream()
+                .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
+                        noNewHighCandles, minUptrend).stream())
                 .collect(java.util.stream.Collectors.toList());
 
         // 统计进行中的波段数
@@ -1570,7 +1581,8 @@ public class IndexCalculatorService {
         double totalUptrend = allWaves.stream().mapToDouble(UptrendData.CoinUptrend::getUptrendPercent).sum();
         double avgUptrend = totalUptrend / allWaves.size();
         double maxUptrendValue = allWaves.get(0).getUptrendPercent();
-        double minUptrendValue = allWaves.stream().mapToDouble(UptrendData.CoinUptrend::getUptrendPercent).min().orElse(0);
+        double minUptrendValue = allWaves.stream().mapToDouble(UptrendData.CoinUptrend::getUptrendPercent).min()
+                .orElse(0);
 
         // 根据数据范围动态确定区间大小（与涨幅分布一致）
         double range = maxUptrendValue - minUptrendValue;
@@ -1642,18 +1654,164 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 计算单个币种的所有符合条件的单边涨幅波段（使用已加载的数据）
+     * 
+     * 【优化版本】直接使用传入的价格数据，避免数据库查询
+     * 
+     * @param symbol           币种
+     * @param prices           该币种的K线数据列表（已按时间升序排列）
+     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
+     * @param minUptrend       最小涨幅过滤（百分比），低于此值的波段不返回
+     * @return 该币种的所有符合条件的单边涨幅波段列表
+     */
+    private List<UptrendData.CoinUptrend> calculateSymbolAllWavesFromData(String symbol, List<CoinPrice> prices,
+            double keepRatio, int noNewHighCandles, double minUptrend) {
+        if (prices == null || prices.size() < 2) {
+            return Collections.emptyList();
+        }
+
+        List<UptrendData.CoinUptrend> waves = new ArrayList<>();
+
+        // 波段跟踪变量
+        double waveStartPrice = 0; // 波段起点价格
+        double wavePeakPrice = 0; // 波段最高价
+        LocalDateTime waveStartTime = null;
+        LocalDateTime wavePeakTime = null;
+        int candlesSinceNewHigh = 0; // 连续未创新高的K线数
+
+        // 当前波段状态
+        boolean inWave = false;
+
+        for (CoinPrice price : prices) {
+            double highPrice = price.getHighPrice() != null ? price.getHighPrice() : price.getPrice();
+            double closePrice = price.getPrice();
+            LocalDateTime timestamp = price.getTimestamp();
+
+            if (!inWave) {
+                // 开始新波段
+                waveStartPrice = closePrice;
+                waveStartTime = timestamp;
+                wavePeakPrice = highPrice;
+                wavePeakTime = timestamp;
+                candlesSinceNewHigh = 0;
+                inWave = true;
+            } else {
+                // 检查是否创新高
+                boolean madeNewHigh = false;
+                if (highPrice > wavePeakPrice) {
+                    wavePeakPrice = highPrice;
+                    wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0; // 重置计数器
+                    madeNewHigh = true;
+                } else {
+                    candlesSinceNewHigh++; // 未创新高，计数+1
+                }
+
+                // 检查是否创新低（如果创新低，重置波段起点）
+                if (closePrice < waveStartPrice) {
+                    waveStartPrice = closePrice;
+                    waveStartTime = timestamp;
+                    wavePeakPrice = highPrice;
+                    wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0;
+                    continue; // 继续下一根K线
+                }
+
+                // 计算位置比率
+                double range = wavePeakPrice - waveStartPrice;
+                double positionRatio = 1.0;
+                if (range > 0) {
+                    positionRatio = (closePrice - waveStartPrice) / range;
+                }
+
+                // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
+                boolean positionTrigger = !madeNewHigh && positionRatio < keepRatio && range > 0;
+                boolean sidewaysTrigger = candlesSinceNewHigh >= noNewHighCandles;
+
+                if (positionTrigger || sidewaysTrigger) {
+                    // 波段结束，计算涨幅
+                    double uptrendPercent = waveStartPrice > 0
+                            ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100
+                            : 0;
+
+                    // 符合条件的波段加入列表
+                    boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
+                    if (uptrendPercent >= minUptrend && isDifferentCandle) {
+                        waves.add(new UptrendData.CoinUptrend(
+                                symbol,
+                                Math.round(uptrendPercent * 100) / 100.0,
+                                false, // 已结束的波段
+                                waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                                wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                                waveStartPrice,
+                                wavePeakPrice));
+                    }
+
+                    // 回溯找到从波段峰值到当前的最低点作为新波段起点
+                    int peakIndex = prices.indexOf(price); // 当前索引
+                    double lowestPrice = closePrice;
+                    LocalDateTime lowestTime = timestamp;
+
+                    // 从峰值时间点往后找最低点
+                    for (int j = peakIndex; j >= 0; j--) {
+                        CoinPrice p = prices.get(j);
+                        if (p.getTimestamp().isBefore(wavePeakTime) || p.getTimestamp().equals(wavePeakTime)) {
+                            break;
+                        }
+                        double pClose = p.getPrice();
+                        if (pClose < lowestPrice) {
+                            lowestPrice = pClose;
+                            lowestTime = p.getTimestamp();
+                        }
+                    }
+
+                    // 以找到的最低点开始新波段
+                    waveStartPrice = lowestPrice;
+                    waveStartTime = lowestTime;
+                    wavePeakPrice = highPrice;
+                    wavePeakTime = timestamp;
+                    candlesSinceNewHigh = 0;
+                }
+            }
+        }
+
+        // 处理最后一个波段（进行中的波段）
+        if (inWave && waveStartPrice > 0 && wavePeakPrice > waveStartPrice) {
+            double uptrendPercent = (wavePeakPrice - waveStartPrice) / waveStartPrice * 100;
+
+            boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
+            // 最后波段：检查是否还处于"有效上涨"状态
+            boolean stillValid = candlesSinceNewHigh < noNewHighCandles;
+
+            if (uptrendPercent >= minUptrend && isDifferentCandle) {
+                waves.add(new UptrendData.CoinUptrend(
+                        symbol,
+                        Math.round(uptrendPercent * 100) / 100.0,
+                        stillValid,
+                        waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                        wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
+                        waveStartPrice,
+                        wavePeakPrice));
+            }
+        }
+
+        return waves;
+    }
+
+    /**
      * 计算单个币种的所有符合条件的单边涨幅波段
      * 
      * 新算法：使用位置比率法 + 横盘检测
      * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
      * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
      * 
-     * @param symbol            币种
-     * @param startTime         开始时间
-     * @param endTime           结束时间
-     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束）
-     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束
-     * @param minUptrend        最小涨幅过滤（百分比），低于此值的波段不返回
+     * @param symbol           币种
+     * @param startTime        开始时间
+     * @param endTime          结束时间
+     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
+     * @param minUptrend       最小涨幅过滤（百分比），低于此值的波段不返回
      * @return 该币种的所有符合条件的单边涨幅波段列表
      */
     private List<UptrendData.CoinUptrend> calculateSymbolAllWaves(String symbol, LocalDateTime startTime,
@@ -1667,11 +1825,11 @@ public class IndexCalculatorService {
         List<UptrendData.CoinUptrend> waves = new ArrayList<>();
 
         // 波段跟踪变量
-        double waveStartPrice = 0;    // 波段起点价格
-        double wavePeakPrice = 0;     // 波段最高价
+        double waveStartPrice = 0; // 波段起点价格
+        double wavePeakPrice = 0; // 波段最高价
         LocalDateTime waveStartTime = null;
         LocalDateTime wavePeakTime = null;
-        int candlesSinceNewHigh = 0;  // 连续未创新高的K线数
+        int candlesSinceNewHigh = 0; // 连续未创新高的K线数
 
         // 当前波段状态
         boolean inWave = false;
@@ -1725,8 +1883,8 @@ public class IndexCalculatorService {
 
                 if (positionTrigger || sidewaysTrigger) {
                     // 波段结束，计算涨幅
-                    double uptrendPercent = waveStartPrice > 0 
-                            ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100 
+                    double uptrendPercent = waveStartPrice > 0
+                            ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100
                             : 0;
 
                     // 符合条件的波段加入列表
@@ -1747,7 +1905,7 @@ public class IndexCalculatorService {
                     int peakIndex = prices.indexOf(price); // 当前索引
                     double lowestPrice = closePrice;
                     LocalDateTime lowestTime = timestamp;
-                    
+
                     // 从峰值时间点往后找最低点（最多找当前位置）
                     for (int j = peakIndex; j >= 0; j--) {
                         CoinPrice p = prices.get(j);
@@ -1760,7 +1918,7 @@ public class IndexCalculatorService {
                             lowestTime = p.getTimestamp();
                         }
                     }
-                    
+
                     // 以找到的最低点开始新波段
                     waveStartPrice = lowestPrice;
                     waveStartTime = lowestTime;
@@ -1778,7 +1936,7 @@ public class IndexCalculatorService {
             boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
             // 最后波段：检查是否还处于"有效上涨"状态
             boolean stillValid = candlesSinceNewHigh < noNewHighCandles;
-            
+
             if (uptrendPercent >= minUptrend && isDifferentCandle) {
                 waves.add(new UptrendData.CoinUptrend(
                         symbol,
@@ -1794,4 +1952,3 @@ public class IndexCalculatorService {
         return waves;
     }
 }
-
