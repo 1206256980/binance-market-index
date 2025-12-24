@@ -130,6 +130,7 @@ public class IndexCalculatorService {
      * 计算并保存当前时刻的市场指数（实时采集用）
      * 使用并发获取K线数据，获取准确的5分钟成交额
      */
+    @org.springframework.transaction.annotation.Transactional
     public MarketIndex calculateAndSaveCurrentIndex() {
         // 如果没有基准价格，需要先刷新
         if (basePrices.isEmpty()) {
