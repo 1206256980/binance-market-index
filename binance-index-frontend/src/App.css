@@ -1285,3 +1285,49 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ===== 胜率分析卡片 ===== */
+.win-rate-card {
+  min-width: 140px;
+}
+
+.win-rate-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.win-rate-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.win-rate-input {
+  width: 40px;
+  padding: 2px 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.win-rate-input:hover {
+  border-color: #ec4899;
+}
+
+.win-rate-input:focus {
+  outline: none;
+  border-color: #ec4899;
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.2);
+}
+
+.win-rate-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

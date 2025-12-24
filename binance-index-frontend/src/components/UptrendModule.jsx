@@ -68,6 +68,8 @@ function UptrendModule() {
     const [timeChartThreshold, setTimeChartThreshold] = useState(10) // 时间图表涨幅阈值，默认10%
     const [inputTimeChartThreshold, setInputTimeChartThreshold] = useState('10')
     const [selectedTimeBucket, setSelectedTimeBucket] = useState(null) // 选中的时间桶
+    const [winRate, setWinRate] = useState(90) // 胜率，默认90%
+    const [inputWinRate, setInputWinRate] = useState('90')
     const chartRef = useRef(null)
     const timeChartRef = useRef(null)
 
@@ -239,6 +241,49 @@ function UptrendModule() {
     const handleTimeChartThresholdKeyDown = (e) => {
         if (e.key === 'Enter') applyTimeChartThreshold()
     }
+
+    // 处理胜率输入
+    const handleWinRateChange = (e) => {
+        setInputWinRate(e.target.value)
+    }
+
+    const applyWinRate = () => {
+        const val = parseFloat(inputWinRate)
+        if (!isNaN(val) && val >= 50 && val <= 99) {
+            setWinRate(val)
+        } else {
+            setInputWinRate(String(winRate))
+        }
+    }
+
+    const handleWinRateKeyDown = (e) => {
+        if (e.key === 'Enter') applyWinRate()
+    }
+
+    // 计算分位数涨幅（胜率分析）
+    // 例如90%胜率：按涨幅从大到小排序，取第(1-90%)=10%位置的涨幅
+    // 意思是历史上有90%的波段涨幅不超过这个值
+    const calculateWinRateUptrend = () => {
+        if (!uptrendData?.allCoinsRanking || uptrendData.allCoinsRanking.length === 0) {
+            return null
+        }
+
+        const allWaves = uptrendData.allCoinsRanking
+        // 按涨幅从大到小排序
+        const sorted = [...allWaves].sort((a, b) => b.uptrendPercent - a.uptrendPercent)
+
+        // 计算分位数位置
+        // 90%胜率 = 取第10%的位置
+        const position = Math.ceil(sorted.length * (1 - winRate / 100))
+        const index = Math.max(0, Math.min(position - 1, sorted.length - 1))
+
+        return {
+            uptrend: sorted[index].uptrendPercent.toFixed(1),
+            position: position,
+            total: sorted.length
+        }
+    }
+
 
     // 搜索币种
     const handleSearchSymbol = () => {
@@ -903,6 +948,29 @@ function UptrendModule() {
                         <span className="icon">🏆</span>
                         <span className="label">最大涨幅</span>
                         <span className="value" style={{ color: '#ef4444' }}>+{uptrendData.maxUptrend}%</span>
+                    </div>
+                    {/* 胜率分析卡片 */}
+                    <div className="stat-item win-rate-card" style={{ borderLeft: '3px solid #ec4899' }}>
+                        <span className="icon">🎯</span>
+                        <div className="win-rate-content">
+                            <div className="win-rate-input-row">
+                                <input
+                                    type="text"
+                                    className="win-rate-input"
+                                    value={inputWinRate}
+                                    onChange={handleWinRateChange}
+                                    onBlur={applyWinRate}
+                                    onKeyDown={handleWinRateKeyDown}
+                                    title="输入胜率（50-99）"
+                                />
+                                <span className="win-rate-label">%胜率</span>
+                            </div>
+                            {calculateWinRateUptrend() && (
+                                <span className="value" style={{ color: '#ec4899' }}>
+                                    +{calculateWinRateUptrend().uptrend}%
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
