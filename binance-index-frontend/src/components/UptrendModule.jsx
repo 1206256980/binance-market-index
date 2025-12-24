@@ -469,6 +469,63 @@ function UptrendModule() {
         return null
     }
 
+    // 获取选中币种的统计数据
+    const getSymbolStats = () => {
+        if (!selectedSymbol || !uptrendData?.allCoinsRanking) return null
+
+        const symbolWaves = uptrendData.allCoinsRanking.filter(c => c.symbol === selectedSymbol)
+        if (symbolWaves.length === 0) return null
+
+        // 波段总数
+        const totalWaves = symbolWaves.length
+
+        // 进行中波段数
+        const ongoingCount = symbolWaves.filter(w => w.ongoing).length
+
+        // 计算平均涨幅
+        const avgUptrend = symbolWaves.reduce((sum, w) => sum + w.uptrendPercent, 0) / totalWaves
+
+        // 最大涨幅
+        const maxUptrend = Math.max(...symbolWaves.map(w => w.uptrendPercent))
+
+        // 计算用时统计（只计算已结束的波段）
+        const completedWaves = symbolWaves.filter(w => w.waveEndTime && w.waveStartTime && !w.ongoing)
+        const durations = completedWaves.map(w => w.waveEndTime - w.waveStartTime)
+
+        const avgDurationMs = durations.length > 0
+            ? durations.reduce((a, b) => a + b, 0) / durations.length
+            : 0
+
+        // 格式化用时
+        const formatDurationLocal = (ms) => {
+            if (!ms || ms <= 0) return '--'
+            const hours = Math.floor(ms / (1000 * 60 * 60))
+            const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+            if (hours >= 24) {
+                const days = Math.floor(hours / 24)
+                const remainHours = hours % 24
+                return `${days}天${remainHours}时`
+            }
+            return hours > 0 ? `${hours}时${minutes}分` : `${minutes}分钟`
+        }
+
+        // 最近启动时间
+        const latestStartTime = Math.max(...symbolWaves.map(w => w.waveStartTime))
+        // 首次启动时间
+        const firstStartTime = Math.min(...symbolWaves.map(w => w.waveStartTime))
+
+        return {
+            totalWaves,
+            ongoingCount,
+            avgUptrend: avgUptrend.toFixed(1),
+            maxUptrend: maxUptrend.toFixed(1),
+            avgDuration: formatDurationLocal(avgDurationMs),
+            latestStartTime,
+            firstStartTime
+        }
+    }
+
+
     // 计算时间分布数据
     const getTimeDistributionData = () => {
         if (!uptrendData?.allCoinsRanking) return null
@@ -717,6 +774,7 @@ function UptrendModule() {
     }
 
     const rankingData = getRankingData()
+    const symbolStats = getSymbolStats()
     const isPanelOpen = showAllRanking || selectedBucket || selectedSymbol || selectedTimeBucket
     const timeDistData = getTimeDistributionData()
 
@@ -997,6 +1055,32 @@ function UptrendModule() {
                                 </div>
                                 <button className="close-btn" onClick={closePanel}>✕</button>
                             </div>
+                            {/* 币种统计卡片 - 只在查看单个币种时显示 */}
+                            {selectedSymbol && symbolStats && (
+                                <div className="symbol-stats-cards">
+                                    <div className="symbol-stat-card" style={{ borderLeftColor: '#ef4444' }}>
+                                        <span className="stat-icon">📊</span>
+                                        <div className="stat-content">
+                                            <span className="stat-label">波段总数</span>
+                                            <span className="stat-value" style={{ color: '#ef4444' }}>{symbolStats.totalWaves}</span>
+                                        </div>
+                                    </div>
+                                    <div className="symbol-stat-card" style={{ borderLeftColor: '#10b981' }}>
+                                        <span className="stat-icon">📈</span>
+                                        <div className="stat-content">
+                                            <span className="stat-label">平均涨幅</span>
+                                            <span className="stat-value" style={{ color: '#10b981' }}>+{symbolStats.avgUptrend}%</span>
+                                        </div>
+                                    </div>
+                                    <div className="symbol-stat-card" style={{ borderLeftColor: '#6366f1' }}>
+                                        <span className="stat-icon">⏱️</span>
+                                        <div className="stat-content">
+                                            <span className="stat-label">平均用时</span>
+                                            <span className="stat-value" style={{ color: '#6366f1' }}>{symbolStats.avgDuration}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {/* 筛选和排序 */}
                             <div className="sort-controls">
                                 <label className="filter-ongoing">
