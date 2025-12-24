@@ -644,12 +644,15 @@ body {
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-card);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .ranking-title {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
+  flex: 1;
 }
 
 .ranking-title .range-badge {
@@ -1187,18 +1190,27 @@ body {
 
 /* 返回按钮 */
 .back-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 16px;
-  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
   cursor: pointer;
-  margin-right: 8px;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .back-btn:hover {
-  color: var(--primary);
+  background: linear-gradient(135deg, #ef4444, #f59e0b);
+  border-color: transparent;
+  color: white;
+  transform: translateX(-2px);
 }
 
 /* 时间输入框 */

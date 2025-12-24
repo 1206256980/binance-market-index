@@ -1037,19 +1037,21 @@ function UptrendModule() {
                     {rankingData && (
                         <>
                             <div className="ranking-header">
+                                {selectedSymbol ? (
+                                    <button
+                                        className="back-btn"
+                                        onClick={() => {
+                                            setSelectedSymbol(null)
+                                            setShowAllRanking(true)
+                                        }}
+                                        title="返回全部排行"
+                                    >
+                                        ←
+                                    </button>
+                                ) : (
+                                    <div style={{ width: '32px' }} /> /* 占位保持对称 */
+                                )}
                                 <div className="ranking-title">
-                                    {selectedSymbol && (
-                                        <button
-                                            className="back-btn"
-                                            onClick={() => {
-                                                setSelectedSymbol(null)
-                                                setShowAllRanking(true)
-                                            }}
-                                            title="返回全部排行"
-                                        >
-                                            ←
-                                        </button>
-                                    )}
                                     <span className={`range-badge ${showAllRanking ? 'all' : ''}`} style={{ background: 'linear-gradient(135deg, #ef4444, #f59e0b)' }}>{rankingData.title}</span>
                                     <span className="coin-count">{rankingData.subtitle}</span>
                                 </div>
