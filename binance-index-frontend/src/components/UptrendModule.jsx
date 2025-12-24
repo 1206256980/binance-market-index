@@ -1005,6 +1005,34 @@ function UptrendModule() {
                     >
                         ↺
                     </button>
+
+                    {/* 搜索框 */}
+                    <div className="header-search" style={{ marginLeft: '16px' }}>
+                        <input
+                            type="text"
+                            className="header-search-input"
+                            placeholder="搜索币种..."
+                            value={searchSymbol}
+                            onChange={(e) => setSearchSymbol(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
+                        />
+                        <button
+                            className="header-search-btn"
+                            onClick={handleSearchSymbol}
+                            title="搜索"
+                        >
+                            🔍
+                        </button>
+                        {searchSymbol && (
+                            <button
+                                className="header-search-clear"
+                                onClick={() => setSearchSymbol('')}
+                                title="清除"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1053,38 +1081,6 @@ function UptrendModule() {
                                     +{calculateWinRateUptrend().uptrend}%
                                 </span>
                             )}
-                        </div>
-                    </div>
-                    {/* 搜索框 */}
-                    <div className="stat-item search-card" style={{ borderLeft: '3px solid #0ea5e9' }}>
-                        <span className="icon">🔍</span>
-                        <div className="search-content">
-                            <input
-                                type="text"
-                                className="stat-search-input"
-                                placeholder="搜索币种..."
-                                value={searchSymbol}
-                                onChange={(e) => setSearchSymbol(e.target.value)}
-                                onKeyDown={handleSearchKeyDown}
-                            />
-                            <div className="search-buttons">
-                                <button
-                                    className="search-action-btn"
-                                    onClick={handleSearchSymbol}
-                                    title="搜索"
-                                >
-                                    →
-                                </button>
-                                {searchSymbol && (
-                                    <button
-                                        className="search-clear-btn"
-                                        onClick={() => setSearchSymbol('')}
-                                        title="清除"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
-                            </div>
                         </div>
                     </div>
                 </div>

@@ -1420,3 +1420,59 @@ body {
   border-color: var(--danger);
   color: white;
 }
+
+/* ===== 控制栏搜索框 ===== */
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-search-input {
+  width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.header-search-input:hover,
+.header-search-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.header-search-input:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.header-search-btn,
+.header-search-clear {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.header-search-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.header-search-clear:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
