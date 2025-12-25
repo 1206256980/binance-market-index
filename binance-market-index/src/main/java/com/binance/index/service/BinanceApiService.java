@@ -80,6 +80,13 @@ public class BinanceApiService {
     }
 
     /**
+     * 获取配置的请求间隔（毫秒）
+     */
+    public long getRequestIntervalMs() {
+        return requestIntervalMs;
+    }
+
+    /**
      * 获取限流状态
      */
     public String getRateLimitStatus() {

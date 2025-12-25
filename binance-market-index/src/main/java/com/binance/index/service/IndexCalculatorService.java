@@ -2279,10 +2279,21 @@ public class IndexCalculatorService {
                                 }
                             }
                             
-                            // 立即保存（DB操作耗时成为自然的API间隔）
+                            // 立即保存
                             if (!pricesToSave.isEmpty()) {
                                 jdbcCoinPriceRepository.batchInsert(pricesToSave);
                                 totalSaved.addAndGet(pricesToSave.size());
+                            }
+                            
+                            // 使用配置的请求间隔，确保不超过速率限制
+                            long intervalMs = binanceApiService.getRequestIntervalMs();
+                            if (intervalMs > 0) {
+                                try {
+                                    Thread.sleep(intervalMs);
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                    break;
+                                }
                             }
                             
                             // 计算下一批的起始时间
