@@ -2251,9 +2251,9 @@ public class IndexCalculatorService {
                                 break;
                             }
                             
-                            // 获取一批 K 线（limit=99，权重1）
+                            // 获取一批 K 线（limit=500，权重5）
                             List<KlineData> batch = binanceApiService.getKlines(
-                                    symbol, "5m", currentStart, endMs, 99);
+                                    symbol, "5m", currentStart, endMs, 500);
                             
                             totalApiCalls.incrementAndGet();
                             
