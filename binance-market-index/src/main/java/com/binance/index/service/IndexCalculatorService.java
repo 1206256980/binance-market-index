@@ -2266,7 +2266,7 @@ public class IndexCalculatorService {
                         long currentStart = startMs;
                         boolean isFirstBatch = true;
                         
-                        while (currentStart < endMs) {
+                        while (currentStart <= endMs) {
                             // 检查是否被限流
                             if (binanceApiService.isRateLimited()) {
                                 log.warn("检测到限流，停止回补 {}", symbol);
