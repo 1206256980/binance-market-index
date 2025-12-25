@@ -72,14 +72,8 @@ public class JdbcCoinPriceRepository {
             jdbcTemplate.update(sql.toString(), params);
             insertedCount += batch.size();
 
-            if (insertedCount % 50000 == 0 || insertedCount == totalSize) {
-                log.info("多值INSERT进度: {}/{}", insertedCount, totalSize);
-            }
+            
         }
-
-        long elapsed = System.currentTimeMillis() - startTime;
-        log.info("多值INSERT完成: {} 条记录，耗时 {}ms (平均 {} 条/秒)",
-                totalSize, elapsed, elapsed > 0 ? totalSize * 1000 / elapsed : totalSize);
     }
 }
 

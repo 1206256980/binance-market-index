@@ -925,6 +925,55 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 查询缺漏的历史价格时间点（只查询，不修复）
+     * 与修复接口 repairMissingPriceData 类似，但只返回缺漏信息不做任何修改
+     * 
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @return 缺漏时间点统计
+     */
+    public Map<String, Object> getMissingTimestamps(LocalDateTime startTime, LocalDateTime endTime) {
+        Map<String, Object> result = new HashMap<>();
+        
+        log.info("查询缺漏时间点: {} ~ {}", startTime, endTime);
+        
+        // 1. 生成应该存在的所有时间点
+        List<LocalDateTime> expectedTimestamps = new ArrayList<>();
+        LocalDateTime checkTime = alignToFiveMinutes(startTime);
+        while (!checkTime.isAfter(endTime)) {
+            expectedTimestamps.add(checkTime);
+            checkTime = checkTime.plusMinutes(5);
+        }
+        
+        // 2. 获取数据库中已存在的时间点
+        Set<LocalDateTime> existingTimestamps = new HashSet<>(
+                coinPriceRepository.findAllDistinctTimestampsBetween(startTime, endTime));
+        
+        // 3. 找出缺漏的时间点
+        List<String> missingTimestamps = new ArrayList<>();
+        for (LocalDateTime ts : expectedTimestamps) {
+            if (!existingTimestamps.contains(ts)) {
+                missingTimestamps.add(ts.toString());
+            }
+        }
+        
+        // 4. 返回结果
+        result.put("expectedCount", expectedTimestamps.size());
+        result.put("existingCount", existingTimestamps.size());
+        result.put("missingCount", missingTimestamps.size());
+        result.put("missingTimestamps", missingTimestamps);
+        result.put("completenessPercent", 
+                expectedTimestamps.isEmpty() ? 100.0 : 
+                Math.round((double) existingTimestamps.size() / expectedTimestamps.size() * 10000) / 100.0);
+        
+        log.info("查询完成: 应有{}个时间点, 实际{}个, 缺漏{}个, 完整度{}%", 
+                expectedTimestamps.size(), existingTimestamps.size(), missingTimestamps.size(),
+                result.get("completenessPercent"));
+        
+        return result;
+    }
+
+    /**
      * 修复所有币种的历史价格缺失数据
      * 检测每个币种在指定时间范围内的数据缺口，并从币安API回补
      * 

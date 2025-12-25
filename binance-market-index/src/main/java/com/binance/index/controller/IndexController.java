@@ -500,6 +500,68 @@ public class IndexController {
     }
 
     /**
+     * 查询缺漏的历史价格时间点（只查询，不修复）
+     * 返回指定时间范围内，数据库中缺失的5分钟K线时间点列表
+     * 
+     * 示例: 
+     * - GET /api/index/missing?days=7 （查询最近7天的缺漏）
+     * - GET /api/index/missing?start=2024-12-20 00:00&end=2024-12-24 00:00 （指定时间范围）
+     * 
+     * @param days 检查最近多少天的数据，默认7天（当 start 为空时使用）
+     * @param start 开始时间（可选），格式: yyyy-MM-dd HH:mm
+     * @param end 结束时间（可选），格式: yyyy-MM-dd HH:mm
+     * @param timezone 输入时间的时区，默认 Asia/Shanghai
+     */
+    @GetMapping("/missing")
+    public ResponseEntity<Map<String, Object>> getMissingTimestamps(
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            java.time.LocalDateTime startTime;
+            java.time.LocalDateTime endTime;
+            java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+            java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+            
+            // 计算时间范围
+            if (start != null && !start.isEmpty() && end != null && !end.isEmpty()) {
+                // 使用指定时间范围
+                java.time.LocalDateTime startLocal = parseDateTime(start);
+                java.time.LocalDateTime endLocal = parseDateTime(end);
+                startTime = startLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                endTime = endLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+            } else {
+                // 使用 days 参数
+                endTime = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
+                endTime = endTime.minusMinutes(endTime.getMinute() % 5).withSecond(0).withNano(0); // 对齐到5分钟
+                startTime = endTime.minusDays(days);
+            }
+            
+            // 调用 service 获取缺漏列表
+            Map<String, Object> result = indexCalculatorService.getMissingTimestamps(startTime, endTime);
+            
+            response.put("success", true);
+            response.put("queryRange", Map.of(
+                "startUtc", startTime.toString(),
+                "endUtc", endTime.toString(),
+                "days", days
+            ));
+            response.putAll(result);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "查询失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 修复所有币种的历史价格缺失数据
      * 检测每个币种在指定时间范围内的数据缺口，并从币安API回补
      * 
