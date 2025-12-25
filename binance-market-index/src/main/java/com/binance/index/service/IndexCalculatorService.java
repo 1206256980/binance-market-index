@@ -11,6 +11,8 @@ import com.binance.index.repository.CoinPriceRepository;
 import com.binance.index.repository.JdbcCoinPriceRepository;
 import com.binance.index.repository.BasePriceRepository;
 import com.binance.index.repository.MarketIndexRepository;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +42,12 @@ public class IndexCalculatorService {
     // 缓存各币种的基准价格（回补起始时间的价格）
     private Map<String, Double> basePrices = new HashMap<>();
     private LocalDateTime basePriceTime;
+    
+    // 单边上行数据缓存（5分钟过期，最多缓存10个不同参数的结果）
+    private final Cache<String, UptrendData> uptrendCache = Caffeine.newBuilder()
+            .maximumSize(10)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
 
     // 回补状态标志
     private volatile boolean backfillInProgress = false;
@@ -83,6 +92,14 @@ public class IndexCalculatorService {
      */
     public boolean isBackfillInProgress() {
         return backfillInProgress;
+    }
+    
+    /**
+     * 清空单边上行缓存（在新数据采集后调用）
+     */
+    public void invalidateUptrendCache() {
+        uptrendCache.invalidateAll();
+        log.debug("单边上行缓存已清空");
     }
 
     /**
@@ -258,6 +275,9 @@ public class IndexCalculatorService {
                 .collect(Collectors.toList());
         jdbcCoinPriceRepository.batchInsert(coinPrices);
         log.debug("保存 {} 个币种价格", coinPrices.size());
+        
+        // 新数据采集后清空单边上行缓存
+        invalidateUptrendCache();
 
         log.info("保存指数: 时间={}, 值={}%, 涨/跌={}/{}, ADR={}, 币种数={}",
                 klineTime, String.format("%.4f", indexValue),
@@ -1531,6 +1551,18 @@ public class IndexCalculatorService {
         // 对齐时间到5分钟边界：统一向下取整
         LocalDateTime alignedStart = alignToFiveMinutes(startTime);
         LocalDateTime alignedEnd = alignToFiveMinutes(endTime);
+        
+        // 生成缓存 key（包含对齐后的时间和所有参数）
+        String cacheKey = String.format("%s_%s_%.2f_%d_%.2f", 
+                alignedStart.toString(), alignedEnd.toString(), keepRatio, noNewHighCandles, minUptrend);
+        
+        // 检查缓存
+        UptrendData cachedData = uptrendCache.getIfPresent(cacheKey);
+        if (cachedData != null) {
+            log.info("命中缓存: {}", cacheKey);
+            return cachedData;
+        }
+        
         log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", alignedStart, alignedEnd, keepRatio,
                 noNewHighCandles, minUptrend);
 
@@ -1659,6 +1691,11 @@ public class IndexCalculatorService {
 
         log.info("单边涨幅分布计算完成: 总波段数={}, 进行中={}, 平均涨幅={}%, 最大涨幅={}%",
                 allWaves.size(), ongoingCount, data.getAvgUptrend(), data.getMaxUptrend());
+        
+        // 存入缓存
+        uptrendCache.put(cacheKey, data);
+        log.debug("结果已缓存: {}", cacheKey);
+        
         return data;
     }
 
