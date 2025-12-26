@@ -938,9 +938,10 @@ public class IndexCalculatorService {
         log.info("查询各币种缺漏时间点: {} ~ {}", startTime, endTime);
 
         // 确保只检查已闭合的K线（当前对齐时间 - 5分钟）
-        LocalDateTime latestClosedKline = alignToFiveMinutes(LocalDateTime.now(java.time.ZoneOffset.UTC)).minusMinutes(5);
+        LocalDateTime latestClosedKline = alignToFiveMinutes(LocalDateTime.now(java.time.ZoneOffset.UTC))
+                .minusMinutes(5);
         LocalDateTime actualEndTime = endTime.isAfter(latestClosedKline) ? latestClosedKline : endTime;
-        
+
         log.info("实际检查范围: {} ~ {} (最新闭合K线: {})", startTime, actualEndTime, latestClosedKline);
 
         // 1. 生成应该存在的所有时间点
@@ -1918,17 +1919,15 @@ public class IndexCalculatorService {
                     }
 
                     // 回溯找到从波段峰值到当前的最低点作为新波段起点
-                    int currentIndex = prices.indexOf(price); // 当前索引
+                    int peakIndex = prices.indexOf(price); // 当前索引
                     double lowestPrice = lowPrice; // 使用当前K线的低价作为初始值
                     LocalDateTime lowestTime = timestamp;
 
                     // 从峰值时间点往后找最低点（使用低价而非收盘价）
-                    // 注意：数据按时间升序排列，所以从前往后遍历（j++）
-                    for (int j = 0; j <= currentIndex; j++) {
+                    for (int j = peakIndex; j >= 0; j--) {
                         CoinPrice p = prices.get(j);
-                        // 只查找峰值时间之后的K线
                         if (p.getTimestamp().isBefore(wavePeakTime) || p.getTimestamp().equals(wavePeakTime)) {
-                            continue; // 跳过峰值及之前的K线
+                            break;
                         }
                         double pLow = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
                         if (pLow < lowestPrice) {
@@ -2080,17 +2079,15 @@ public class IndexCalculatorService {
 
                     // 回溯找到从波段峰值到当前的最低点作为新波段起点
                     // 这样可以更准确地捕捉真正的涨势起点
-                    int currentIndex = prices.indexOf(price); // 当前索引
+                    int peakIndex = prices.indexOf(price); // 当前索引
                     double lowestPrice = lowPrice; // 使用当前K线的低价作为初始值
                     LocalDateTime lowestTime = timestamp;
 
                     // 从峰值时间点往后找最低点（使用低价而非收盘价）
-                    // 注意：数据按时间升序排列，所以从前往后遍历（j++）
-                    for (int j = 0; j <= currentIndex; j++) {
+                    for (int j = peakIndex; j >= 0; j--) {
                         CoinPrice p = prices.get(j);
-                        // 只查找峰值时间之后的K线
                         if (p.getTimestamp().isBefore(wavePeakTime) || p.getTimestamp().equals(wavePeakTime)) {
-                            continue; // 跳过峰值及之前的K线
+                            break; // 不要回溯到峰值之前
                         }
                         double pLow = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
                         if (pLow < lowestPrice) {
