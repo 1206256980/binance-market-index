@@ -1912,15 +1912,17 @@ public class IndexCalculatorService {
                     }
 
                     // 回溯找到从波段峰值到当前的最低点作为新波段起点
-                    int peakIndex = prices.indexOf(price); // 当前索引
+                    int currentIndex = prices.indexOf(price); // 当前索引
                     double lowestPrice = lowPrice; // 使用当前K线的低价作为初始值
                     LocalDateTime lowestTime = timestamp;
 
                     // 从峰值时间点往后找最低点（使用低价而非收盘价）
-                    for (int j = peakIndex; j >= 0; j--) {
+                    // 注意：数据按时间升序排列，所以从前往后遍历（j++）
+                    for (int j = 0; j <= currentIndex; j++) {
                         CoinPrice p = prices.get(j);
+                        // 只查找峰值时间之后的K线
                         if (p.getTimestamp().isBefore(wavePeakTime) || p.getTimestamp().equals(wavePeakTime)) {
-                            break;
+                            continue; // 跳过峰值及之前的K线
                         }
                         double pLow = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
                         if (pLow < lowestPrice) {
@@ -2072,15 +2074,17 @@ public class IndexCalculatorService {
 
                     // 回溯找到从波段峰值到当前的最低点作为新波段起点
                     // 这样可以更准确地捕捉真正的涨势起点
-                    int peakIndex = prices.indexOf(price); // 当前索引
+                    int currentIndex = prices.indexOf(price); // 当前索引
                     double lowestPrice = lowPrice; // 使用当前K线的低价作为初始值
                     LocalDateTime lowestTime = timestamp;
 
                     // 从峰值时间点往后找最低点（使用低价而非收盘价）
-                    for (int j = peakIndex; j >= 0; j--) {
+                    // 注意：数据按时间升序排列，所以从前往后遍历（j++）
+                    for (int j = 0; j <= currentIndex; j++) {
                         CoinPrice p = prices.get(j);
+                        // 只查找峰值时间之后的K线
                         if (p.getTimestamp().isBefore(wavePeakTime) || p.getTimestamp().equals(wavePeakTime)) {
-                            break; // 不要回溯到峰值之前
+                            continue; // 跳过峰值及之前的K线
                         }
                         double pLow = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
                         if (pLow < lowestPrice) {
