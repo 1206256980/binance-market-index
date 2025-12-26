@@ -25,6 +25,26 @@ const TIME_GRANULARITY_OPTIONS = [
     { label: '1天', value: 24 }
 ]
 
+// 智能格式化价格，根据价格大小自动调整小数位数
+const formatPrice = (price) => {
+    if (price === null || price === undefined) return '--'
+    if (price === 0) return '0'
+
+    // 根据价格大小决定显示精度
+    const absPrice = Math.abs(price)
+    if (absPrice >= 1000) {
+        return price.toFixed(2)      // >= 1000: 2位小数
+    } else if (absPrice >= 1) {
+        return price.toFixed(4)      // 1-999: 4位小数
+    } else if (absPrice >= 0.001) {
+        return price.toFixed(6)      // 0.001-0.999: 6位小数
+    } else if (absPrice >= 0.0001) {
+        return price.toFixed(7)      // 0.0001-0.00099: 7位小数
+    } else {
+        return price.toFixed(8)      // < 0.0001: 8位小数
+    }
+}
+
 // 格式化时间戳为本地时间
 const formatTimestamp = (ts) => {
     if (!ts) return '--'
@@ -1401,7 +1421,7 @@ function UptrendModule() {
                                         <div className="uptrend-value">
                                             <span className="percent">+{coin.uptrendPercent.toFixed(2)}%</span>
                                             <span className="price-range">
-                                                {coin.startPrice?.toFixed(4)} → {coin.peakPrice?.toFixed(4)}
+                                                {coin.startPrice} → {coin.peakPrice}
                                             </span>
                                         </div>
                                         {!selectedSymbol && (
