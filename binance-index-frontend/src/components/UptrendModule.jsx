@@ -15,6 +15,16 @@ const TIME_OPTIONS = [
     { label: '60天', value: 1440 }
 ]
 
+// 时间粒度选项（波段启动时间分布图表）
+const TIME_GRANULARITY_OPTIONS = [
+    { label: '自动', value: 'auto' },
+    { label: '2小时', value: 2 },
+    { label: '4小时', value: 4 },
+    { label: '8小时', value: 8 },
+    { label: '12小时', value: 12 },
+    { label: '1天', value: 24 }
+]
+
 // 格式化时间戳为本地时间
 const formatTimestamp = (ts) => {
     if (!ts) return '--'
@@ -80,6 +90,7 @@ function UptrendModule() {
     const [searchSymbol, setSearchSymbol] = useState('')
     const [timeChartThreshold, setTimeChartThreshold] = useState(() => getCache('timeChartThreshold', 10))
     const [inputTimeChartThreshold, setInputTimeChartThreshold] = useState(() => String(getCache('timeChartThreshold', 10)))
+    const [timeGranularity, setTimeGranularity] = useState(() => getCache('timeGranularity', 'auto'))
     const [selectedTimeBucket, setSelectedTimeBucket] = useState(null)
     const [winRate, setWinRate] = useState(() => getCache('winRate', 90))
     const [inputWinRate, setInputWinRate] = useState(() => String(getCache('winRate', 90)))
@@ -123,6 +134,10 @@ function UptrendModule() {
     }, [timeChartThreshold])
 
     useEffect(() => {
+        localStorage.setItem('uptrend_timeGranularity', JSON.stringify(timeGranularity))
+    }, [timeGranularity])
+
+    useEffect(() => {
         localStorage.setItem('uptrend_winRate', JSON.stringify(winRate))
     }, [winRate])
 
@@ -130,7 +145,7 @@ function UptrendModule() {
     const resetToDefaults = () => {
         // 清除所有缓存
         const keys = ['timeBase', 'useCustomTime', 'startTime', 'endTime', 'keepRatio',
-            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'winRate']
+            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'timeGranularity', 'winRate']
         keys.forEach(key => localStorage.removeItem(`uptrend_${key}`))
 
         // 恢复默认值
@@ -146,6 +161,7 @@ function UptrendModule() {
         setInputMinUptrend('4')
         setTimeChartThreshold(10)
         setInputTimeChartThreshold('10')
+        setTimeGranularity('auto')
         setWinRate(90)
         setInputWinRate('90')
     }
@@ -679,24 +695,33 @@ function UptrendModule() {
         const maxTime = Math.max(...filteredWaves.map(c => c.waveStartTime))
         const rangeHours = (maxTime - minTime) / (1000 * 60 * 60)
 
-        // 根据时间范围自动确定粒度
+        // 根据用户选择或时间范围确定粒度
         let bucketSizeMs
         let bucketLabel
-        if (rangeHours <= 6) {
-            bucketSizeMs = 30 * 60 * 1000 // 30分钟
-            bucketLabel = '30分钟'
-        } else if (rangeHours <= 24) {
-            bucketSizeMs = 60 * 60 * 1000 // 1小时
-            bucketLabel = '1小时'
-        } else if (rangeHours <= 72) {
-            bucketSizeMs = 2 * 60 * 60 * 1000 // 2小时
-            bucketLabel = '2小时'
-        } else if (rangeHours <= 168) {
-            bucketSizeMs = 4 * 60 * 60 * 1000 // 4小时
-            bucketLabel = '4小时'
+
+        if (timeGranularity !== 'auto') {
+            // 用户手动选择了粒度
+            const hours = Number(timeGranularity)
+            bucketSizeMs = hours * 60 * 60 * 1000
+            bucketLabel = hours >= 24 ? `${hours / 24}天` : `${hours}小时`
         } else {
-            bucketSizeMs = 12 * 60 * 60 * 1000 // 12小时
-            bucketLabel = '12小时'
+            // 自动确定粒度
+            if (rangeHours <= 6) {
+                bucketSizeMs = 30 * 60 * 1000 // 30分钟
+                bucketLabel = '30分钟'
+            } else if (rangeHours <= 24) {
+                bucketSizeMs = 60 * 60 * 1000 // 1小时
+                bucketLabel = '1小时'
+            } else if (rangeHours <= 72) {
+                bucketSizeMs = 2 * 60 * 60 * 1000 // 2小时
+                bucketLabel = '2小时'
+            } else if (rangeHours <= 168) {
+                bucketSizeMs = 4 * 60 * 60 * 1000 // 4小时
+                bucketLabel = '4小时'
+            } else {
+                bucketSizeMs = 12 * 60 * 60 * 1000 // 12小时
+                bucketLabel = '12小时'
+            }
         }
 
         // 对齐起始时间
@@ -1149,6 +1174,19 @@ function UptrendModule() {
                             title="只统计涨幅大于此值的波段"
                         />
                         <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
+                        <span className="label" style={{ marginLeft: '12px' }}>粒度:</span>
+                        <select
+                            className="time-select"
+                            value={timeGranularity}
+                            onChange={(e) => setTimeGranularity(e.target.value === 'auto' ? 'auto' : Number(e.target.value))}
+                            style={{ marginLeft: '4px' }}
+                        >
+                            {TIME_GRANULARITY_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
                         {timeDistData && (
                             <span style={{ marginLeft: '12px', fontSize: '12px', color: '#10b981' }}>
                                 共 {timeDistData.totalWaves} 个波段，粒度: {timeDistData.bucketLabel}
