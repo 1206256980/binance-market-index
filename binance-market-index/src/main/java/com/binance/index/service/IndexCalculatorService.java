@@ -51,6 +51,9 @@ public class IndexCalculatorService {
             .expireAfterWrite(5, TimeUnit.MINUTES)
             .build();
 
+    // 波段计算专用线程池（4线程）
+    private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(4);
+
     // 回补状态标志
     private volatile boolean backfillInProgress = false;
 
@@ -1737,11 +1740,18 @@ public class IndexCalculatorService {
         // 清空原始列表引用，帮助 GC
         allPrices = null;
 
-        // 使用并行流处理
-        List<UptrendData.CoinUptrend> allWaves = pricesBySymbol.entrySet().parallelStream()
-                .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
-                        noNewHighCandles, minUptrend, priceMode).stream())
-                .collect(java.util.stream.Collectors.toList());
+        // 使用自定义4线程池处理
+        final Map<String, List<CoinPrice>> finalPricesBySymbol = pricesBySymbol;
+        List<UptrendData.CoinUptrend> allWaves;
+        try {
+            allWaves = waveCalculationPool.submit(() -> finalPricesBySymbol.entrySet().parallelStream()
+                    .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
+                            noNewHighCandles, minUptrend, priceMode).stream())
+                    .collect(java.util.stream.Collectors.toList())).get();
+        } catch (Exception e) {
+            log.error("波段计算失败", e);
+            return null;
+        }
 
         // 清空分组数据
         pricesBySymbol = null;
