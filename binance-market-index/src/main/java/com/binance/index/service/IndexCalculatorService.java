@@ -1015,7 +1015,8 @@ public class IndexCalculatorService {
      * @return 修复结果详情
      */
     @org.springframework.transaction.annotation.Transactional
-    public Map<String, Object> repairMissingPriceData(LocalDateTime startTime, LocalDateTime endTime, int days) {
+    public Map<String, Object> repairMissingPriceData(LocalDateTime startTime, LocalDateTime endTime, int days,
+            List<String> symbols) {
         Map<String, Object> result = new HashMap<>();
         long totalStartTime = System.currentTimeMillis();
 
@@ -1026,15 +1027,23 @@ public class IndexCalculatorService {
 
         log.info("开始检测并修复历史价格缺失数据: {} ~ {}", actualStartTime, actualEndTime);
 
-        // 获取当前活跃的所有币种
-        List<String> activeSymbols = binanceApiService.getAllUsdtSymbols();
+        // 获取要修复的币种列表
+        List<String> activeSymbols;
+        if (symbols != null && !symbols.isEmpty()) {
+            // 使用指定的币种
+            activeSymbols = symbols;
+            log.info("只修复指定的 {} 个币种: {}", activeSymbols.size(), activeSymbols);
+        } else {
+            // 获取所有活跃币种
+            activeSymbols = binanceApiService.getAllUsdtSymbols();
+        }
         if (activeSymbols.isEmpty()) {
             result.put("success", false);
             result.put("message", "无法获取活跃币种列表");
             return result;
         }
 
-        log.info("检查 {} 个活跃币种的历史数据完整性...", activeSymbols.size());
+        log.info("检查 {} 个币种的历史数据完整性...", activeSymbols.size());
 
         // 【优化1】一次性批量查询所有币种的已有时间戳
         long dbQueryStart = System.currentTimeMillis();

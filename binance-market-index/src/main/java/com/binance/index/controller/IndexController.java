@@ -574,22 +574,25 @@ public class IndexController {
     }
 
     /**
-     * 修复所有币种的历史价格缺失数据
-     * 检测每个币种在指定时间范围内的数据缺口，并从币安API回补
+     * 修复币种的历史价格缺失数据
+     * 检测指定币种在时间范围内的数据缺口，并从币安API回补
      * 
      * 示例:
-     * - POST /api/index/repair?days=7 （修复最近7天）
+     * - POST /api/index/repair?days=7 （修复所有币种最近7天）
+     * - POST /api/index/repair?symbols=BTCUSDT,ETHUSDT&days=7 （只修复指定币种）
      * - POST /api/index/repair?start=2024-12-20 00:00&end=2024-12-24 00:00 （指定时间范围）
      * 
-     * @param days  检查最近多少天的数据，默认7天（当 start 为空时使用）
-     * @param start 开始时间（可选）
-     * @param end   结束时间（可选）
+     * @param days    检查最近多少天的数据，默认7天（当 start 为空时使用）
+     * @param start   开始时间（可选）
+     * @param end     结束时间（可选）
+     * @param symbols 要修复的币种列表，逗号分隔，如 "BTCUSDT,ETHUSDT"（可选，不传则修复所有）
      */
     @PostMapping("/repair")
     public ResponseEntity<Map<String, Object>> repairMissingData(
             @RequestParam(defaultValue = "7") int days,
             @RequestParam(required = false) String start,
-            @RequestParam(required = false) String end) {
+            @RequestParam(required = false) String end,
+            @RequestParam(required = false) String symbols) {
         log.info("------------------------- 开始调用 POST /repair 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
 
@@ -598,6 +601,21 @@ public class IndexController {
             response.put("success", false);
             response.put("message", "days 参数必须在 1-60 之间");
             return ResponseEntity.badRequest().body(response);
+        }
+
+        // 解析币种列表
+        List<String> symbolList = null;
+        if (symbols != null && !symbols.trim().isEmpty()) {
+            symbolList = java.util.Arrays.stream(symbols.split(","))
+                    .map(String::trim)
+                    .map(String::toUpperCase)
+                    .filter(s -> !s.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+            if (symbolList.isEmpty()) {
+                symbolList = null; // 空列表视为修复所有
+            } else {
+                log.info("指定修复币种: {}", symbolList);
+            }
         }
 
         try {
@@ -618,7 +636,8 @@ public class IndexController {
                 endTime = beijingTime.atZone(beijingZone).withZoneSameInstant(utcZone).toLocalDateTime();
             }
 
-            Map<String, Object> result = indexCalculatorService.repairMissingPriceData(startTime, endTime, days);
+            Map<String, Object> result = indexCalculatorService.repairMissingPriceData(startTime, endTime, days,
+                    symbolList);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             response.put("success", false);
