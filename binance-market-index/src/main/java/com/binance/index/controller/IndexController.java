@@ -258,13 +258,13 @@ public class IndexController {
      * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
      * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
      * 
-     * @param hours             相对基准时间（多少小时前），默认168小时（7天）
-     * @param keepRatio         保留比率阈值（如0.75表示回吐25%涨幅时结束），默认0.75
-     * @param noNewHighCandles  连续多少根K线未创新高视为横盘结束，默认6
-     * @param minUptrend        最小涨幅过滤（百分比），默认4%，低于此值的波段不返回
-     * @param start             开始时间，格式: yyyy-MM-dd HH:mm
-     * @param end               结束时间，格式: yyyy-MM-dd HH:mm
-     * @param timezone          输入时间的时区，默认 Asia/Shanghai
+     * @param hours            相对基准时间（多少小时前），默认168小时（7天）
+     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束），默认0.75
+     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束，默认6
+     * @param minUptrend       最小涨幅过滤（百分比），默认4%，低于此值的波段不返回
+     * @param start            开始时间，格式: yyyy-MM-dd HH:mm
+     * @param end              结束时间，格式: yyyy-MM-dd HH:mm
+     * @param timezone         输入时间的时区，默认 Asia/Shanghai
      */
     @GetMapping("/uptrend-distribution")
     public ResponseEntity<Map<String, Object>> getUptrendDistribution(
@@ -272,6 +272,7 @@ public class IndexController {
             @RequestParam(defaultValue = "0.75") double keepRatio,
             @RequestParam(defaultValue = "6") int noNewHighCandles,
             @RequestParam(defaultValue = "4") double minUptrend,
+            @RequestParam(defaultValue = "lowHigh") String priceMode,
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
@@ -298,7 +299,8 @@ public class IndexController {
                     return ResponseEntity.badRequest().body(response);
                 }
 
-                UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc, keepRatio, noNewHighCandles, minUptrend);
+                UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc, keepRatio,
+                        noNewHighCandles, minUptrend, priceMode);
 
                 if (data != null) {
                     response.put("success", true);
@@ -306,6 +308,7 @@ public class IndexController {
                     response.put("keepRatio", keepRatio);
                     response.put("noNewHighCandles", noNewHighCandles);
                     response.put("minUptrend", minUptrend);
+                    response.put("priceMode", priceMode);
                     response.put("inputTimezone", timezone);
                     response.put("inputStart", start);
                     response.put("inputEnd", end);
@@ -326,7 +329,8 @@ public class IndexController {
         }
 
         // 否则使用相对时间模式
-        UptrendData data = indexCalculatorService.getUptrendDistribution(hours, keepRatio, noNewHighCandles, minUptrend);
+        UptrendData data = indexCalculatorService.getUptrendDistribution(hours, keepRatio, noNewHighCandles, minUptrend,
+                priceMode);
 
         if (data != null) {
             response.put("success", true);
@@ -406,6 +410,7 @@ public class IndexController {
 
         return ResponseEntity.ok(response);
     }
+
     /**
      * 调试接口：验证指数计算
      * 使用全局基准价格（内存中的basePrices）和数据库最新价格进行计算
@@ -511,13 +516,13 @@ public class IndexController {
      * 查询缺漏的历史价格时间点（只查询，不修复）
      * 返回指定时间范围内，数据库中缺失的5分钟K线时间点列表
      * 
-     * 示例: 
+     * 示例:
      * - GET /api/index/missing?days=7 （查询最近7天的缺漏）
      * - GET /api/index/missing?start=2024-12-20 00:00&end=2024-12-24 00:00 （指定时间范围）
      * 
-     * @param days 检查最近多少天的数据，默认7天（当 start 为空时使用）
-     * @param start 开始时间（可选），格式: yyyy-MM-dd HH:mm
-     * @param end 结束时间（可选），格式: yyyy-MM-dd HH:mm
+     * @param days     检查最近多少天的数据，默认7天（当 start 为空时使用）
+     * @param start    开始时间（可选），格式: yyyy-MM-dd HH:mm
+     * @param end      结束时间（可选），格式: yyyy-MM-dd HH:mm
      * @param timezone 输入时间的时区，默认 Asia/Shanghai
      */
     @GetMapping("/missing")
@@ -528,13 +533,13 @@ public class IndexController {
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
         log.info("------------------------- 开始调用 /missing 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
-        
+
         try {
             java.time.LocalDateTime startTime;
             java.time.LocalDateTime endTime;
             java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
             java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
-            
+
             // 计算时间范围
             if (start != null && !start.isEmpty() && end != null && !end.isEmpty()) {
                 // 使用指定时间范围
@@ -548,20 +553,19 @@ public class IndexController {
                 endTime = endTime.minusMinutes(endTime.getMinute() % 5).withSecond(0).withNano(0); // 对齐到5分钟
                 startTime = endTime.minusDays(days);
             }
-            
+
             // 调用 service 获取缺漏列表
             Map<String, Object> result = indexCalculatorService.getMissingTimestamps(startTime, endTime);
-            
+
             response.put("success", true);
             response.put("queryRange", Map.of(
-                "startUtc", startTime.toString(),
-                "endUtc", endTime.toString(),
-                "days", days
-            ));
+                    "startUtc", startTime.toString(),
+                    "endUtc", endTime.toString(),
+                    "days", days));
             response.putAll(result);
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "查询失败: " + e.getMessage());
@@ -573,13 +577,13 @@ public class IndexController {
      * 修复所有币种的历史价格缺失数据
      * 检测每个币种在指定时间范围内的数据缺口，并从币安API回补
      * 
-     * 示例: 
+     * 示例:
      * - POST /api/index/repair?days=7 （修复最近7天）
      * - POST /api/index/repair?start=2024-12-20 00:00&end=2024-12-24 00:00 （指定时间范围）
      * 
-     * @param days 检查最近多少天的数据，默认7天（当 start 为空时使用）
+     * @param days  检查最近多少天的数据，默认7天（当 start 为空时使用）
      * @param start 开始时间（可选）
-     * @param end 结束时间（可选）
+     * @param end   结束时间（可选）
      */
     @PostMapping("/repair")
     public ResponseEntity<Map<String, Object>> repairMissingData(
@@ -602,7 +606,7 @@ public class IndexController {
             java.time.LocalDateTime endTime = null;
             java.time.ZoneId beijingZone = java.time.ZoneId.of("Asia/Shanghai");
             java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
-            
+
             if (start != null && !start.isEmpty()) {
                 java.time.LocalDateTime beijingTime = parseDateTime(start);
                 // 东八区转 UTC（减8小时）
@@ -613,7 +617,7 @@ public class IndexController {
                 // 东八区转 UTC（减8小时）
                 endTime = beijingTime.atZone(beijingZone).withZoneSameInstant(utcZone).toLocalDateTime();
             }
-            
+
             Map<String, Object> result = indexCalculatorService.repairMissingPriceData(startTime, endTime, days);
             return ResponseEntity.ok(result);
         } catch (Exception e) {

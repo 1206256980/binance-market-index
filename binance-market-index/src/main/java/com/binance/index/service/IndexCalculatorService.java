@@ -1659,17 +1659,21 @@ public class IndexCalculatorService {
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
      * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
      * @param minUptrend       最小涨幅过滤（百分比，如4表示只返回>=4%的波段）
+     * @param priceMode        价格模式：lowHigh=最低/最高价, openClose=开盘/收盘价
      * @return 单边涨幅分布数据
      */
-    public UptrendData getUptrendDistribution(double hours, double keepRatio, int noNewHighCandles, double minUptrend) {
-        log.info("计算单边上行涨幅分布，时间范围: {}小时，保留比率: {}，横盘K线数: {}, 最小涨幅: {}%", hours, keepRatio, noNewHighCandles, minUptrend);
+    public UptrendData getUptrendDistribution(double hours, double keepRatio, int noNewHighCandles, double minUptrend,
+            String priceMode) {
+        log.info("计算单边上行涨幅分布，时间范围: {}小时，保留比率: {}，横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}", hours, keepRatio, noNewHighCandles,
+                minUptrend, priceMode);
 
         long minutes = (long) (hours * 60);
         LocalDateTime alignedNow = alignToFiveMinutes(LocalDateTime.now());
         LocalDateTime startTime = alignedNow.minusMinutes(minutes);
         LocalDateTime endTime = alignedNow;
 
-        return getUptrendDistributionByTimeRange(startTime, endTime, keepRatio, noNewHighCandles, minUptrend);
+        return getUptrendDistributionByTimeRange(startTime, endTime, keepRatio, noNewHighCandles, minUptrend,
+                priceMode);
     }
 
     /**
@@ -1680,17 +1684,18 @@ public class IndexCalculatorService {
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
      * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
      * @param minUptrend       最小涨幅过滤（百分比）
+     * @param priceMode        价格模式：lowHigh=最低/最高价, openClose=开盘/收盘价
      * @return 单边涨幅分布数据
      */
     public UptrendData getUptrendDistributionByTimeRange(LocalDateTime startTime, LocalDateTime endTime,
-            double keepRatio, int noNewHighCandles, double minUptrend) {
+            double keepRatio, int noNewHighCandles, double minUptrend, String priceMode) {
         // 对齐时间到5分钟边界：统一向下取整
         LocalDateTime alignedStart = alignToFiveMinutes(startTime);
         LocalDateTime alignedEnd = alignToFiveMinutes(endTime);
 
         // 生成缓存 key（包含对齐后的时间和所有参数）
-        String cacheKey = String.format("%s_%s_%.2f_%d_%.2f",
-                alignedStart.toString(), alignedEnd.toString(), keepRatio, noNewHighCandles, minUptrend);
+        String cacheKey = String.format("%s_%s_%.2f_%d_%.2f_%s",
+                alignedStart.toString(), alignedEnd.toString(), keepRatio, noNewHighCandles, minUptrend, priceMode);
 
         // 检查缓存
         UptrendData cachedData = uptrendCache.getIfPresent(cacheKey);
@@ -1699,8 +1704,9 @@ public class IndexCalculatorService {
             return cachedData;
         }
 
-        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%", alignedStart, alignedEnd, keepRatio,
-                noNewHighCandles, minUptrend);
+        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}", alignedStart, alignedEnd,
+                keepRatio,
+                noNewHighCandles, minUptrend, priceMode);
 
         // 【优化】分批查询，避免一次性加载过多数据到内存
         long queryStart = System.currentTimeMillis();
@@ -1734,7 +1740,7 @@ public class IndexCalculatorService {
         // 使用并行流处理
         List<UptrendData.CoinUptrend> allWaves = pricesBySymbol.entrySet().parallelStream()
                 .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
-                        noNewHighCandles, minUptrend).stream())
+                        noNewHighCandles, minUptrend, priceMode).stream())
                 .collect(java.util.stream.Collectors.toList());
 
         // 清空分组数据
@@ -1845,19 +1851,23 @@ public class IndexCalculatorService {
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
      * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
      * @param minUptrend       最小涨幅过滤（百分比），低于此值的波段不返回
+     * @param priceMode        价格模式：lowHigh=最低/最高价, openClose=开盘/收盘价
      * @return 该币种的所有符合条件的单边涨幅波段列表
      */
     private List<UptrendData.CoinUptrend> calculateSymbolAllWavesFromData(String symbol, List<CoinPrice> prices,
-            double keepRatio, int noNewHighCandles, double minUptrend) {
+            double keepRatio, int noNewHighCandles, double minUptrend, String priceMode) {
         if (prices == null || prices.size() < 2) {
             return Collections.emptyList();
         }
 
+        // 判断价格模式
+        boolean useLowHigh = !"openClose".equals(priceMode);
+
         List<UptrendData.CoinUptrend> waves = new ArrayList<>();
 
         // 波段跟踪变量
-        double waveStartPrice = 0; // 波段起点价格（使用低价作为真正起点）
-        double wavePeakPrice = 0; // 波段最高价
+        double waveStartPrice = 0; // 波段起点价格
+        double wavePeakPrice = 0; // 波段顶点价格
         double waveLowestLow = 0; // 波段期间的历史最低价（用于判断是否真正破位）
         LocalDateTime waveStartTime = null;
         LocalDateTime wavePeakTime = null;
@@ -1867,25 +1877,30 @@ public class IndexCalculatorService {
         boolean inWave = false;
 
         for (CoinPrice price : prices) {
+            double openPrice = price.getOpenPrice() != null ? price.getOpenPrice() : price.getPrice();
             double highPrice = price.getHighPrice() != null ? price.getHighPrice() : price.getPrice();
             double lowPrice = price.getLowPrice() != null ? price.getLowPrice() : price.getPrice();
             double closePrice = price.getPrice();
             LocalDateTime timestamp = price.getTimestamp();
 
+            // 根据模式选择起点价和顶点价
+            double startPriceCandidate = useLowHigh ? lowPrice : openPrice;
+            double peakPriceCandidate = useLowHigh ? highPrice : closePrice;
+
             if (!inWave) {
-                // 开始新波段：使用低价作为起点
-                waveStartPrice = lowPrice;
+                // 开始新波段
+                waveStartPrice = startPriceCandidate;
                 waveStartTime = timestamp;
-                waveLowestLow = lowPrice;
-                wavePeakPrice = highPrice;
+                waveLowestLow = lowPrice; // 总是使用低价做破位判断
+                wavePeakPrice = peakPriceCandidate;
                 wavePeakTime = timestamp;
                 candlesSinceNewHigh = 0;
                 inWave = true;
             } else {
-                // 检查是否创新高
+                // 检查是否创新高（根据模式使用最高价或收盘价）
                 boolean madeNewHigh = false;
-                if (highPrice > wavePeakPrice) {
-                    wavePeakPrice = highPrice;
+                if (peakPriceCandidate > wavePeakPrice) {
+                    wavePeakPrice = peakPriceCandidate;
                     wavePeakTime = timestamp;
                     candlesSinceNewHigh = 0; // 重置计数器
                     madeNewHigh = true;
@@ -1893,14 +1908,14 @@ public class IndexCalculatorService {
                     candlesSinceNewHigh++; // 未创新高，计数+1
                 }
 
-                // 检查是否创新低（使用低价判断是否真正破位）
+                // 检查是否创新低（总是使用低价判断是否真正破位）
                 // 只有当K线低价跌破波段历史最低价时，才重置波段起点
                 if (lowPrice < waveLowestLow) {
                     // 真正破位，重置波段起点
-                    waveStartPrice = lowPrice;
+                    waveStartPrice = startPriceCandidate;
                     waveStartTime = timestamp;
                     waveLowestLow = lowPrice;
-                    wavePeakPrice = highPrice;
+                    wavePeakPrice = peakPriceCandidate;
                     wavePeakTime = timestamp;
                     candlesSinceNewHigh = 0;
                     continue; // 继续下一根K线
@@ -1915,7 +1930,8 @@ public class IndexCalculatorService {
 
                 // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
                 boolean positionTrigger = !madeNewHigh && positionRatio < keepRatio && range > 0;
-                boolean sidewaysTrigger = candlesSinceNewHigh >= noNewHighCandles;
+                // noNewHighCandles == -1 表示禁用横盘检测
+                boolean sidewaysTrigger = noNewHighCandles > 0 && candlesSinceNewHigh >= noNewHighCandles;
 
                 if (positionTrigger || sidewaysTrigger) {
                     // 波段结束，计算涨幅
@@ -2074,7 +2090,8 @@ public class IndexCalculatorService {
                 // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
                 // 注意：刚创新高的K线不触发位置比率结束（因为收盘价总是低于最高价）
                 boolean positionTrigger = !madeNewHigh && positionRatio < keepRatio && range > 0;
-                boolean sidewaysTrigger = candlesSinceNewHigh >= noNewHighCandles;
+                // noNewHighCandles == -1 表示禁用横盘检测
+                boolean sidewaysTrigger = noNewHighCandles > 0 && candlesSinceNewHigh >= noNewHighCandles;
 
                 if (positionTrigger || sidewaysTrigger) {
                     // 波段结束，计算涨幅

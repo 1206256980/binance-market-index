@@ -114,6 +114,7 @@ function UptrendModule() {
     const [selectedTimeBucket, setSelectedTimeBucket] = useState(null)
     const [winRate, setWinRate] = useState(() => getCache('winRate', 90))
     const [inputWinRate, setInputWinRate] = useState(() => String(getCache('winRate', 90)))
+    const [priceMode, setPriceMode] = useState(() => getCache('priceMode', 'lowHigh')) // lowHigh=最低/最高价, openClose=开盘/收盘价
     const chartRef = useRef(null)
     const timeChartRef = useRef(null)
     const listRef = useRef(null)
@@ -161,11 +162,15 @@ function UptrendModule() {
         localStorage.setItem('uptrend_winRate', JSON.stringify(winRate))
     }, [winRate])
 
+    useEffect(() => {
+        localStorage.setItem('uptrend_priceMode', JSON.stringify(priceMode))
+    }, [priceMode])
+
     // 重置所有设置为默认值并清除缓存
     const resetToDefaults = () => {
         // 清除所有缓存
         const keys = ['timeBase', 'useCustomTime', 'startTime', 'endTime', 'keepRatio',
-            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'timeGranularity', 'winRate']
+            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'timeGranularity', 'winRate', 'priceMode']
         keys.forEach(key => localStorage.removeItem(`uptrend_${key}`))
 
         // 恢复默认值
@@ -184,6 +189,7 @@ function UptrendModule() {
         setTimeGranularity('auto')
         setWinRate(90)
         setInputWinRate('90')
+        setPriceMode('lowHigh')
     }
 
 
@@ -196,7 +202,7 @@ function UptrendModule() {
             setSelectedSymbol(null)
         }
         try {
-            let url = `/api/index/uptrend-distribution?keepRatio=${keepRatio}&noNewHighCandles=${noNewHighCandles}&minUptrend=${minUptrend}`
+            let url = `/api/index/uptrend-distribution?keepRatio=${keepRatio}&noNewHighCandles=${noNewHighCandles}&minUptrend=${minUptrend}&priceMode=${priceMode}`
             if (useCustomTime && startTime && endTime) {
                 // datetime-local格式: 2024-12-23T16:00 → API格式: 2024-12-23 16:00
                 const apiStart = startTime.replace('T', ' ')
@@ -217,7 +223,7 @@ function UptrendModule() {
         if (!silent) {
             setLoading(false)
         }
-    }, [timeBase, keepRatio, noNewHighCandles, minUptrend, useCustomTime, startTime, endTime])
+    }, [timeBase, keepRatio, noNewHighCandles, minUptrend, priceMode, useCustomTime, startTime, endTime])
 
     useEffect(() => {
         fetchData()
@@ -1066,6 +1072,18 @@ function UptrendModule() {
                         title="最小涨幅过滤"
                     />
                     <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
+
+                    <span className="label" style={{ marginLeft: '12px' }}>价格:</span>
+                    <select
+                        className="time-select"
+                        value={priceMode}
+                        onChange={(e) => setPriceMode(e.target.value)}
+                        title="波段起点/顶点使用的价格类型"
+                        style={{ marginLeft: '4px' }}
+                    >
+                        <option value="lowHigh">低/高价</option>
+                        <option value="openClose">开/收价</option>
+                    </select>
 
                     <button
                         className="refresh-btn"
