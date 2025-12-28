@@ -1983,56 +1983,36 @@ public class IndexCalculatorService {
                                 wavePeakPrice));
                     }
 
-                    // 【方案B】局部最低点法：找"之后连续N根K线起点价都更高"的点
-                    // 不限于峰值之后的范围，可以回溯到更早的位置
-                    int currentIndex = prices.indexOf(price);
-                    double lowestPrice = startPriceCandidate;
+                    // 回溯找到从波段峰值到当前的最低点作为新波段起点
+                    int peakIndex = prices.indexOf(price); // 当前索引
+                    // 根据模式选择用低价还是开盘价找最低点
+                    double lowestPrice = startPriceCandidate; // 使用当前K线的起点价作为初始值
                     LocalDateTime lowestTime = timestamp;
-                    int lowestIndex = currentIndex;
 
-                    // 定义：如果一根K线的起点价是之后连续 lookAhead 根K线中最低的，它就是"局部最低点"
-                    final int lookAhead = 3; // 向后看3根K线
-
-                    // 从当前位置往回找局部最低点（不限于峰值之后）
-                    for (int j = currentIndex; j >= 0; j--) {
+                    // 从峰值时间点往后找最低点（包括峰值K线，因为同根K线的低价可能更低）
+                    for (int j = peakIndex; j >= 0; j--) {
                         CoinPrice p = prices.get(j);
+                        if (p.getTimestamp().isBefore(wavePeakTime)) {
+                            break;
+                        }
+                        // 根据 priceMode 选择用低价还是开盘价
                         double pStart;
                         if ("lowHigh".equals(priceMode)) {
                             pStart = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
                         } else {
                             pStart = p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice();
                         }
-
-                        // 检查这根K线是否是局部最低点（之后 lookAhead 根K线的起点价都更高）
-                        boolean isLocalLow = true;
-                        for (int k = 1; k <= lookAhead && j + k < prices.size(); k++) {
-                            CoinPrice nextP = prices.get(j + k);
-                            double nextStart;
-                            if ("lowHigh".equals(priceMode)) {
-                                nextStart = nextP.getLowPrice() != null ? nextP.getLowPrice() : nextP.getPrice();
-                            } else {
-                                nextStart = nextP.getOpenPrice() != null ? nextP.getOpenPrice() : nextP.getPrice();
-                            }
-                            if (nextStart <= pStart) {
-                                isLocalLow = false;
-                                break;
-                            }
-                        }
-
-                        if (isLocalLow && pStart < lowestPrice) {
+                        if (pStart < lowestPrice) {
                             lowestPrice = pStart;
                             lowestTime = p.getTimestamp();
-                            lowestIndex = j;
-                            // 找到第一个局部最低点就停止
-                            break;
                         }
                     }
 
-                    // 以找到的局部最低点开始新波段
+                    // 以找到的最低点开始新波段
                     waveStartPrice = lowestPrice;
                     waveStartTime = lowestTime;
-                    waveLowestLow = lowestPrice;
-                    wavePeakPrice = peakPriceCandidate;
+                    waveLowestLow = lowestPrice; // 重置历史最低价！
+                    wavePeakPrice = peakPriceCandidate; // 根据 priceMode 使用正确的顶点价
                     wavePeakTime = timestamp;
                     candlesSinceNewHigh = 0;
                 }
