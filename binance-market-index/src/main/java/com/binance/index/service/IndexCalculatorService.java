@@ -110,7 +110,7 @@ public class IndexCalculatorService {
     /**
      * 清理下架币种的基准价格（只删除基准价格，保留历史数据用于涨幅分布和单边分析）
      * 当币种重新上架时，会被当作新币处理，重新设置基准价格
-     * 
+     *
      * @param activeSymbols 当前正在交易的币种列表（从exchangeInfo获取）
      */
     @org.springframework.transaction.annotation.Transactional
@@ -863,7 +863,7 @@ public class IndexCalculatorService {
 
     /**
      * 删除指定时间范围内的数据（用于清理污染数据）
-     * 
+     *
      * @param start 开始时间
      * @param end   结束时间
      * @return 删除结果信息
@@ -895,7 +895,7 @@ public class IndexCalculatorService {
 
     /**
      * 删除指定币种的所有数据（包括历史价格和基准价格）
-     * 
+     *
      * @param symbol 币种符号，如 SOLUSDT
      * @return 删除结果信息
      */
@@ -930,7 +930,7 @@ public class IndexCalculatorService {
     /**
      * 查询缺漏的历史价格时间点（只查询，不修复）
      * 与修复接口 repairMissingPriceData 类似，但只返回缺漏信息不做任何修改
-     * 
+     *
      * @param startTime 开始时间
      * @param endTime   结束时间
      * @return 缺漏时间点统计（按币种）
@@ -1008,7 +1008,7 @@ public class IndexCalculatorService {
     /**
      * 修复所有币种的历史价格缺失数据
      * 检测每个币种在指定时间范围内的数据缺口，并从币安API回补
-     * 
+     *
      * @param startTime 开始时间（可选，为空则使用 days 参数）
      * @param endTime   结束时间（可选，为空则使用当前时间）
      * @param days      检查最近多少天的数据，当 startTime 为空时使用
@@ -1666,7 +1666,7 @@ public class IndexCalculatorService {
 
     /**
      * 获取单边上行涨幅分布数据
-     * 
+     *
      * @param hours            时间范围（小时）
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
      * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
@@ -1690,7 +1690,7 @@ public class IndexCalculatorService {
 
     /**
      * 获取指定时间范围的单边上行涨幅分布数据
-     * 
+     *
      * @param startTime        开始时间
      * @param endTime          结束时间
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
@@ -1862,9 +1862,9 @@ public class IndexCalculatorService {
 
     /**
      * 计算单个币种的所有符合条件的单边涨幅波段（使用已加载的数据）
-     * 
+     *
      * 【优化版本】直接使用传入的价格数据，避免数据库查询
-     * 
+     *
      * @param symbol           币种
      * @param prices           该币种的K线数据列表（已按时间升序排列）
      * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
@@ -1983,11 +1983,36 @@ public class IndexCalculatorService {
                                 wavePeakPrice));
                     }
 
-                    // 【改进】波段结束后，不回溯重置起点
-                    // 起点只由破位（价格 < 历史最低）决定
-                    // 继续从当前位置追踪，等待下一个创新高或破位
-                    // 重置峰值为当前K线，准备追踪下一个波峰
-                    wavePeakPrice = peakPriceCandidate;
+                    // 回溯找到从波段峰值到当前的最低点作为新波段起点
+                    int peakIndex = prices.indexOf(price); // 当前索引
+                    // 根据模式选择用低价还是开盘价找最低点
+                    double lowestPrice = startPriceCandidate; // 使用当前K线的起点价作为初始值
+                    LocalDateTime lowestTime = timestamp;
+
+                    // 从峰值时间点往后找最低点（包括峰值K线，因为同根K线的低价可能更低）
+                    for (int j = peakIndex; j >= 0; j--) {
+                        CoinPrice p = prices.get(j);
+                        if (p.getTimestamp().isBefore(wavePeakTime)) {
+                            break;
+                        }
+                        // 根据 priceMode 选择用低价还是开盘价
+                        double pStart;
+                        if ("lowHigh".equals(priceMode)) {
+                            pStart = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
+                        } else {
+                            pStart = p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice();
+                        }
+                        if (pStart < lowestPrice) {
+                            lowestPrice = pStart;
+                            lowestTime = p.getTimestamp();
+                        }
+                    }
+
+                    // 以找到的最低点开始新波段
+                    waveStartPrice = lowestPrice;
+                    waveStartTime = lowestTime;
+                    waveLowestLow = lowestPrice; // 重置历史最低价！
+                    wavePeakPrice = peakPriceCandidate; // 根据 priceMode 使用正确的顶点价
                     wavePeakTime = timestamp;
                     candlesSinceNewHigh = 0;
                 }
@@ -2020,11 +2045,11 @@ public class IndexCalculatorService {
 
     /**
      * 计算单个币种的所有符合条件的单边涨幅波段
-     * 
+     *
      * 新算法：使用位置比率法 + 横盘检测
      * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
      * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
-     * 
+     *
      * @param symbol           币种
      * @param startTime        开始时间
      * @param endTime          结束时间
@@ -2183,14 +2208,14 @@ public class IndexCalculatorService {
 
     /**
      * 优化版历史数据回补（V2）
-     * 
+     *
      * 主要优化：
      * 1. 两阶段回补：第一阶段用固定结束时间，第二阶段补充期间新增数据
      * 2. 并发获取：使用 Semaphore 控制并发数
      * 3. 立即保存：每个币种获取后立即保存到数据库（DB 耗时作为自然间隔）
      * 4. limit=99：降低 API 权重消耗（权重 1 vs 原来的 5）
      * 5. 每阶段完成后立即计算指数
-     * 
+     *
      * @param days        回补天数
      * @param concurrency 并发数（建议 5-10）
      */
@@ -2291,10 +2316,10 @@ public class IndexCalculatorService {
 
     /**
      * 执行单个阶段的并发回补（方案B：每次 API 调用后立即保存）
-     * 
+     *
      * 关键改进：不使用 getKlinesWithPagination，而是自己控制每次 API 调用后立即保存
      * 这样 DB 操作的耗时成为自然的 API 间隔，避免被限流
-     * 
+     *
      * @param startTime         开始时间
      * @param endTime           结束时间
      * @param concurrency       并发数
@@ -2440,7 +2465,7 @@ public class IndexCalculatorService {
 
     /**
      * 计算并保存指定时间范围内的所有指数
-     * 
+     *
      * @param startTime 开始时间
      * @param endTime   结束时间
      */
