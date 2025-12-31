@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
         @Index(name = "idx_coin_price_symbol_ts", columnList = "symbol, timestamp"),
         @Index(name = "idx_coin_price_timestamp", columnList = "timestamp"),
         // 用于时间范围查询的复合索引（timestamp在前，优化范围扫描）
-        @Index(name = "idx_coin_price_ts_symbol", columnList = "timestamp, symbol")
+        @Index(name = "idx_coin_price_ts_symbol", columnList = "timestamp, symbol"),
+        // 覆盖索引：用于 findAllInRangeOrderBySymbolAndTime 查询优化
+        // 包含所有需要的列，避免回表查询，大幅提升大范围时间查询性能
+        @Index(name = "idx_coin_price_cover", columnList = "timestamp, symbol, open_price, high_price, low_price, price, volume")
 })
 public class CoinPrice {
 
@@ -21,27 +24,28 @@ public class CoinPrice {
     private Long id;
 
     @Column(nullable = false, length = 20)
-    private String symbol;  // 交易对，如 SOLUSDT
+    private String symbol; // 交易对，如 SOLUSDT
 
     @Column(nullable = false)
-    private LocalDateTime timestamp;  // 时间点
+    private LocalDateTime timestamp; // 时间点
 
     @Column
-    private Double openPrice;  // 开盘价
+    private Double openPrice; // 开盘价
 
     @Column
-    private Double highPrice;  // 最高价
+    private Double highPrice; // 最高价
 
     @Column
-    private Double lowPrice;   // 最低价
+    private Double lowPrice; // 最低价
 
     @Column(nullable = false)
-    private Double price;  // 收盘价（保持向后兼容）
+    private Double price; // 收盘价（保持向后兼容）
 
     @Column
-    private Double volume;  // 成交额（USDT）
+    private Double volume; // 成交额（USDT）
 
-    public CoinPrice() {}
+    public CoinPrice() {
+    }
 
     // 兼容旧代码的构造函数
     public CoinPrice(String symbol, LocalDateTime timestamp, Double price) {
@@ -51,8 +55,8 @@ public class CoinPrice {
     }
 
     // OHLC构造函数（兼容旧代码，无 volume）
-    public CoinPrice(String symbol, LocalDateTime timestamp, Double openPrice, 
-                     Double highPrice, Double lowPrice, Double closePrice) {
+    public CoinPrice(String symbol, LocalDateTime timestamp, Double openPrice,
+            Double highPrice, Double lowPrice, Double closePrice) {
         this.symbol = symbol;
         this.timestamp = timestamp;
         this.openPrice = openPrice;
@@ -62,8 +66,8 @@ public class CoinPrice {
     }
 
     // 完整OHLCV构造函数（包含成交额）
-    public CoinPrice(String symbol, LocalDateTime timestamp, Double openPrice, 
-                     Double highPrice, Double lowPrice, Double closePrice, Double volume) {
+    public CoinPrice(String symbol, LocalDateTime timestamp, Double openPrice,
+            Double highPrice, Double lowPrice, Double closePrice, Double volume) {
         this.symbol = symbol;
         this.timestamp = timestamp;
         this.openPrice = openPrice;
