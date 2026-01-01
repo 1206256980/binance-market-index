@@ -524,7 +524,7 @@ public class IndexCalculatorService {
 
                 for (KlineData kline : klines) {
                     long timestamp = kline.getTimestamp()
-                            .atZone(ZoneId.systemDefault())
+                            .atZone(ZoneId.of("UTC"))
                             .toInstant()
                             .toEpochMilli();
 
