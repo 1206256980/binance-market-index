@@ -6,6 +6,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "market_index", indexes = {
         @Index(name = "idx_timestamp", columnList = "timestamp")
+}, uniqueConstraints = {
+        // 唯一约束：防止同一时间点重复插入市场指数
+        @UniqueConstraint(name = "uk_market_index_timestamp", columnNames = { "timestamp" })
 })
 public class MarketIndex {
 

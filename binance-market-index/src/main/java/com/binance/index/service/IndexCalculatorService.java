@@ -100,6 +100,59 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 清理数据库中的重复数据（启动时调用）
+     * 删除 CoinPrice 和 MarketIndex 表中的重复记录，保留每组重复数据中 id 最小的一条
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public void cleanupDuplicateData() {
+        log.info("开始检查并清理重复数据...");
+
+        try {
+            // 统计 CoinPrice 重复数据
+            String countCoinPriceSql = "SELECT COUNT(*) FROM coin_price cp1 WHERE EXISTS (" +
+                    "SELECT 1 FROM coin_price cp2 WHERE cp1.symbol = cp2.symbol AND cp1.timestamp = cp2.timestamp AND cp1.id > cp2.id)";
+            Long duplicateCoinPriceCount = jdbcCoinPriceRepository.getJdbcTemplate().queryForObject(countCoinPriceSql,
+                    Long.class);
+
+            if (duplicateCoinPriceCount != null && duplicateCoinPriceCount > 0) {
+                log.warn("发现 {} 条重复的 CoinPrice 数据，开始清理...", duplicateCoinPriceCount);
+
+                // 删除 CoinPrice 重复数据（保留 id 最小的）
+                String deleteCoinPriceSql = "DELETE FROM coin_price WHERE id IN (" +
+                        "SELECT cp1.id FROM coin_price cp1 WHERE EXISTS (" +
+                        "SELECT 1 FROM coin_price cp2 WHERE cp1.symbol = cp2.symbol AND cp1.timestamp = cp2.timestamp AND cp1.id > cp2.id))";
+                int deletedCoinPrice = jdbcCoinPriceRepository.getJdbcTemplate().update(deleteCoinPriceSql);
+                log.info("已删除 {} 条重复的 CoinPrice 数据", deletedCoinPrice);
+            } else {
+                log.info("CoinPrice 表无重复数据");
+            }
+
+            // 统计 MarketIndex 重复数据
+            String countMarketIndexSql = "SELECT COUNT(*) FROM market_index mi1 WHERE EXISTS (" +
+                    "SELECT 1 FROM market_index mi2 WHERE mi1.timestamp = mi2.timestamp AND mi1.id > mi2.id)";
+            Long duplicateMarketIndexCount = jdbcCoinPriceRepository.getJdbcTemplate()
+                    .queryForObject(countMarketIndexSql, Long.class);
+
+            if (duplicateMarketIndexCount != null && duplicateMarketIndexCount > 0) {
+                log.warn("发现 {} 条重复的 MarketIndex 数据，开始清理...", duplicateMarketIndexCount);
+
+                // 删除 MarketIndex 重复数据（保留 id 最小的）
+                String deleteMarketIndexSql = "DELETE FROM market_index WHERE id IN (" +
+                        "SELECT mi1.id FROM market_index mi1 WHERE EXISTS (" +
+                        "SELECT 1 FROM market_index mi2 WHERE mi1.timestamp = mi2.timestamp AND mi1.id > mi2.id))";
+                int deletedMarketIndex = jdbcCoinPriceRepository.getJdbcTemplate().update(deleteMarketIndexSql);
+                log.info("已删除 {} 条重复的 MarketIndex 数据", deletedMarketIndex);
+            } else {
+                log.info("MarketIndex 表无重复数据");
+            }
+
+            log.info("重复数据清理完成");
+        } catch (Exception e) {
+            log.error("清理重复数据失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * 清空单边上行缓存（在新数据采集后调用）
      */
     public void invalidateUptrendCache() {

@@ -33,20 +33,24 @@ public class DataCollectorScheduler {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("应用启动完成，开始 V2 优化版回补历史数据...");
+        log.info("应用启动完成，开始初始化...");
 
-        // 异步执行回补，不阻塞应用启动
+        // 异步执行初始化和回补，不阻塞应用启动
         new Thread(() -> {
             try {
-                // 设置回补状态
+                // 1. 先清理可能存在的重复数据（唯一约束生效前的历史遗留）
+                indexCalculatorService.cleanupDuplicateData();
+
+                // 2. 设置回补状态
                 indexCalculatorService.setBackfillInProgress(true);
 
-                // 使用 V2 优化版回补（两阶段并发）
+                // 3. 使用 V2 优化版回补（两阶段并发）
+                log.info("开始 V2 优化版回补历史数据...");
                 indexCalculatorService.backfillHistoricalDataV2(backfillDays, backfillConcurrency);
 
                 // V2 版本不需要 flushPendingData，因为每阶段结束后已计算指数
 
-                // 清除回补状态
+                // 4. 清除回补状态
                 indexCalculatorService.setBackfillInProgress(false);
                 isBackfillComplete = true;
                 log.info("V2 历史数据回补完成");
@@ -65,15 +69,15 @@ public class DataCollectorScheduler {
     @Scheduled(cron = "10 0/5 * * * *")
     public void collectData() {
         // if (!isBackfillComplete) {
-        //     // 回补未完成时，采集数据但暂存到内存队列，不保存到数据库
-        //     // 这样可以确保回补期间的实时数据不会丢失
-        //     log.info("回补进行中，采集数据暂存到内存队列");
-        //     try {
-        //         indexCalculatorService.collectAndBuffer();
-        //     } catch (Exception e) {
-        //         log.error("暂存采集失败: {}", e.getMessage(), e);
-        //     }
-        //     return;
+        // // 回补未完成时，采集数据但暂存到内存队列，不保存到数据库
+        // // 这样可以确保回补期间的实时数据不会丢失
+        // log.info("回补进行中，采集数据暂存到内存队列");
+        // try {
+        // indexCalculatorService.collectAndBuffer();
+        // } catch (Exception e) {
+        // log.error("暂存采集失败: {}", e.getMessage(), e);
+        // }
+        // return;
         // }
         if (!isBackfillComplete) {
             log.debug("历史数据回补尚未完成，跳过本次采集");

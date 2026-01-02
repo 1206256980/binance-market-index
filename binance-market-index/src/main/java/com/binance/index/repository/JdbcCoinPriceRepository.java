@@ -14,6 +14,9 @@ import java.util.List;
  * 使用 JDBC 批量插入 CoinPrice，绕过 JPA 的逐条插入限制
  * 优化策略：使用多值INSERT语法 (INSERT ... VALUES (...), (...), ...)
  * 性能提升：从 40秒 → 2-3秒
+ * 
+ * 注：唯一约束 uk_coin_price_symbol_ts 作为兜底防护，
+ * 正常情况下代码层面已防止重复，启动时也会清理历史遗留的重复数据
  */
 @Repository
 public class JdbcCoinPriceRepository {
@@ -30,6 +33,13 @@ public class JdbcCoinPriceRepository {
     }
 
     /**
+     * 获取 JdbcTemplate（供其他服务使用）
+     */
+    public JdbcTemplate getJdbcTemplate() {
+        return jdbcTemplate;
+    }
+
+    /**
      * 批量插入 CoinPrice 数据（包含OHLC）
      * 使用多值INSERT语法：INSERT INTO ... VALUES (...), (...), ...
      * 相比 batchUpdate，减少了网络往返次数，性能更优
@@ -40,9 +50,7 @@ public class JdbcCoinPriceRepository {
             return;
         }
 
-        long startTime = System.currentTimeMillis();
         int totalSize = prices.size();
-        int insertedCount = 0;
 
         // 分批处理，每批最多 ROWS_PER_SQL 行
         for (int i = 0; i < totalSize; i += ROWS_PER_SQL) {
@@ -51,15 +59,15 @@ public class JdbcCoinPriceRepository {
 
             // 构建多值INSERT语句（包含OHLCV字段）
             StringBuilder sql = new StringBuilder(
-                "INSERT INTO coin_price (symbol, timestamp, open_price, high_price, low_price, price, volume) VALUES ");
+                    "INSERT INTO coin_price (symbol, timestamp, open_price, high_price, low_price, price, volume) VALUES ");
             Object[] params = new Object[batch.size() * 7];
-            
+
             for (int j = 0; j < batch.size(); j++) {
                 if (j > 0) {
                     sql.append(",");
                 }
                 sql.append("(?,?,?,?,?,?,?)");
-                
+
                 CoinPrice price = batch.get(j);
                 params[j * 7] = price.getSymbol();
                 params[j * 7 + 1] = Timestamp.valueOf(price.getTimestamp());
@@ -71,10 +79,6 @@ public class JdbcCoinPriceRepository {
             }
 
             jdbcTemplate.update(sql.toString(), params);
-            insertedCount += batch.size();
-
-            
         }
     }
 }
-

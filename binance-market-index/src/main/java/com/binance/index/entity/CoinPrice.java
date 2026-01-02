@@ -16,6 +16,9 @@ import java.time.LocalDateTime;
         // 覆盖索引：用于 findAllInRangeOrderBySymbolAndTime 查询优化
         // 包含所有需要的列，避免回表查询，大幅提升大范围时间查询性能
         @Index(name = "idx_coin_price_cover", columnList = "timestamp, symbol, open_price, high_price, low_price, price, volume")
+}, uniqueConstraints = {
+        // 唯一约束：防止同一币种在同一时间点重复插入
+        @UniqueConstraint(name = "uk_coin_price_symbol_ts", columnNames = { "symbol", "timestamp" })
 })
 public class CoinPrice {
 
