@@ -907,18 +907,30 @@ function UptrendModule() {
         const { timeBuckets, uptrendRanges } = data
         const labels = timeBuckets.map(b => b.label)
 
-        // 为每个涨幅区间生成渐变色（从浅到深）
+        // 为每个涨幅区间生成渐变色（从浅到深，支持更多区间）
         const colors = [
-            '#86efac', // 10-20% 浅绿
-            '#4ade80', // 20-30% 绿
-            '#22c55e', // 30-40% 深绿
-            '#16a34a', // 40-50% 更深绿
-            '#15803d', // 50-60% 深绿
-            '#166534', // 60-70% 最深绿
-            '#14532d', // 70-80% 
-            '#052e16', // 80%+
-            '#f59e0b', // 额外颜色
-            '#ef4444'  // 额外颜色
+            '#bbf7d0', // 最浅绿
+            '#86efac', // 浅绿
+            '#4ade80', // 绿
+            '#22c55e', // 深绿
+            '#16a34a', // 更深绿
+            '#15803d', // 深绿
+            '#166534', // 最深绿
+            '#14532d', // 暗绿
+            '#052e16', // 极深绿
+            '#0ea5e9', // 蓝色系开始
+            '#0284c7',
+            '#0369a1',
+            '#075985',
+            '#7c3aed', // 紫色系
+            '#6d28d9',
+            '#5b21b6',
+            '#f59e0b', // 橙色系
+            '#d97706',
+            '#b45309',
+            '#ef4444', // 红色系
+            '#dc2626',
+            '#b91c1c'
         ]
 
         // 为每个涨幅区间创建一个系列
@@ -941,37 +953,50 @@ function UptrendModule() {
         }))
 
         return {
+            color: colors, // 全局颜色配置，确保图例和条形颜色一致
             backgroundColor: 'transparent',
             tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'shadow' },
+                trigger: 'item', // 改为 item 触发，可以知道悬浮的是哪个具体区间
                 backgroundColor: 'rgba(22, 27, 34, 0.95)',
                 borderColor: 'rgba(16, 185, 129, 0.3)',
                 textStyle: { color: '#f1f5f9' },
                 formatter: function (params) {
-                    if (!params || params.length === 0) return ''
-                    const dataIndex = params[0].dataIndex
+                    if (!params) return ''
+                    const dataIndex = params.dataIndex
                     const bucket = timeBuckets[dataIndex]
+                    const seriesName = params.seriesName // 当前悬浮的涨幅区间
                     if (!bucket) return ''
+
+                    // 获取当前区间的币种列表
+                    const rangeInfo = bucket.rangeData[seriesName]
+                    const coins = rangeInfo?.coins || []
 
                     let html = `<div style="padding: 8px; max-width: 350px;">
                         <div style="font-weight: 600; margin-bottom: 8px; color: #10b981;">🕐 ${bucket.label}</div>
-                        <div style="margin-bottom: 6px;">总波段: <span style="color: #10b981; font-weight: 600;">${bucket.totalCount}</span>
-                        <span style="margin-left: 12px;">进行中: <span style="color: #f59e0b; font-weight: 600;">${bucket.ongoingCount}</span></span></div>
-                        <div style="border-top: 1px solid rgba(100,116,139,0.3); padding-top: 6px; font-size: 12px;">`
+                        <div style="margin-bottom: 6px; padding: 6px; background: rgba(16,185,129,0.15); border-radius: 4px;">
+                            <div style="font-size: 14px; font-weight: 600; color: #10b981;">
+                                ${params.marker} ${seriesName}: ${params.value}个
+                            </div>
+                        </div>
+                        <div style="color: #94a3b8; font-size: 11px; margin-bottom: 4px;">
+                            该时段总波段: ${bucket.totalCount} | 进行中: ${bucket.ongoingCount}
+                        </div>`
 
-                    // 显示各涨幅区间的数量
-                    params.forEach(p => {
-                        if (p.value > 0) {
-                            html += `<div style="display: flex; justify-content: space-between; margin: 2px 0;">
-                                <span>${p.marker} ${p.seriesName}</span>
-                                <span style="font-weight: 600;">${p.value}个</span>
-                            </div>`
+                    // 显示当前区间的币种列表
+                    if (coins.length > 0) {
+                        html += `<div style="border-top: 1px solid rgba(100,116,139,0.3); padding-top: 6px; margin-top: 6px; font-size: 11px;">`
+                        const displayCoins = coins.slice(0, 6)
+                        displayCoins.forEach(coin => {
+                            const ongoingMark = coin.ongoing ? '🔴' : ''
+                            html += `<div style="margin: 2px 0; color: #d1d5db;">${coin.symbol} ${ongoingMark} +${coin.uptrendPercent.toFixed(1)}%</div>`
+                        })
+                        if (coins.length > 6) {
+                            html += `<div style="color: #64748b;">等 ${coins.length - 6} 个...</div>`
                         }
-                    })
+                        html += `</div>`
+                    }
 
-                    html += `</div>
-                        <div style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500;">👆 点击查看完整列表</div>
+                    html += `<div style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500;">👆 点击查看完整列表</div>
                     </div>`
                     return html
                 }
