@@ -933,8 +933,17 @@ function UptrendModule() {
             '#34d399'  // 翠绿
         ]
 
-        // 为每个涨幅区间创建一个系列
-        const series = uptrendRanges.map((range, index) => ({
+
+        // 计算每个涨幅区间在所有时间段的总数量，过滤掉没有数据的区间
+        const rangesWithData = uptrendRanges.filter(range => {
+            const totalInRange = timeBuckets.reduce((sum, bucket) => {
+                return sum + (bucket.rangeData[range.label]?.count || 0)
+            }, 0)
+            return totalInRange > 0
+        })
+
+        // 为有数据的涨幅区间创建系列
+        const series = rangesWithData.map((range, index) => ({
             name: range.label,
             type: 'bar',
             stack: 'total',
@@ -1003,13 +1012,14 @@ function UptrendModule() {
             },
             legend: {
                 show: true,
-                data: uptrendRanges.map(r => r.label),
+                data: rangesWithData.map(r => r.label), // 只显示有数据的区间
                 textStyle: { color: '#94a3b8', fontSize: 10 },
                 top: 0,
                 right: 10,
                 type: 'scroll',
                 pageIconColor: '#94a3b8',
-                pageTextStyle: { color: '#94a3b8' }
+                pageTextStyle: { color: '#94a3b8' },
+                selectedMode: 'multiple' // 支持点击切换显示/隐藏
             },
             grid: {
                 left: '3%',
