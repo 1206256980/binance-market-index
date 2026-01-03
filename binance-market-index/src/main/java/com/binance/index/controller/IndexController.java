@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 @RestController
@@ -22,6 +23,9 @@ public class IndexController {
 
     private static final Logger log = LoggerFactory.getLogger(IndexController.class);
     private final IndexCalculatorService indexCalculatorService;
+
+    // 限制 uptrend-distribution 接口并发为1的信号量
+    private final Semaphore uptrendSemaphore = new Semaphore(1);
 
     public IndexController(IndexCalculatorService indexCalculatorService) {
         this.indexCalculatorService = indexCalculatorService;
@@ -279,73 +283,89 @@ public class IndexController {
         log.info("------------------------- 开始调用 /uptrend-distribution 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
 
-        // 如果提供了 start 和 end，使用绝对时间模式
-        if (start != null && end != null && !start.isEmpty() && !end.isEmpty()) {
-            try {
-                java.time.LocalDateTime startLocal = parseDateTime(start);
-                java.time.LocalDateTime endLocal = parseDateTime(end);
+        // 尝试获取信号量，如果获取不到说明有其他请求正在处理
+        if (!uptrendSemaphore.tryAcquire()) {
+            log.warn("uptrend-distribution 接口正忙，拒绝新请求");
+            response.put("success", false);
+            response.put("message", "接口正忙，当前有其他请求正在处理中，请稍后再试");
+            return ResponseEntity.status(503).body(response);
+        }
 
-                java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
-                java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+        try {
+            // 如果提供了 start 和 end，使用绝对时间模式
+            if (start != null && end != null && !start.isEmpty() && !end.isEmpty()) {
+                try {
+                    java.time.LocalDateTime startLocal = parseDateTime(start);
+                    java.time.LocalDateTime endLocal = parseDateTime(end);
 
-                java.time.LocalDateTime startUtc = startLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                        .toLocalDateTime();
-                java.time.LocalDateTime endUtc = endLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                        .toLocalDateTime();
+                    java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+                    java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
 
-                if (startUtc.isAfter(endUtc)) {
+                    java.time.LocalDateTime startUtc = startLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                            .toLocalDateTime();
+                    java.time.LocalDateTime endUtc = endLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                            .toLocalDateTime();
+
+                    if (startUtc.isAfter(endUtc)) {
+                        response.put("success", false);
+                        response.put("message", "开始时间不能晚于结束时间");
+                        return ResponseEntity.badRequest().body(response);
+                    }
+
+                    UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc,
+                            keepRatio,
+                            noNewHighCandles, minUptrend, priceMode);
+
+                    if (data != null) {
+                        response.put("success", true);
+                        response.put("mode", "timeRange");
+                        response.put("keepRatio", keepRatio);
+                        response.put("noNewHighCandles", noNewHighCandles);
+                        response.put("minUptrend", minUptrend);
+                        response.put("priceMode", priceMode);
+                        response.put("inputTimezone", timezone);
+                        response.put("inputStart", start);
+                        response.put("inputEnd", end);
+                        response.put("data", data);
+                    } else {
+                        response.put("success", false);
+                        response.put("message", "获取单边涨幅数据失败，可能指定时间范围内无数据或无符合条件的波段");
+                    }
+
+                    return ResponseEntity.ok(response);
+
+                } catch (Exception e) {
                     response.put("success", false);
-                    response.put("message", "开始时间不能晚于结束时间");
+                    response.put("message", "时间格式错误，请使用格式: yyyy-MM-dd HH:mm");
+                    response.put("error", e.getMessage());
                     return ResponseEntity.badRequest().body(response);
                 }
-
-                UptrendData data = indexCalculatorService.getUptrendDistributionByTimeRange(startUtc, endUtc, keepRatio,
-                        noNewHighCandles, minUptrend, priceMode);
-
-                if (data != null) {
-                    response.put("success", true);
-                    response.put("mode", "timeRange");
-                    response.put("keepRatio", keepRatio);
-                    response.put("noNewHighCandles", noNewHighCandles);
-                    response.put("minUptrend", minUptrend);
-                    response.put("priceMode", priceMode);
-                    response.put("inputTimezone", timezone);
-                    response.put("inputStart", start);
-                    response.put("inputEnd", end);
-                    response.put("data", data);
-                } else {
-                    response.put("success", false);
-                    response.put("message", "获取单边涨幅数据失败，可能指定时间范围内无数据或无符合条件的波段");
-                }
-
-                return ResponseEntity.ok(response);
-
-            } catch (Exception e) {
-                response.put("success", false);
-                response.put("message", "时间格式错误，请使用格式: yyyy-MM-dd HH:mm");
-                response.put("error", e.getMessage());
-                return ResponseEntity.badRequest().body(response);
             }
+
+            // 否则使用相对时间模式
+            UptrendData data = indexCalculatorService.getUptrendDistribution(hours, keepRatio, noNewHighCandles,
+                    minUptrend,
+                    priceMode);
+
+            if (data != null) {
+                response.put("success", true);
+                response.put("mode", "hours");
+                response.put("hours", hours);
+                response.put("keepRatio", keepRatio);
+                response.put("noNewHighCandles", noNewHighCandles);
+                response.put("minUptrend", minUptrend);
+                response.put("data", data);
+            } else {
+                response.put("success", false);
+                response.put("message", "获取单边涨幅数据失败");
+            }
+
+            return ResponseEntity.ok(response);
+        } finally {
+            // 确保释放信号量
+            uptrendSemaphore.release();
+            log.info("------------------------- /uptrend-distribution 接口处理完成，释放信号量 -------------------------");
         }
-
-        // 否则使用相对时间模式
-        UptrendData data = indexCalculatorService.getUptrendDistribution(hours, keepRatio, noNewHighCandles, minUptrend,
-                priceMode);
-
-        if (data != null) {
-            response.put("success", true);
-            response.put("mode", "hours");
-            response.put("hours", hours);
-            response.put("keepRatio", keepRatio);
-            response.put("noNewHighCandles", noNewHighCandles);
-            response.put("minUptrend", minUptrend);
-            response.put("data", data);
-        } else {
-            response.put("success", false);
-            response.put("message", "获取单边涨幅数据失败");
-        }
-
-        return ResponseEntity.ok(response);
     }
 
     /**
