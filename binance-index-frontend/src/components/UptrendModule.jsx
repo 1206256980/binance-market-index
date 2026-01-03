@@ -122,6 +122,7 @@ function UptrendModule() {
     const listRef = useRef(null)
     const [displayCount, setDisplayCount] = useState(50) // 初始显示50条
     const PAGE_SIZE = 50 // 每次加载50条
+    const isRequesting = useRef(false) // 请求锁，防止重复请求
 
     // 保存设置到 localStorage
     useEffect(() => {
@@ -203,6 +204,14 @@ function UptrendModule() {
 
     // 获取数据 (silent: 静默刷新，不显示loading，不重置选择状态)
     const fetchData = useCallback(async (silent = false) => {
+        // 如果已有请求在进行中，跳过本次请求（防止并发）
+        if (isRequesting.current) {
+            console.log('uptrend-distribution 请求正在进行中，跳过本次请求')
+            return
+        }
+
+        isRequesting.current = true
+
         if (!silent) {
             setLoading(true)
             setSelectedBucket(null)
@@ -227,6 +236,9 @@ function UptrendModule() {
             }
         } catch (err) {
             console.error('获取单边涨幅数据失败:', err)
+        } finally {
+            // 确保释放请求锁
+            isRequesting.current = false
         }
         if (!silent) {
             setLoading(false)
