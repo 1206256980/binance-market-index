@@ -1067,6 +1067,60 @@ function UptrendModule() {
         }
     }
 
+    // 图例点击事件：实现反选逻辑
+    // 单击某个区间：只显示该区间，隐藏其他
+    // 再次单击同一个：恢复显示全部
+    const onTimeChartLegendSelectChanged = (params) => {
+        const chartInstance = timeChartRef.current?.getEchartsInstance()
+        if (!chartInstance) return
+
+        const data = getTimeDistributionData()
+        if (!data) return
+
+        const allRanges = data.uptrendRanges
+            .filter(range => {
+                const totalInRange = data.timeBuckets.reduce((sum, bucket) => {
+                    return sum + (bucket.rangeData[range.label]?.count || 0)
+                }, 0)
+                return totalInRange > 0
+            })
+            .map(r => r.label)
+
+        const clickedName = params.name
+        const selected = params.selected
+
+        // 计算当前有多少个是选中状态
+        const selectedCount = Object.values(selected).filter(v => v).length
+
+        // 如果只有一个选中，且点击的是这个选中的，恢复全部
+        if (selectedCount === allRanges.length - 1 && !selected[clickedName]) {
+            // 用户点击隐藏了一个，变成了 N-1 个选中
+            // 这是正常的隐藏行为，不做处理
+        } else if (selectedCount === 0 || (selectedCount === 1 && selected[clickedName])) {
+            // 如果点击后只剩一个或全部取消，恢复全部显示
+            const newSelected = {}
+            allRanges.forEach(name => { newSelected[name] = true })
+            chartInstance.dispatchAction({
+                type: 'legendSelect',
+                batch: allRanges.map(name => ({ name }))
+            })
+        } else if (selectedCount === allRanges.length) {
+            // 第一次点击（之前全部显示），只保留点击的这个
+            allRanges.forEach(name => {
+                if (name !== clickedName) {
+                    chartInstance.dispatchAction({
+                        type: 'legendUnSelect',
+                        name: name
+                    })
+                }
+            })
+            chartInstance.dispatchAction({
+                type: 'legendSelect',
+                name: clickedName
+            })
+        }
+    }
+
     const rankingData = getRankingData()
     const symbolStats = getSymbolStats()
     const isPanelOpen = showAllRanking || selectedBucket || selectedSymbol || selectedTimeBucket
@@ -1417,7 +1471,10 @@ function UptrendModule() {
                             option={getTimeDistributionOption()}
                             style={{ height: '280px', width: '100%' }}
                             opts={{ renderer: 'canvas' }}
-                            onEvents={{ click: onTimeChartClick }}
+                            onEvents={{
+                                click: onTimeChartClick,
+                                legendselectchanged: onTimeChartLegendSelectChanged
+                            }}
                         />
                     ) : (
                         <div className="chart-loading" style={{ height: '100px' }}>
