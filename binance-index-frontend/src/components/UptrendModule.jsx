@@ -115,6 +115,8 @@ function UptrendModule() {
     const [winRate, setWinRate] = useState(() => getCache('winRate', 90))
     const [inputWinRate, setInputWinRate] = useState(() => String(getCache('winRate', 90)))
     const [priceMode, setPriceMode] = useState(() => getCache('priceMode', 'lowHigh')) // lowHigh=最低/最高价, openClose=开盘/收盘价
+    const [uptrendBucketSize, setUptrendBucketSize] = useState(() => getCache('uptrendBucketSize', 10)) // 涨幅区间大小（%）
+    const [inputUptrendBucketSize, setInputUptrendBucketSize] = useState(() => String(getCache('uptrendBucketSize', 10)))
     const chartRef = useRef(null)
     const timeChartRef = useRef(null)
     const listRef = useRef(null)
@@ -166,11 +168,15 @@ function UptrendModule() {
         localStorage.setItem('uptrend_priceMode', JSON.stringify(priceMode))
     }, [priceMode])
 
+    useEffect(() => {
+        localStorage.setItem('uptrend_uptrendBucketSize', JSON.stringify(uptrendBucketSize))
+    }, [uptrendBucketSize])
+
     // 重置所有设置为默认值并清除缓存
     const resetToDefaults = () => {
         // 清除所有缓存
         const keys = ['timeBase', 'useCustomTime', 'startTime', 'endTime', 'keepRatio',
-            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'timeGranularity', 'winRate', 'priceMode']
+            'noNewHighCandles', 'minUptrend', 'timeChartThreshold', 'timeGranularity', 'winRate', 'priceMode', 'uptrendBucketSize']
         keys.forEach(key => localStorage.removeItem(`uptrend_${key}`))
 
         // 恢复默认值
@@ -190,6 +196,8 @@ function UptrendModule() {
         setWinRate(90)
         setInputWinRate('90')
         setPriceMode('lowHigh')
+        setUptrendBucketSize(10)
+        setInputUptrendBucketSize('10')
     }
 
 
@@ -393,6 +401,24 @@ function UptrendModule() {
 
     const handleWinRateKeyDown = (e) => {
         if (e.key === 'Enter') applyWinRate()
+    }
+
+    // 处理涨幅区间大小输入
+    const handleUptrendBucketSizeChange = (e) => {
+        setInputUptrendBucketSize(e.target.value)
+    }
+
+    const applyUptrendBucketSize = () => {
+        const val = parseInt(inputUptrendBucketSize)
+        if (!isNaN(val) && val >= 1 && val <= 100) {
+            setUptrendBucketSize(val)
+        } else {
+            setInputUptrendBucketSize(String(uptrendBucketSize))
+        }
+    }
+
+    const handleUptrendBucketSizeKeyDown = (e) => {
+        if (e.key === 'Enter') applyUptrendBucketSize()
     }
 
     // 计算分位数涨幅（胜率分析）
@@ -647,7 +673,7 @@ function UptrendModule() {
         if (selectedTimeBucket) {
             return {
                 title: `${selectedTimeBucket.label} 启动的波段`,
-                subtitle: `${selectedTimeBucket.count} 个波段`,
+                subtitle: `${selectedTimeBucket.totalCount || selectedTimeBucket.count || 0} 个波段`,
                 coins: sortCoins(selectedTimeBucket.coins)
             }
         }
@@ -711,11 +737,11 @@ function UptrendModule() {
     }
 
 
-    // 计算时间分布数据
+    // 计算时间分布数据（按涨幅区间分组）
     const getTimeDistributionData = () => {
         if (!uptrendData?.allCoinsRanking) return null
 
-        // 过滤符合阈值的波段
+        // 过滤符合最小涨幅阈值的波段
         const filteredWaves = uptrendData.allCoinsRanking.filter(
             c => c.uptrendPercent >= timeChartThreshold
         )
@@ -727,31 +753,29 @@ function UptrendModule() {
         const maxTime = Math.max(...filteredWaves.map(c => c.waveStartTime))
         const rangeHours = (maxTime - minTime) / (1000 * 60 * 60)
 
-        // 根据用户选择或时间范围确定粒度
+        // 根据用户选择或时间范围确定时间粒度
         let bucketSizeMs
         let bucketLabel
 
         if (timeGranularity !== 'auto') {
-            // 用户手动选择了粒度
             const hours = Number(timeGranularity)
             bucketSizeMs = hours * 60 * 60 * 1000
             bucketLabel = hours >= 24 ? `${hours / 24}天` : `${hours}小时`
         } else {
-            // 自动确定粒度
             if (rangeHours <= 6) {
-                bucketSizeMs = 30 * 60 * 1000 // 30分钟
+                bucketSizeMs = 30 * 60 * 1000
                 bucketLabel = '30分钟'
             } else if (rangeHours <= 24) {
-                bucketSizeMs = 60 * 60 * 1000 // 1小时
+                bucketSizeMs = 60 * 60 * 1000
                 bucketLabel = '1小时'
             } else if (rangeHours <= 72) {
-                bucketSizeMs = 2 * 60 * 60 * 1000 // 2小时
+                bucketSizeMs = 2 * 60 * 60 * 1000
                 bucketLabel = '2小时'
             } else if (rangeHours <= 168) {
-                bucketSizeMs = 4 * 60 * 60 * 1000 // 4小时
+                bucketSizeMs = 4 * 60 * 60 * 1000
                 bucketLabel = '4小时'
             } else {
-                bucketSizeMs = 12 * 60 * 60 * 1000 // 12小时
+                bucketSizeMs = 12 * 60 * 60 * 1000
                 bucketLabel = '12小时'
             }
         }
@@ -759,23 +783,35 @@ function UptrendModule() {
         // 对齐起始时间
         let alignedMin, alignedMax
         if (bucketSizeMs >= 24 * 60 * 60 * 1000) {
-            // 1天或更大粒度：按自然日对齐到00:00
             const minDate = new Date(minTime)
             minDate.setHours(0, 0, 0, 0)
             alignedMin = minDate.getTime()
 
             const maxDate = new Date(maxTime)
             maxDate.setHours(0, 0, 0, 0)
-            maxDate.setDate(maxDate.getDate() + 1) // 下一天的00:00
+            maxDate.setDate(maxDate.getDate() + 1)
             alignedMax = maxDate.getTime()
         } else {
-            // 其他粒度：按时间戳对齐
             alignedMin = Math.floor(minTime / bucketSizeMs) * bucketSizeMs
             alignedMax = Math.ceil(maxTime / bucketSizeMs) * bucketSizeMs
         }
 
-        // 创建时间桶
-        const buckets = []
+        // 生成涨幅区间
+        const maxUptrend = Math.max(...filteredWaves.map(c => c.uptrendPercent))
+        const uptrendRanges = []
+        for (let start = timeChartThreshold; start < maxUptrend + uptrendBucketSize; start += uptrendBucketSize) {
+            const end = start + uptrendBucketSize
+            uptrendRanges.push({
+                min: start,
+                max: end,
+                label: end > maxUptrend + uptrendBucketSize ? `${start}%+` : `${start}-${end}%`
+            })
+        }
+
+        // 创建时间桶，每个时间桶按涨幅区间分组
+        const timeBuckets = []
+        const pad = (n) => String(n).padStart(2, '0')
+
         for (let t = alignedMin; t < alignedMax; t += bucketSizeMs) {
             const bucketStart = t
             const bucketEnd = t + bucketSizeMs
@@ -784,10 +820,8 @@ function UptrendModule() {
             )
 
             const date = new Date(bucketStart)
-            const pad = (n) => String(n).padStart(2, '0')
             let label
             if (bucketSizeMs >= 24 * 60 * 60 * 1000) {
-                // 1天或更大粒度：只显示日期
                 label = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
             } else if (bucketSizeMs >= 12 * 60 * 60 * 1000) {
                 label = `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:00`
@@ -795,17 +829,30 @@ function UptrendModule() {
                 label = `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
             }
 
-            buckets.push({
+            // 按涨幅区间分组统计
+            const rangeData = {}
+            uptrendRanges.forEach(range => {
+                const coinsInRange = wavesInBucket.filter(
+                    c => c.uptrendPercent >= range.min && c.uptrendPercent < range.max
+                )
+                rangeData[range.label] = {
+                    count: coinsInRange.length,
+                    coins: coinsInRange
+                }
+            })
+
+            timeBuckets.push({
                 label,
                 startTime: bucketStart,
                 endTime: bucketEnd,
-                count: wavesInBucket.length,
+                totalCount: wavesInBucket.length,
                 ongoingCount: wavesInBucket.filter(c => c.ongoing).length,
+                rangeData,
                 coins: wavesInBucket
             })
         }
 
-        // 计算用时统计（从 waveStartTime 到 waveEndTime）
+        // 计算用时统计
         const durations = filteredWaves
             .filter(c => c.waveEndTime && c.waveStartTime)
             .map(c => c.waveEndTime - c.waveStartTime)
@@ -817,7 +864,6 @@ function UptrendModule() {
             ? Math.max(...durations)
             : 0
 
-        // 格式化用时
         const formatDuration = (ms) => {
             const hours = Math.floor(ms / (1000 * 60 * 60))
             const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
@@ -829,39 +875,70 @@ function UptrendModule() {
             return hours > 0 ? `${hours}时${minutes}分` : `${minutes}分钟`
         }
 
-        // 计算平均涨幅
         const avgUptrend = filteredWaves.reduce((sum, c) => sum + c.uptrendPercent, 0) / filteredWaves.length
 
         // 找出最热时段
-        let hottestBucket = buckets[0]
-        buckets.forEach(b => {
-            if (b.count > hottestBucket.count) {
+        let hottestBucket = timeBuckets[0]
+        timeBuckets.forEach(b => {
+            if (b.totalCount > hottestBucket.totalCount) {
                 hottestBucket = b
             }
         })
 
         return {
-            buckets,
+            timeBuckets,
+            uptrendRanges,
             bucketLabel,
             totalWaves: filteredWaves.length,
             avgDuration: formatDuration(avgDurationMs),
             maxDuration: formatDuration(maxDurationMs),
             avgUptrend: avgUptrend.toFixed(1),
             hottestPeriod: hottestBucket?.label || '--',
-            hottestCount: hottestBucket?.count || 0,
+            hottestCount: hottestBucket?.totalCount || 0,
             ongoingTotal: filteredWaves.filter(c => c.ongoing).length
         }
     }
 
-    // 时间分布图表配置
+    // 时间分布图表配置（堆叠条形图，按涨幅区间分组）
     const getTimeDistributionOption = () => {
         const data = getTimeDistributionData()
         if (!data) return {}
 
-        const { buckets } = data
-        const labels = buckets.map(b => b.label)
-        const counts = buckets.map(b => b.count)
-        const ongoingCounts = buckets.map(b => b.ongoingCount)
+        const { timeBuckets, uptrendRanges } = data
+        const labels = timeBuckets.map(b => b.label)
+
+        // 为每个涨幅区间生成渐变色（从浅到深）
+        const colors = [
+            '#86efac', // 10-20% 浅绿
+            '#4ade80', // 20-30% 绿
+            '#22c55e', // 30-40% 深绿
+            '#16a34a', // 40-50% 更深绿
+            '#15803d', // 50-60% 深绿
+            '#166534', // 60-70% 最深绿
+            '#14532d', // 70-80% 
+            '#052e16', // 80%+
+            '#f59e0b', // 额外颜色
+            '#ef4444'  // 额外颜色
+        ]
+
+        // 为每个涨幅区间创建一个系列
+        const series = uptrendRanges.map((range, index) => ({
+            name: range.label,
+            type: 'bar',
+            stack: 'total',
+            emphasis: { focus: 'series' },
+            data: timeBuckets.map(bucket => {
+                const rangeInfo = bucket.rangeData[range.label]
+                return {
+                    value: rangeInfo?.count || 0,
+                    itemStyle: {
+                        color: colors[index % colors.length],
+                        cursor: (rangeInfo?.count || 0) > 0 ? 'pointer' : 'default'
+                    }
+                }
+            }),
+            barWidth: '60%'
+        }))
 
         return {
             backgroundColor: 'transparent',
@@ -873,48 +950,46 @@ function UptrendModule() {
                 textStyle: { color: '#f1f5f9' },
                 formatter: function (params) {
                     if (!params || params.length === 0) return ''
-                    const param = params[0]
-                    const bucket = buckets[param.dataIndex]
-                    if (!bucket || bucket.count === 0) {
-                        return `<div style="padding: 8px;">
-                            <div style="font-weight: 600;">${bucket.label}</div>
-                            <div style="color: #94a3b8;">该时段暂无波段启动</div>
-                        </div>`
-                    }
-                    let html = `<div style="padding: 8px; max-width: 320px;">
+                    const dataIndex = params[0].dataIndex
+                    const bucket = timeBuckets[dataIndex]
+                    if (!bucket) return ''
+
+                    let html = `<div style="padding: 8px; max-width: 350px;">
                         <div style="font-weight: 600; margin-bottom: 8px; color: #10b981;">🕐 ${bucket.label}</div>
-                        <div>波段数: <span style="color: #10b981; font-weight: 600;">${bucket.count}</span></div>
-                        <div>进行中: <span style="color: #f59e0b; font-weight: 600;">${bucket.ongoingCount || 0}</span></div>`
-                    if (bucket.coins && bucket.coins.length > 0) {
-                        const displayCoins = bucket.coins.slice(0, 8)
-                        const moreCount = bucket.coins.length - 8
-                        let coinsHtml = '<div style="margin-top: 6px; font-size: 11px; color: #94a3b8;">'
-                        displayCoins.forEach(coin => {
-                            const ongoingMark = coin.ongoing ? '🔴' : ''
-                            coinsHtml += `<div style="margin: 2px 0;">${coin.symbol} ${ongoingMark} +${coin.uptrendPercent.toFixed(1)}%</div>`
-                        })
-                        if (moreCount > 0) {
-                            coinsHtml += `<div style="margin-top: 4px; color: #64748b;">等 ${moreCount} 个...</div>`
+                        <div style="margin-bottom: 6px;">总波段: <span style="color: #10b981; font-weight: 600;">${bucket.totalCount}</span>
+                        <span style="margin-left: 12px;">进行中: <span style="color: #f59e0b; font-weight: 600;">${bucket.ongoingCount}</span></span></div>
+                        <div style="border-top: 1px solid rgba(100,116,139,0.3); padding-top: 6px; font-size: 12px;">`
+
+                    // 显示各涨幅区间的数量
+                    params.forEach(p => {
+                        if (p.value > 0) {
+                            html += `<div style="display: flex; justify-content: space-between; margin: 2px 0;">
+                                <span>${p.marker} ${p.seriesName}</span>
+                                <span style="font-weight: 600;">${p.value}个</span>
+                            </div>`
                         }
-                        coinsHtml += '</div>'
-                        html += coinsHtml
-                    }
-                    html += '<div style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500;">👆 点击查看完整列表</div>'
-                    html += '</div>'
+                    })
+
+                    html += `</div>
+                        <div style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500;">👆 点击查看完整列表</div>
+                    </div>`
                     return html
                 }
             },
             legend: {
                 show: true,
-                data: ['总数', '进行中'],
-                textStyle: { color: '#94a3b8', fontSize: 11 },
-                top: 5,
-                right: 10
+                data: uptrendRanges.map(r => r.label),
+                textStyle: { color: '#94a3b8', fontSize: 10 },
+                top: 0,
+                right: 10,
+                type: 'scroll',
+                pageIconColor: '#94a3b8',
+                pageTextStyle: { color: '#94a3b8' }
             },
             grid: {
                 left: '3%',
                 right: '4%',
-                top: '15%',
+                top: '18%',
                 bottom: '18%',
                 containLabel: true
             },
@@ -936,34 +1011,7 @@ function UptrendModule() {
                 axisLabel: { color: '#64748b' },
                 splitLine: { lineStyle: { color: 'rgba(100, 116, 139, 0.1)' } }
             },
-            series: [
-                {
-                    name: '总数',
-                    type: 'bar',
-                    data: counts.map((count) => ({
-                        value: count === 0 ? null : count,
-                        itemStyle: {
-                            color: '#10b981',
-                            cursor: count > 0 ? 'pointer' : 'default'
-                        }
-                    })),
-                    barWidth: '50%',
-                    barMinHeight: 8
-                },
-                {
-                    name: '进行中',
-                    type: 'bar',
-                    data: ongoingCounts.map((count) => ({
-                        value: count === 0 ? null : count,
-                        itemStyle: {
-                            color: '#f59e0b',
-                            cursor: count > 0 ? 'pointer' : 'default'
-                        }
-                    })),
-                    barWidth: '50%',
-                    barMinHeight: 8
-                }
-            ]
+            series
         }
     }
 
@@ -974,8 +1022,8 @@ function UptrendModule() {
 
         let dataIndex = params.dataIndex
         if (dataIndex !== undefined && dataIndex !== null) {
-            const bucket = data.buckets[dataIndex]
-            if (bucket && bucket.count > 0) {
+            const bucket = data.timeBuckets[dataIndex]
+            if (bucket && bucket.totalCount > 0) {
                 setSelectedSymbol(null)
                 setSelectedBucket(null)
                 setShowAllRanking(false)
@@ -1252,7 +1300,7 @@ function UptrendModule() {
                         <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '8px' }}>
                             (涨幅≥{timeChartThreshold}% 的波段)
                         </span>
-                        <span className="label" style={{ marginLeft: '12px' }}>阈值:</span>
+                        <span className="label" style={{ marginLeft: '12px' }}>最小涨幅:</span>
                         <input
                             type="text"
                             className="threshold-input"
@@ -1262,6 +1310,18 @@ function UptrendModule() {
                             onKeyDown={handleTimeChartThresholdKeyDown}
                             style={{ width: '45px', textAlign: 'center', marginLeft: '4px' }}
                             title="只统计涨幅大于此值的波段"
+                        />
+                        <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
+                        <span className="label" style={{ marginLeft: '12px' }}>区间:</span>
+                        <input
+                            type="text"
+                            className="threshold-input"
+                            value={inputUptrendBucketSize}
+                            onChange={handleUptrendBucketSizeChange}
+                            onBlur={applyUptrendBucketSize}
+                            onKeyDown={handleUptrendBucketSizeKeyDown}
+                            style={{ width: '40px', textAlign: 'center', marginLeft: '4px' }}
+                            title="涨幅区间大小（1-100）"
                         />
                         <span style={{ color: '#94a3b8', marginLeft: '2px' }}>%</span>
                         <span className="label" style={{ marginLeft: '12px' }}>粒度:</span>
