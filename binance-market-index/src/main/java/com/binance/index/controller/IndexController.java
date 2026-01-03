@@ -281,15 +281,21 @@ public class IndexController {
             @RequestParam(required = false) String end,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
         log.info("------------------------- 开始调用 /uptrend-distribution 接口 -------------------------");
+        log.info("信号量状态: 可用许可数={}, 等待队列长度={}, 线程={}",
+                uptrendSemaphore.availablePermits(),
+                uptrendSemaphore.getQueueLength(),
+                Thread.currentThread().getName());
         Map<String, Object> response = new HashMap<>();
 
         // 尝试获取信号量，如果获取不到说明有其他请求正在处理
         if (!uptrendSemaphore.tryAcquire()) {
-            log.warn("uptrend-distribution 接口正忙，拒绝新请求");
+            log.warn("uptrend-distribution 接口正忙，拒绝新请求。信号量可用许可数={}，线程={}",
+                    uptrendSemaphore.availablePermits(), Thread.currentThread().getName());
             response.put("success", false);
             response.put("message", "接口正忙，当前有其他请求正在处理中，请稍后再试");
             return ResponseEntity.status(503).body(response);
         }
+        log.info("成功获取信号量，开始处理请求，线程={}", Thread.currentThread().getName());
 
         try {
             // 如果提供了 start 和 end，使用绝对时间模式
@@ -364,7 +370,8 @@ public class IndexController {
         } finally {
             // 确保释放信号量
             uptrendSemaphore.release();
-            log.info("------------------------- /uptrend-distribution 接口处理完成，释放信号量 -------------------------");
+            log.info("释放信号量完成，当前可用许可数={}，线程={}",
+                    uptrendSemaphore.availablePermits(), Thread.currentThread().getName());
         }
     }
 
