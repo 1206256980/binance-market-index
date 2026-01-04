@@ -677,6 +677,57 @@ public class IndexController {
     }
 
     /**
+     * 清理指定时间范围的所有数据（用于重新回补前清理）
+     * 会删除 CoinPrice 和 MarketIndex 表中指定时间范围的数据
+     *
+     * 用法：
+     * - DELETE /api/index/cleanup?days=3 （清理最近3天）
+     * - DELETE /api/index/cleanup?hours=12 （清理最近12小时）
+     * - DELETE /api/index/cleanup?start=2026-01-02T00:00 （从指定UTC时间开始清理到现在）
+     */
+    @DeleteMapping("/cleanup")
+    public ResponseEntity<Map<String, Object>> cleanupData(
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) Double hours,
+            @RequestParam(required = false) String start) {
+        log.info("------------------------- 开始调用 DELETE /cleanup 接口 -------------------------");
+        Map<String, Object> response = new HashMap<>();
+
+        // 计算时间范围
+        java.time.LocalDateTime endTime = java.time.LocalDateTime.now(java.time.ZoneId.of("UTC"));
+        java.time.LocalDateTime startTime;
+
+        try {
+            if (start != null && !start.isEmpty()) {
+                // 直接使用传入的 UTC 时间
+                startTime = parseDateTime(start);
+                log.info("清理指定时间范围的数据 (UTC): {} -> {}", startTime, endTime);
+            } else if (hours != null && hours > 0) {
+                // 按小时计算
+                long totalMinutes = (long) (hours * 60);
+                startTime = endTime.minusMinutes(totalMinutes);
+                log.info("清理最近 {} 小时的数据: {} -> {}", hours, startTime, endTime);
+            } else if (days != null && days > 0) {
+                // 按天计算
+                startTime = endTime.minusDays(days);
+                log.info("清理最近 {} 天的数据: {} -> {}", days, startTime, endTime);
+            } else {
+                response.put("success", false);
+                response.put("message", "请指定 days、hours 或 start 参数");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            Map<String, Object> result = indexCalculatorService.cleanupDataInRange(startTime, endTime);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("清理数据失败", e);
+            response.put("success", false);
+            response.put("message", "清理失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 解析时间字符串，支持多种格式
      */
     private java.time.LocalDateTime parseDateTime(String dateTimeStr) {

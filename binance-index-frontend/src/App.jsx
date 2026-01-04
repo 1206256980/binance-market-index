@@ -14,12 +14,32 @@ function App() {
     const [timeRange, setTimeRange] = useState(168) // 默认7天
     const [autoRefresh, setAutoRefresh] = useState(true)
     const [selectedTimeRange, setSelectedTimeRange] = useState(null) // 刷选的时间区间
+    const [missingData, setMissingData] = useState(null) // 数据缺漏信息
+    const [showMissingBanner, setShowMissingBanner] = useState(true) // 是否显示缺漏提示
 
     // 处理图表时间区间选择
     const handleTimeRangeSelect = (range) => {
         console.log('图表时间联动:', range)
         setSelectedTimeRange(range)
     }
+
+    // 检查数据缺漏（首次进入页面时调用）
+    useEffect(() => {
+        const checkMissingData = async () => {
+            try {
+                const res = await axios.get('/api/index/missing?days=1')
+                if (res.data.success && res.data.totalMissingRecords > 0) {
+                    setMissingData({
+                        total: res.data.totalMissingRecords,
+                        symbols: res.data.symbolsWithMissing
+                    })
+                }
+            } catch (err) {
+                console.error('检查数据缺漏失败:', err)
+            }
+        }
+        checkMissingData()
+    }, [])
 
     const fetchData = useCallback(async () => {
         try {
@@ -79,6 +99,42 @@ function App() {
 
     return (
         <div className="app">
+            {/* 数据缺漏提示条 */}
+            {missingData && showMissingBanner && (
+                <div style={{
+                    background: 'linear-gradient(90deg, #f59e0b22, #ef444422)',
+                    borderBottom: '1px solid #f59e0b55',
+                    padding: '8px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: '#fbbf24'
+                }}>
+                    <span>
+                        ⚠️ 最近24小时有 <strong>{missingData.total}</strong> 条数据缺漏
+                        （{missingData.symbols} 个币种）
+                        <span style={{ color: '#94a3b8', marginLeft: '8px' }}>
+                            可调用 POST /api/index/repair?days=1 修复
+                        </span>
+                    </span>
+                    <button
+                        onClick={() => setShowMissingBanner(false)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            padding: '0 4px'
+                        }}
+                        title="关闭提示"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
             {/* 统计卡片 */}
             <div className="stats-container">
                 <StatsCard
