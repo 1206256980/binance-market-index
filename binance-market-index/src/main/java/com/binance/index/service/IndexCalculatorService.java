@@ -1152,7 +1152,7 @@ public class IndexCalculatorService {
         }
 
         // 【优化2】使用并行流处理 API 调用（限制并发数避免打满 API 限速）
-        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(1);
         List<CoinPrice> allRepairedPrices = java.util.Collections.synchronizedList(new ArrayList<>());
         java.util.concurrent.atomic.AtomicInteger processedCount = new java.util.concurrent.atomic.AtomicInteger(0);
         int totalSymbols = symbolMissingRanges.size();
