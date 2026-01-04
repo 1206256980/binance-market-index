@@ -947,6 +947,62 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 清理指定时间范围内的所有数据（用于重新回补前）
+     * 删除 CoinPrice 和 MarketIndex，并清空缓存
+     *
+     * @param start 开始时间 (UTC)
+     * @param end   结束时间 (UTC)
+     * @return 清理结果
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public Map<String, Object> cleanupDataInRange(LocalDateTime start, LocalDateTime end) {
+        Map<String, Object> result = new HashMap<>();
+        long startMs = System.currentTimeMillis();
+
+        log.info("========== 开始清理数据 ==========");
+        log.info("时间范围 (UTC): {} -> {}", start, end);
+
+        // 统计并删除 CoinPrice
+        String countPriceSql = "SELECT COUNT(*) FROM coin_price WHERE timestamp >= ? AND timestamp <= ?";
+        Long priceCount = jdbcCoinPriceRepository.getJdbcTemplate().queryForObject(
+                countPriceSql, Long.class, start, end);
+        
+        if (priceCount != null && priceCount > 0) {
+            String deletePriceSql = "DELETE FROM coin_price WHERE timestamp >= ? AND timestamp <= ?";
+            int deleted = jdbcCoinPriceRepository.getJdbcTemplate().update(deletePriceSql, start, end);
+            log.info("已删除 {} 条 CoinPrice 数据", deleted);
+            result.put("deletedCoinPriceCount", deleted);
+        } else {
+            log.info("CoinPrice 表无匹配数据");
+            result.put("deletedCoinPriceCount", 0);
+        }
+
+        // 统计并删除 MarketIndex
+        long indexCount = marketIndexRepository.countByTimestampBetween(start, end);
+        if (indexCount > 0) {
+            marketIndexRepository.deleteByTimestampBetween(start, end);
+            log.info("已删除 {} 条 MarketIndex 数据", indexCount);
+            result.put("deletedMarketIndexCount", indexCount);
+        } else {
+            log.info("MarketIndex 表无匹配数据");
+            result.put("deletedMarketIndexCount", 0);
+        }
+
+        // 清空缓存
+        uptrendCache.invalidateAll();
+        log.info("已清空单边上行缓存");
+
+        long elapsed = System.currentTimeMillis() - startMs;
+        log.info("========== 数据清理完成，耗时 {}ms ==========", elapsed);
+
+        result.put("success", true);
+        result.put("timeRange", start + " ~ " + end);
+        result.put("elapsedMs", elapsed);
+        return result;
+    }
+
+
+    /**
      * 删除指定币种的所有数据（包括历史价格和基准价格）
      *
      * @param symbol 币种符号，如 SOLUSDT
