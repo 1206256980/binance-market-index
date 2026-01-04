@@ -23,6 +23,7 @@ public class DataCollectorScheduler {
     private int backfillConcurrency;
 
     private volatile boolean isBackfillComplete = false;
+    private volatile boolean hasCollectionError = false; // 采集出错后暂停后续采集
 
     public DataCollectorScheduler(IndexCalculatorService indexCalculatorService) {
         this.indexCalculatorService = indexCalculatorService;
@@ -62,25 +63,56 @@ public class DataCollectorScheduler {
     }
 
     /**
+     * 手动触发重新回补数据（通过API调用）
+     * 重置状态并重新执行回补流程，回补成功后才恢复采集
+     */
+    public void rebackfill() {
+        log.info("手动触发重新回补数据...");
+
+        // 先标记为未完成，暂停实时采集
+        isBackfillComplete = false;
+
+        // 异步执行回补，不阻塞请求
+        new Thread(() -> {
+            try {
+                // 1. 先清理可能存在的重复数据
+                indexCalculatorService.cleanupDuplicateData();
+
+                // 2. 设置回补状态
+                indexCalculatorService.setBackfillInProgress(true);
+
+                // 3. 使用 V2 优化版回补
+                log.info("开始 V2 优化版回补历史数据...");
+                indexCalculatorService.backfillHistoricalDataV2(backfillDays, backfillConcurrency);
+
+                // 4. 回补成功，清除回补状态和错误标志
+                indexCalculatorService.setBackfillInProgress(false);
+                hasCollectionError = false; // 回补成功后才重置错误标志
+                isBackfillComplete = true;
+                log.info("V2 历史数据回补完成，采集已恢复");
+            } catch (Exception e) {
+                log.error("历史数据回补失败，采集仍处于暂停状态: {}", e.getMessage(), e);
+                indexCalculatorService.setBackfillInProgress(false);
+                // 回补失败时不重置 hasCollectionError，保持暂停状态
+            }
+        }, "rebackfill-thread").start();
+    }
+
+    /**
      * 每5分钟采集一次数据
      * cron: 秒 分 时 日 月 周
-     * 10 0/5 * * * * 表示每5分钟的第10秒执行（给币安API时间更新K线数据）
+     * 20 0/5 * * * * 表示每5分钟的第20秒执行（给币安API更多时间更新K线数据）
      */
-    @Scheduled(cron = "10 0/5 * * * *")
+    @Scheduled(cron = "20 0/5 * * * *")
     public void collectData() {
-        // if (!isBackfillComplete) {
-        // // 回补未完成时，采集数据但暂存到内存队列，不保存到数据库
-        // // 这样可以确保回补期间的实时数据不会丢失
-        // log.info("回补进行中，采集数据暂存到内存队列");
-        // try {
-        // indexCalculatorService.collectAndBuffer();
-        // } catch (Exception e) {
-        // log.error("暂存采集失败: {}", e.getMessage(), e);
-        // }
-        // return;
-        // }
         if (!isBackfillComplete) {
             log.debug("历史数据回补尚未完成，跳过本次采集");
+            return;
+        }
+
+        // 如果之前采集出错，暂停后续采集，避免数据缺漏
+        if (hasCollectionError) {
+            log.warn("实时采集已暂停（之前发生错误），请检查并修复问题后重启服务");
             return;
         }
 
@@ -88,7 +120,8 @@ public class DataCollectorScheduler {
             log.info("------------------------- 开始实时采集 -------------------------");
             indexCalculatorService.calculateAndSaveCurrentIndex();
         } catch (Exception e) {
-            log.error("数据采集失败: {}", e.getMessage(), e);
+            log.error("数据采集失败，后续采集已暂停: {}", e.getMessage(), e);
+            hasCollectionError = true; // 标记错误，暂停后续采集
         }
     }
 

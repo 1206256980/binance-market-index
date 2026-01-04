@@ -43,6 +43,8 @@ public class JdbcCoinPriceRepository {
      * 批量插入 CoinPrice 数据（包含OHLC）
      * 使用多值INSERT语法：INSERT INTO ... VALUES (...), (...), ...
      * 相比 batchUpdate，减少了网络往返次数，性能更优
+     * 
+     * 注：依靠定时任务延迟到第20秒执行来避免获取旧K线导致的重复键问题
      */
     @Transactional
     public void batchInsert(List<CoinPrice> prices) {

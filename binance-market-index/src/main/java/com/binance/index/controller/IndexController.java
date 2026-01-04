@@ -23,12 +23,15 @@ public class IndexController {
 
     private static final Logger log = LoggerFactory.getLogger(IndexController.class);
     private final IndexCalculatorService indexCalculatorService;
+    private final com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler;
 
     // 限制 uptrend-distribution 接口并发为1的信号量
     private final Semaphore uptrendSemaphore = new Semaphore(1);
 
-    public IndexController(IndexCalculatorService indexCalculatorService) {
+    public IndexController(IndexCalculatorService indexCalculatorService,
+            com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler) {
         this.indexCalculatorService = indexCalculatorService;
+        this.dataCollectorScheduler = dataCollectorScheduler;
     }
 
     /**
@@ -695,5 +698,30 @@ public class IndexController {
 
         // 尝试 ISO 格式
         return java.time.LocalDateTime.parse(dateTimeStr);
+    }
+
+    /**
+     * 手动触发重新回补数据
+     * 会重置采集错误标志，并异步执行回补流程
+     * 
+     * 使用场景：
+     * - 采集出错导致暂停后，修复问题后调用此接口恢复
+     * - 手动刷新历史数据
+     */
+    @PostMapping("/rebackfill")
+    public ResponseEntity<Map<String, Object>> rebackfill() {
+        log.info("------------------------- 收到重新回补请求 -------------------------");
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            dataCollectorScheduler.rebackfill();
+            response.put("success", true);
+            response.put("message", "已触发重新回补，请查看日志了解进度");
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "触发回补失败: " + e.getMessage());
+        }
+
+        return ResponseEntity.ok(response);
     }
 }
