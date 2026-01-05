@@ -954,6 +954,7 @@ function UptrendModule() {
             return totalInRange > 0
         })
 
+
         // 为有数据的涨幅区间创建系列
         const series = rangesWithData.map((range, index) => ({
             name: range.label,
@@ -970,7 +971,19 @@ function UptrendModule() {
                     }
                 }
             }),
-            barWidth: '60%'
+            barWidth: '60%',
+            // 只在最后一个（最顶层）系列显示总数标签
+            label: index === rangesWithData.length - 1 ? {
+                show: true,
+                position: 'top',
+                formatter: (params) => {
+                    const bucket = timeBuckets[params.dataIndex]
+                    return bucket?.totalCount > 0 ? bucket.totalCount : ''
+                },
+                color: '#94a3b8',
+                fontSize: 11,
+                fontWeight: 'bold'
+            } : { show: false }
         }))
 
         return {
