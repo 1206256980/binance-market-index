@@ -9,7 +9,9 @@ import okhttp3.Request;
 import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -29,6 +31,10 @@ public class BinanceApiService {
 
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
+    
+    @Autowired
+    @Lazy
+    private EmailNotificationService emailNotificationService;
 
     // 全局限流标志 - 一旦遇到429/418立即停止所有API调用
     private final AtomicBoolean rateLimited = new AtomicBoolean(false);
@@ -68,6 +74,11 @@ public class BinanceApiService {
         log.error("🚨🚨🚨 [严重警告] 币安API返回 {} - IP可能已被封禁！", statusCode);
         log.error("🚨🚨🚨 [严重警告] 所有API调用已停止，请检查IP或更换节点！");
         log.error("🚨🚨🚨 [严重警告] 限流原因: {}", rateLimitReason);
+        
+        // 发送邮件通知
+        if (emailNotificationService != null) {
+            emailNotificationService.sendRateLimitNotification(rateLimitReason);
+        }
     }
 
     /**
