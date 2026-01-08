@@ -10,6 +10,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -20,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 public class EmailNotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailNotificationService.class);
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final JavaMailSender mailSender;
@@ -61,7 +63,7 @@ public class EmailNotificationService {
             String subject = subjectPrefix + " 数据采集失败报警";
             StringBuilder content = new StringBuilder();
             content.append("⚠️ 币安指数数据采集失败报警\n\n");
-            content.append("时间: ").append(LocalDateTime.now().format(FORMATTER)).append("\n");
+            content.append("时间(北京): ").append(LocalDateTime.now(BEIJING_ZONE).format(FORMATTER)).append("\n");
             content.append("错误信息: ").append(errorMessage).append("\n\n");
 
             if (exception != null) {
@@ -121,7 +123,7 @@ public class EmailNotificationService {
             String subject = subjectPrefix + " API限流警告";
             StringBuilder content = new StringBuilder();
             content.append("🚨 币安API限流警告\n\n");
-            content.append("时间: ").append(LocalDateTime.now().format(FORMATTER)).append("\n");
+            content.append("时间(北京): ").append(LocalDateTime.now(BEIJING_ZONE).format(FORMATTER)).append("\n");
             content.append("限流信息: ").append(rateLimitInfo).append("\n\n");
             content.append("⚠️ IP可能已被币安临时封禁！\n");
             content.append("建议: 检查请求频率，或更换IP节点\n");
