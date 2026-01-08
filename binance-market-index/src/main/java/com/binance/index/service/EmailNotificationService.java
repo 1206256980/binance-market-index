@@ -1,10 +1,12 @@
 package com.binance.index.service;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -74,12 +76,12 @@ public class EmailNotificationService {
                         content.append("  at ").append(element.toString()).append("\n");
                     }
                 }
-                
+
                 // 如果有 cause，也打印出来
                 Throwable cause = exception.getCause();
                 if (cause != null) {
                     content.append("\nCaused by: ").append(cause.getClass().getName())
-                           .append(": ").append(cause.getMessage()).append("\n");
+                            .append(": ").append(cause.getMessage()).append("\n");
                     for (StackTraceElement element : cause.getStackTrace()) {
                         content.append("  at ").append(element.toString()).append("\n");
                     }
@@ -158,16 +160,18 @@ public class EmailNotificationService {
     }
 
     /**
-     * 发送邮件的核心方法
+     * 发送邮件的核心方法（使用MimeMessage支持UTF-8编码）
      */
-    private void sendEmail(String subject, String content) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromEmail);
-        message.setTo(toEmail);
-        message.setSubject(subject);
-        message.setText(content);
+    private void sendEmail(String subject, String content) throws MessagingException {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
 
-        mailSender.send(message);
+        helper.setFrom(fromEmail);
+        helper.setTo(toEmail);
+        helper.setSubject(subject);
+        helper.setText(content);
+
+        mailSender.send(mimeMessage);
     }
 
     /**
