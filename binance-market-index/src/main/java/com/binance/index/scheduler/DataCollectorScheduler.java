@@ -1,5 +1,6 @@
 package com.binance.index.scheduler;
 
+import com.binance.index.service.EmailNotificationService;
 import com.binance.index.service.IndexCalculatorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ public class DataCollectorScheduler {
     private static final Logger log = LoggerFactory.getLogger(DataCollectorScheduler.class);
 
     private final IndexCalculatorService indexCalculatorService;
+    private final EmailNotificationService emailNotificationService;
 
     @Value("${index.backfill.days}")
     private int backfillDays;
@@ -25,8 +27,10 @@ public class DataCollectorScheduler {
     private volatile boolean isBackfillComplete = false;
     private volatile boolean hasCollectionError = false; // 采集出错后暂停后续采集
 
-    public DataCollectorScheduler(IndexCalculatorService indexCalculatorService) {
+    public DataCollectorScheduler(IndexCalculatorService indexCalculatorService,
+                                   EmailNotificationService emailNotificationService) {
         this.indexCalculatorService = indexCalculatorService;
+        this.emailNotificationService = emailNotificationService;
     }
 
     /**
@@ -122,6 +126,9 @@ public class DataCollectorScheduler {
         } catch (Exception e) {
             log.error("数据采集失败，后续采集已暂停: {}", e.getMessage(), e);
             hasCollectionError = true; // 标记错误，暂停后续采集
+            
+            // 发送邮件通知
+            emailNotificationService.sendCollectionFailureNotification(e.getMessage(), e);
         }
     }
 
