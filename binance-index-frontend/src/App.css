@@ -1168,6 +1168,16 @@ body {
   color: var(--text-muted);
 }
 
+.uptrend-item .uptrend-value .break-price {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(245, 158, 11, 0.15);
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
 /* 详情按钮 */
 .detail-btn {
   width: 28px;

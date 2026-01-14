@@ -1634,6 +1634,9 @@ function UptrendModule() {
                                             <span className="price-range">
                                                 {coin.startPrice} → {coin.peakPrice}
                                             </span>
+                                            <span className="break-price" title={`跌破价：保留${Math.round(keepRatio * 100)}%涨幅的价格线`}>
+                                                ⚠️{formatPrice((parseFloat(coin.peakPrice) - parseFloat(coin.startPrice)) * keepRatio + parseFloat(coin.startPrice))}
+                                            </span>
                                         </div>
                                         {!selectedSymbol && (
                                             <button
