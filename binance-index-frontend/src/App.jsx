@@ -28,10 +28,27 @@ function App() {
         const checkMissingData = async () => {
             try {
                 const res = await axios.get('/api/index/missing?days=1')
-                if (res.data.success && res.data.totalMissingRecords > 0) {
+                // 只有缺漏币种 > 20 才提示（排除新币影响）
+                if (res.data.success && res.data.symbolsWithMissing > 20) {
+                    // 从详情中提取时间范围
+                    const details = res.data.details || []
+                    let timeRanges = []
+                    details.slice(0, 5).forEach(item => {
+                        if (item.missingTimestamps && item.missingTimestamps.length > 0) {
+                            // 取第一个和最后一个时间戳作为范围
+                            const timestamps = item.missingTimestamps
+                            timeRanges.push(timestamps[0])
+                        }
+                    })
+                    // 去重并排序
+                    const uniqueTimes = [...new Set(timeRanges)].sort()
+
                     setMissingData({
                         total: res.data.totalMissingRecords,
-                        symbols: res.data.symbolsWithMissing
+                        symbols: res.data.symbolsWithMissing,
+                        timeRange: uniqueTimes.length > 0
+                            ? `${uniqueTimes[0]} 起`
+                            : ''
                     })
                 }
             } catch (err) {
@@ -114,8 +131,13 @@ function App() {
                     <span>
                         ⚠️ 最近24小时有 <strong>{missingData.total}</strong> 条数据缺漏
                         （{missingData.symbols} 个币种）
+                        {missingData.timeRange && (
+                            <span style={{ color: '#f87171', marginLeft: '8px' }}>
+                                缺漏时段: {missingData.timeRange}
+                            </span>
+                        )}
                         <span style={{ color: '#94a3b8', marginLeft: '8px' }}>
-                            可调用 POST /api/index/repair?days=1 修复
+                            可调用 DELETE /api/index/cleanup?days=1 清理后重新回补
                         </span>
                     </span>
                     <button
