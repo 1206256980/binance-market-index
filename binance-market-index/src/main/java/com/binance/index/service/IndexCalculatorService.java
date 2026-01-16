@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -51,8 +52,19 @@ public class IndexCalculatorService {
             .expireAfterWrite(5, TimeUnit.MINUTES)
             .build();
 
-    // 波段计算专用线程池（4线程）
-    private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(8);
+    // 波段计算专用线程池（使用4线程避免CPU过载）
+    private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(4);
+
+    // 打印线程池状态的辅助方法
+    private void logPoolStatus(String phase) {
+        log.info("[POOL-STATUS][{}] 活跃线程={}, 运行线程={}, 队列任务={}, 窃取任务={}, CPU核心={}",
+                phase,
+                waveCalculationPool.getActiveThreadCount(),
+                waveCalculationPool.getRunningThreadCount(),
+                waveCalculationPool.getQueuedTaskCount(),
+                waveCalculationPool.getStealCount(),
+                Runtime.getRuntime().availableProcessors());
+    }
 
     // 回补状态标志
     private volatile boolean backfillInProgress = false;
@@ -1825,9 +1837,9 @@ public class IndexCalculatorService {
             return cachedData;
         }
 
-        log.info("计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}", alignedStart, alignedEnd,
-                keepRatio,
-                noNewHighCandles, minUptrend, priceMode);
+        log.info("[UPTREND-START] 开始计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}", 
+                alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend, priceMode);
+        logPoolStatus("开始计算前");
 
         // 【优化】分批查询，避免一次性加载过多数据到内存
         long queryStart = System.currentTimeMillis();
@@ -1853,7 +1865,9 @@ public class IndexCalculatorService {
         Map<String, List<CoinPrice>> pricesBySymbol = allPrices.stream()
                 .collect(java.util.stream.Collectors.groupingBy(CoinPrice::getSymbol));
 
-        log.info("查询完成，共 {} 条数据，{} 个币种，开始并行计算...", allPrices.size(), pricesBySymbol.size());
+        log.info("[UPTREND-QUERY] 查询完成，共 {} 条数据，{} 个币种，堆内存使用: {}MB，开始并行计算...", 
+                allPrices.size(), pricesBySymbol.size(),
+                (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024);
 
         // 清空原始列表引用，帮助 GC
         allPrices = null;
@@ -1862,12 +1876,29 @@ public class IndexCalculatorService {
         final Map<String, List<CoinPrice>> finalPricesBySymbol = pricesBySymbol;
         List<UptrendData.CoinUptrend> allWaves;
         try {
+            logPoolStatus("提交任务前");
+            long calcStart = System.currentTimeMillis();
+            
+            // 提交任务并设置超时时间（55秒），留出5秒给Nginx/Gateway
+            // 如果超时，抛出 TimeoutException，避免线程无限阻塞
             allWaves = waveCalculationPool.submit(() -> finalPricesBySymbol.entrySet().parallelStream()
                     .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
                             noNewHighCandles, minUptrend, priceMode).stream())
-                    .collect(java.util.stream.Collectors.toList())).get();
+                    .collect(java.util.stream.Collectors.toList()))
+                    .get(55, TimeUnit.SECONDS);
+                    
+            long calcTime = System.currentTimeMillis() - calcStart;
+            log.info("[UPTREND-CALC] 并行计算完成，耗时 {}ms", calcTime);
+            logPoolStatus("计算完成后");
+        } catch (TimeoutException e) {
+            log.error("[UPTREND-TIMEOUT] 计算超时（>55s），线程池状态：活跃={}, 队列={}", 
+                    waveCalculationPool.getActiveThreadCount(), waveCalculationPool.getQueuedTaskCount());
+            logPoolStatus("超时发生时");
+            // 抛出运行时异常或者返回空，这里记录错误并返回null让上层处理
+            return null;
         } catch (Exception e) {
-            log.error("波段计算失败", e);
+            log.error("[UPTREND-ERROR] 波段计算失败，堆内存使用: {}MB", 
+                    (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024, e);
             return null;
         }
 
@@ -1875,7 +1906,9 @@ public class IndexCalculatorService {
         pricesBySymbol = null;
 
         long queryTime = System.currentTimeMillis() - queryStart;
-        log.info("一次性查询处理完成，耗时 {}ms，共 {} 个波段", queryTime, allWaves.size());
+        log.info("[UPTREND-DONE] 一次性查询处理完成，耗时 {}ms，共 {} 个波段，堆内存使用: {}MB", 
+                queryTime, allWaves.size(),
+                (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024);
 
         // 统计进行中的波段数
         int ongoingCount = (int) allWaves.stream().filter(UptrendData.CoinUptrend::isOngoing).count();
