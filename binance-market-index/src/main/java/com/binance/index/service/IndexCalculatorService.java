@@ -52,7 +52,7 @@ public class IndexCalculatorService {
             .build();
 
     // 波段计算专用线程池（4线程）
-    private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(4);
+    private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(8);
 
     // 回补状态标志
     private volatile boolean backfillInProgress = false;
