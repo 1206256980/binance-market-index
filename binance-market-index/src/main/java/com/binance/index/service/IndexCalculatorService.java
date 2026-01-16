@@ -978,7 +978,7 @@ public class IndexCalculatorService {
         String countPriceSql = "SELECT COUNT(*) FROM coin_price WHERE timestamp >= ? AND timestamp <= ?";
         Long priceCount = jdbcCoinPriceRepository.getJdbcTemplate().queryForObject(
                 countPriceSql, Long.class, start, end);
-        
+
         if (priceCount != null && priceCount > 0) {
             String deletePriceSql = "DELETE FROM coin_price WHERE timestamp >= ? AND timestamp <= ?";
             int deleted = jdbcCoinPriceRepository.getJdbcTemplate().update(deletePriceSql, start, end);
@@ -1012,7 +1012,6 @@ public class IndexCalculatorService {
         result.put("elapsedMs", elapsed);
         return result;
     }
-
 
     /**
      * 删除指定币种的所有数据（包括历史价格和基准价格）
@@ -1837,7 +1836,7 @@ public class IndexCalculatorService {
             return cachedData;
         }
 
-        log.info("[UPTREND-START] 开始计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}", 
+        log.info("[UPTREND-START] 开始计算单边涨幅分布: {} -> {} (对齐后), 保留比率: {}, 横盘K线数: {}, 最小涨幅: {}%, 价格模式: {}",
                 alignedStart, alignedEnd, keepRatio, noNewHighCandles, minUptrend, priceMode);
         logPoolStatus("开始计算前");
 
@@ -1851,62 +1850,42 @@ public class IndexCalculatorService {
             return null;
         }
 
-        log.info("找到 {} 个币种，开始一次性查询处理...", allSymbols.size());
+        log.info("找到 {} 个币种，开始分币种并行处理...", allSymbols.size());
 
-        // 一次性加载所有数据（牺牲内存换取最快速度）
-        List<CoinPrice> allPrices = coinPriceRepository.findAllInRangeOrderBySymbolAndTime(alignedStart, alignedEnd);
-
-        if (allPrices.isEmpty()) {
-            log.warn("时间范围内没有数据");
-            return null;
-        }
-
-        // 按币种分组
-        Map<String, List<CoinPrice>> pricesBySymbol = allPrices.stream()
-                .collect(java.util.stream.Collectors.groupingBy(CoinPrice::getSymbol));
-
-        log.info("[UPTREND-QUERY] 查询完成，共 {} 条数据，{} 个币种，堆内存使用: {}MB，开始并行计算...", 
-                allPrices.size(), pricesBySymbol.size(),
-                (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024);
-
-        // 清空原始列表引用，帮助 GC
-        allPrices = null;
-
-        // 使用自定义4线程池处理
-        final Map<String, List<CoinPrice>> finalPricesBySymbol = pricesBySymbol;
+        // Step 2: 并行处理（每个币种独立查询并计算）
         List<UptrendData.CoinUptrend> allWaves;
         try {
             logPoolStatus("提交任务前");
             long calcStart = System.currentTimeMillis();
-            
-            // 提交任务并设置超时时间（55秒），留出5秒给Nginx/Gateway
-            // 如果超时，抛出 TimeoutException，避免线程无限阻塞
-            allWaves = waveCalculationPool.submit(() -> finalPricesBySymbol.entrySet().parallelStream()
-                    .flatMap(entry -> calculateSymbolAllWavesFromData(entry.getKey(), entry.getValue(), keepRatio,
-                            noNewHighCandles, minUptrend, priceMode).stream())
+
+            // 提交任务并设置超时时间（120秒/2分钟）
+            allWaves = waveCalculationPool.submit(() -> allSymbols.parallelStream()
+                    .flatMap(symbol -> {
+                        // 在并行线程中单独查询该币种的数据，避免一次性加载导致的内存压力和查询阻塞
+                        List<CoinPrice> symbolPrices = coinPriceRepository.findBySymbolInRangeOrderByTime(symbol,
+                                alignedStart, alignedEnd);
+                        return calculateSymbolAllWavesFromData(symbol, symbolPrices, keepRatio,
+                                noNewHighCandles, minUptrend, priceMode).stream();
+                    })
                     .collect(java.util.stream.Collectors.toList()))
-                    .get(55, TimeUnit.SECONDS);
-                    
+                    .get(120, TimeUnit.SECONDS);
+
             long calcTime = System.currentTimeMillis() - calcStart;
-            log.info("[UPTREND-CALC] 并行计算完成，耗时 {}ms", calcTime);
+            log.info("[UPTREND-CALC] 并行计算完成，共耗时 {}ms", calcTime);
             logPoolStatus("计算完成后");
         } catch (TimeoutException e) {
-            log.error("[UPTREND-TIMEOUT] 计算超时（>55s），线程池状态：活跃={}, 队列={}", 
+            log.error("[UPTREND-TIMEOUT] 计算超时（>120s），线程池状态：活跃={}, 队列={}",
                     waveCalculationPool.getActiveThreadCount(), waveCalculationPool.getQueuedTaskCount());
             logPoolStatus("超时发生时");
-            // 抛出运行时异常或者返回空，这里记录错误并返回null让上层处理
             return null;
         } catch (Exception e) {
-            log.error("[UPTREND-ERROR] 波段计算失败，堆内存使用: {}MB", 
+            log.error("[UPTREND-ERROR] 波段计算失败，堆内存使用: {}MB",
                     (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024, e);
             return null;
         }
 
-        // 清空分组数据
-        pricesBySymbol = null;
-
         long queryTime = System.currentTimeMillis() - queryStart;
-        log.info("[UPTREND-DONE] 一次性查询处理完成，耗时 {}ms，共 {} 个波段，堆内存使用: {}MB", 
+        log.info("[UPTREND-DONE] 一次性查询处理完成，耗时 {}ms，共 {} 个波段，堆内存使用: {}MB",
                 queryTime, allWaves.size(),
                 (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024 / 1024);
 
