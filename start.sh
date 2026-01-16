@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# 启动后端 (后台运行) - JVM堆内存12G，使用G1GC优化内存回收
-echo "Starting backend with 12G heap (G1GC)..."
-java -Xms2g -Xmx8g \
+# 启动后端 (后台运行) - JVM堆内存4G，使用G1GC优化内存回收
+echo "Starting backend with 4G heap (G1GC)..."
+java -Xms2g -Xmx4g \
      -XX:+UseG1GC \
      -XX:MaxGCPauseMillis=200 \
      -XX:+ExplicitGCInvokesConcurrent \
