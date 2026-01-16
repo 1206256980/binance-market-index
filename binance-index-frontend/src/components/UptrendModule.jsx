@@ -1400,6 +1400,7 @@ function UptrendModule() {
                         <ReactECharts
                             ref={chartRef}
                             option={getHistogramOption()}
+                            notMerge={true}
                             style={{ height: '300px', width: '100%' }}
                             opts={{ renderer: 'canvas' }}
                             onEvents={{ click: onChartClick }}
@@ -1494,6 +1495,7 @@ function UptrendModule() {
                         <ReactECharts
                             ref={timeChartRef}
                             option={getTimeDistributionOption()}
+                            notMerge={true}
                             style={{ height: '280px', width: '100%' }}
                             opts={{ renderer: 'canvas' }}
                             onEvents={{
