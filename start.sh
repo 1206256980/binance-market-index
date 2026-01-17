@@ -3,9 +3,38 @@
 # 准备日志和 Dump 目录
 mkdir -p /app/data/logs/hprof
 
+# 邮件报警函数
+send_alert() {
+  SUBJECT="[CRITICAL] Binance Index Backend Crashed"
+  BODY="The Java backend process (PID $JAVA_PID) has stopped unexpectedly at $(date '+%Y-%m-%d %H:%M:%S'). Container will restart."
+  
+  echo "[SYSTEM] Sending crash alert email..."
+  
+  # 使用 curl 通过 SMTP 发送邮件 (QQ邮箱)
+  # 注意：这里直接使用了您配置在 application.properties 中的凭据
+  curl --url 'smtps://smtp.qq.com:465' --ssl-reqd \
+    --mail-from '1206256980@qq.com' \
+    --mail-rcpt '1206256980@qq.com' \
+    --user '1206256980@qq.com:tuenjpvwychvgibe' \
+    -T - <<EOF
+From: 1206256980@qq.com
+To: 1206256980@qq.com
+Subject: $SUBJECT
+
+$BODY
+EOF
+}
+
 # 清理函数：确保脚本退出时杀掉所有子进程
 cleanup() {
   echo "[SYSTEM] Stopping all processes..."
+  
+  # 检查是否是 Java 进程挂了导致的退出
+  if ! kill -0 $JAVA_PID 2>/dev/null; then
+    echo "[ALERT] Java process is dead!"
+    send_alert
+  fi
+
   # 杀掉后台运行的所有任务
   kill $(jobs -p) 2>/dev/null
   exit 1
