@@ -112,6 +112,7 @@ function UptrendModule() {
     const [inputTimeChartThreshold, setInputTimeChartThreshold] = useState(() => String(getCache('timeChartThreshold', 10)))
     const [timeGranularity, setTimeGranularity] = useState(() => getCache('timeGranularity', 'auto'))
     const [selectedTimeBucket, setSelectedTimeBucket] = useState(null)
+    const [timeChartLegendSelected, setTimeChartLegendSelected] = useState(null)
     const [winRate, setWinRate] = useState(() => getCache('winRate', 90))
     const [inputWinRate, setInputWinRate] = useState(() => String(getCache('winRate', 90)))
     const [priceMode, setPriceMode] = useState(() => getCache('priceMode', 'lowHigh')) // lowHigh=最低/最高价, openClose=开盘/收盘价
@@ -972,18 +973,39 @@ function UptrendModule() {
                 }
             }),
             barWidth: '60%',
-            // 只在最后一个（最顶层）系列显示总数标签
-            label: index === rangesWithData.length - 1 ? {
+            label: {
                 show: true,
                 position: 'top',
                 formatter: (params) => {
-                    const bucket = timeBuckets[params.dataIndex]
-                    return bucket?.totalCount > 0 ? bucket.totalCount : ''
+                    const dataIndex = params.dataIndex
+                    const bucket = timeBuckets[dataIndex]
+
+                    // 判断该系列是否为当前 Bar 中“最上方且处于选中状态”的系列
+                    // 只有最上方的选中系列负责显示该 Bar 的总计数值
+                    const isVisible = !timeChartLegendSelected || timeChartLegendSelected[range.label] !== false
+                    if (!isVisible || params.value === 0) return ''
+
+                    // 检查上方是否还有选中的系列
+                    const hasVisibleAbove = rangesWithData.slice(index + 1).some(r => {
+                        const rVisible = !timeChartLegendSelected || timeChartLegendSelected[r.label] !== false
+                        const rHasData = bucket.rangeData[r.label]?.count > 0
+                        return rVisible && rHasData
+                    })
+
+                    if (hasVisibleAbove) return ''
+
+                    // 计算当前所有选中的系列总和
+                    const visibleTotal = rangesWithData.reduce((sum, r) => {
+                        const rVisible = !timeChartLegendSelected || timeChartLegendSelected[r.label] !== false
+                        return sum + (bucket.rangeData[r.label]?.count || 0)
+                    }, 0)
+
+                    return visibleTotal > 0 ? visibleTotal : ''
                 },
                 color: '#94a3b8',
                 fontSize: 11,
                 fontWeight: 'bold'
-            } : { show: false }
+            }
         }))
 
         return {
@@ -1114,7 +1136,9 @@ function UptrendModule() {
         const clickedName = params.name
         const selected = params.selected
 
-        // 计算当前有多少个是选中状态
+        // 更新选中状态，触发图表重绘（用于动态计算 label 总数）
+        setTimeChartLegendSelected(selected)
+
         const selectedCount = Object.values(selected).filter(v => v).length
 
         // 如果只有一个选中，且点击的是这个选中的，恢复全部
