@@ -3,7 +3,7 @@ package com.binance.index.service;
 import com.binance.index.dto.CoinPriceDTO;
 import com.binance.index.dto.DistributionBucket;
 import com.binance.index.dto.DistributionData;
-import com.binance.index.dto.IndexData;
+
 import com.binance.index.dto.KlineData;
 import com.binance.index.dto.UptrendData;
 import com.binance.index.entity.BasePrice;
