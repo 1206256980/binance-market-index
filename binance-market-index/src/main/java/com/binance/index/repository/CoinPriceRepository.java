@@ -1,6 +1,7 @@
 package com.binance.index.repository;
 
 import com.binance.index.entity.CoinPrice;
+import com.binance.index.dto.CoinPriceDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -112,6 +113,18 @@ public interface CoinPriceRepository extends JpaRepository<CoinPrice, Long> {
                         "AND cp.timestamp >= :startTime AND cp.timestamp <= :endTime " +
                         "ORDER BY cp.timestamp ASC")
         List<CoinPrice> findBySymbolInRangeOrderByTime(@Param("symbol") String symbol,
+                        @Param("startTime") LocalDateTime startTime,
+                        @Param("endTime") LocalDateTime endTime);
+
+        /**
+         * 获取指定币种在时间范围内的价格数据（DTO投影版本，更省内存）
+         */
+        @Query("SELECT new com.binance.index.dto.CoinPriceDTO(cp.symbol, cp.timestamp, cp.openPrice, cp.highPrice, cp.lowPrice, cp.price) "
+                        +
+                        "FROM CoinPrice cp WHERE cp.symbol = :symbol " +
+                        "AND cp.timestamp >= :startTime AND cp.timestamp <= :endTime " +
+                        "ORDER BY cp.timestamp ASC")
+        List<CoinPriceDTO> findDTOBySymbolInRangeOrderByTime(@Param("symbol") String symbol,
                         @Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime);
 

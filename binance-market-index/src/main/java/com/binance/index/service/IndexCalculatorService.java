@@ -1,39 +1,55 @@
 package com.binance.index.service;
 
+import com.binance.index.dto.CoinPriceDTO;
 import com.binance.index.dto.DistributionBucket;
 import com.binance.index.dto.DistributionData;
+import com.binance.index.dto.IndexData;
 import com.binance.index.dto.KlineData;
 import com.binance.index.dto.UptrendData;
 import com.binance.index.entity.BasePrice;
 import com.binance.index.entity.CoinPrice;
 import com.binance.index.entity.MarketIndex;
+import com.binance.index.repository.BasePriceRepository;
 import com.binance.index.repository.CoinPriceRepository;
 import com.binance.index.repository.JdbcCoinPriceRepository;
-import com.binance.index.repository.BasePriceRepository;
 import com.binance.index.repository.MarketIndexRepository;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+/**
+ * 指数计算服务
+ */
 @Service
+@Slf4j
 public class IndexCalculatorService {
 
-    private static final Logger log = LoggerFactory.getLogger(IndexCalculatorService.class);
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
 
     private final BinanceApiService binanceApiService;
     private final MarketIndexRepository marketIndexRepository;
@@ -1858,11 +1874,11 @@ public class IndexCalculatorService {
             logPoolStatus("提交任务前");
             long calcStart = System.currentTimeMillis();
 
-            // 提交任务并设置超时时间（120秒/2分钟）
+            // 提交任务并设置超时时间（120秒）
             allWaves = waveCalculationPool.submit(() -> allSymbols.parallelStream()
                     .flatMap(symbol -> {
-                        // 在并行线程中单独查询该币种的数据，避免一次性加载导致的内存压力和查询阻塞
-                        List<CoinPrice> symbolPrices = coinPriceRepository.findBySymbolInRangeOrderByTime(symbol,
+                        // 在并行线程中单独查询该币种的数据，使用 DTO 投影大幅减少内存消耗
+                        List<CoinPriceDTO> symbolPrices = coinPriceRepository.findDTOBySymbolInRangeOrderByTime(symbol,
                                 alignedStart, alignedEnd);
                         return calculateSymbolAllWavesFromData(symbol, symbolPrices, keepRatio,
                                 noNewHighCandles, minUptrend, priceMode).stream();
@@ -1982,19 +1998,36 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 计算并返回某个币种的所有符合条件的单边涨幅波段（直接计算，不检查缓存）
+     */
+    private List<UptrendData.CoinUptrend> calculateSymbolAllWaves(String symbol, LocalDateTime startTime,
+            LocalDateTime endTime, double keepRatio, int noNewHighCandles, double minUptrend) {
+        // 使用 DTO 版本
+        List<CoinPriceDTO> prices = coinPriceRepository.findDTOBySymbolInRangeOrderByTime(symbol, startTime, endTime);
+        if (prices == null || prices.size() < 2) {
+            return Collections.emptyList();
+        }
+
+        return calculateSymbolAllWavesFromData(symbol, prices, keepRatio, noNewHighCandles, minUptrend, "lowHigh");
+    }
+
+    /**
      * 计算单个币种的所有符合条件的单边涨幅波段（使用已加载的数据）
      *
-     * 【优化版本】直接使用传入的价格数据，避免数据库查询
+     * 【深度优化版本】
+     * 1. 修复了旧版 O(N^2) 的 indexOf 性能陷阱
+     * 2. 使用索引遍历代替 Iterator
+     * 3. 使用 UTC_ZONE 常量减少对象创建
      *
      * @param symbol           币种
-     * @param prices           该币种的K线数据列表（已按时间升序排列）
-     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
+     * @param prices           该币种的价格DTo数据列表
+     * @param keepRatio        保留比率阈值
      * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
-     * @param minUptrend       最小涨幅过滤（百分比），低于此值的波段不返回
-     * @param priceMode        价格模式：lowHigh=最低/最高价, openClose=开盘/收盘价
+     * @param minUptrend       最小涨幅过滤
+     * @param priceMode        价格模式
      * @return 该币种的所有符合条件的单边涨幅波段列表
      */
-    private List<UptrendData.CoinUptrend> calculateSymbolAllWavesFromData(String symbol, List<CoinPrice> prices,
+    private List<UptrendData.CoinUptrend> calculateSymbolAllWavesFromData(String symbol, List<CoinPriceDTO> prices,
             double keepRatio, int noNewHighCandles, double minUptrend, String priceMode) {
         if (prices == null || prices.size() < 2) {
             return Collections.emptyList();
@@ -2003,27 +2036,27 @@ public class IndexCalculatorService {
         List<UptrendData.CoinUptrend> waves = new ArrayList<>();
 
         // 波段跟踪变量
-        double waveStartPrice = 0; // 波段起点价格
-        double wavePeakPrice = 0; // 波段顶点价格
-        double waveLowestLow = 0; // 波段期间的历史最低价（用于判断是否真正破位）
+        double waveStartPrice = 0;
+        double wavePeakPrice = 0;
+        double waveLowestLow = 0;
+        long waveStartTimeMs = 0;
+        long wavePeakTimeMs = 0;
         LocalDateTime waveStartTime = null;
         LocalDateTime wavePeakTime = null;
-        int candlesSinceNewHigh = 0; // 连续未创新高的K线数
+        int candlesSinceNewHigh = 0;
 
         // 当前波段状态
         boolean inWave = false;
 
-        for (CoinPrice price : prices) {
+        // 使用索引进行高效遍历，避免 indexOf (O(N^2))
+        for (int i = 0; i < prices.size(); i++) {
+            CoinPriceDTO price = prices.get(i);
             double openPrice = price.getOpenPrice() != null ? price.getOpenPrice() : price.getPrice();
             double highPrice = price.getHighPrice() != null ? price.getHighPrice() : price.getPrice();
             double lowPrice = price.getLowPrice() != null ? price.getLowPrice() : price.getPrice();
             double closePrice = price.getPrice();
             LocalDateTime timestamp = price.getTimestamp();
 
-            // 根据模式选择起点价和顶点价
-            // lowHigh: 低/高价 (马丁做空风险)
-            // openClose: 开/收价 (传统K线分析)
-            // openHigh: 开/高价 (开盘起点，最高价顶点)
             double startPriceCandidate;
             double peakPriceCandidate;
             if ("openClose".equals(priceMode)) {
@@ -2038,150 +2071,95 @@ public class IndexCalculatorService {
             }
 
             if (!inWave) {
-                // 开始新波段
                 waveStartPrice = startPriceCandidate;
                 waveStartTime = timestamp;
-                // waveLowestLow 根据模式选择：lowHigh 用低价，其他用开盘价
+                waveStartTimeMs = timestamp.atZone(UTC_ZONE).toInstant().toEpochMilli();
                 waveLowestLow = "lowHigh".equals(priceMode) ? lowPrice : openPrice;
                 wavePeakPrice = peakPriceCandidate;
                 wavePeakTime = timestamp;
+                wavePeakTimeMs = waveStartTimeMs;
                 candlesSinceNewHigh = 0;
                 inWave = true;
             } else {
-                // 检查是否创新高（根据模式使用最高价或收盘价）
                 boolean madeNewHigh = false;
                 if (peakPriceCandidate > wavePeakPrice) {
                     wavePeakPrice = peakPriceCandidate;
                     wavePeakTime = timestamp;
-                    candlesSinceNewHigh = 0; // 重置计数器
+                    wavePeakTimeMs = timestamp.atZone(UTC_ZONE).toInstant().toEpochMilli();
+                    candlesSinceNewHigh = 0;
                     madeNewHigh = true;
                 } else {
-                    candlesSinceNewHigh++; // 未创新高，计数+1
+                    candlesSinceNewHigh++;
                 }
 
-                // 检查是否创新低（破位判断根据 priceMode 选择）
-                // lowHigh 模式用低价判断；openHigh/openClose 模式用开盘价判断（避免被下影线"欺骗"）
                 double breakdownPrice = "lowHigh".equals(priceMode) ? lowPrice : openPrice;
                 if (breakdownPrice < waveLowestLow) {
-                    // 破位，重置波段起点
                     waveStartPrice = startPriceCandidate;
                     waveStartTime = timestamp;
-                    waveLowestLow = breakdownPrice; // 更新历史最低价
+                    waveStartTimeMs = timestamp.atZone(UTC_ZONE).toInstant().toEpochMilli();
+                    waveLowestLow = breakdownPrice;
                     wavePeakPrice = peakPriceCandidate;
                     wavePeakTime = timestamp;
+                    wavePeakTimeMs = waveStartTimeMs;
                     candlesSinceNewHigh = 0;
-                    continue; // 继续下一根K线
+                    continue;
                 }
 
-                // 计算位置比率
                 double range = wavePeakPrice - waveStartPrice;
-                double positionRatio = 1.0;
-                if (range > 0) {
-                    positionRatio = (closePrice - waveStartPrice) / range;
-                }
+                double positionRatio = range > 0 ? (closePrice - waveStartPrice) / range : 1.0;
 
-                // 波段结束条件：位置比率 < keepRatio 或 连续N根K线未创新高
                 boolean positionTrigger = !madeNewHigh && positionRatio < keepRatio && range > 0;
-                // noNewHighCandles == -1 表示禁用横盘检测
                 boolean sidewaysTrigger = noNewHighCandles > 0 && candlesSinceNewHigh >= noNewHighCandles;
 
                 if (positionTrigger || sidewaysTrigger) {
-                    // 波段结束，计算涨幅
-                    double uptrendPercent = waveStartPrice > 0
-                            ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100
-                            : 0;
+                    double uptrendPercent = waveStartPrice > 0 ? (wavePeakPrice - waveStartPrice) / waveStartPrice * 100 : 0;
+                    boolean isDifferentCandle = waveStartTimeMs != wavePeakTimeMs;
 
-                    // 符合条件的波段加入列表
-                    boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
                     if (uptrendPercent >= minUptrend && isDifferentCandle) {
                         waves.add(new UptrendData.CoinUptrend(
-                                symbol,
-                                Math.round(uptrendPercent * 100) / 100.0,
-                                false, // 已结束的波段
-                                waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                                wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                                waveStartPrice,
-                                wavePeakPrice));
+                                symbol, Math.round(uptrendPercent * 100) / 100.0, false,
+                                waveStartTimeMs, wavePeakTimeMs, waveStartPrice, wavePeakPrice));
                     }
 
-                    // 回溯找到从波段峰值到当前的最低点作为新波段起点
-                    int peakIndex = prices.indexOf(price); // 当前索引
-                    // 根据模式选择用低价还是开盘价找最低点
-                    double lowestPrice = startPriceCandidate; // 使用当前K线的起点价作为初始值
+                    // 【极其重要：算法优化】不再使用 indexOf，直接基于当前索引回退
+                    double lowestPrice = startPriceCandidate;
                     LocalDateTime lowestTime = timestamp;
 
-                    // 从峰值时间点往后找最低点（包括峰值K线，因为同根K线的低价可能更低）
-                    for (int j = peakIndex; j >= 0; j--) {
-                        CoinPrice p = prices.get(j);
-                        if (p.getTimestamp().isBefore(wavePeakTime)) {
-                            break;
-                        }
-                        // 根据 priceMode 选择用低价还是开盘价
-                        double pStart;
-                        if ("lowHigh".equals(priceMode)) {
-                            pStart = p.getLowPrice() != null ? p.getLowPrice() : p.getPrice();
-                        } else {
-                            pStart = p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice();
-                        }
-                        if (pStart < lowestPrice) {
+                    // 从当前位置往回拉，直到波段顶点，找到真正的最低点作为下个波段起点
+                    for (int j = i; j >= 0; j--) {
+                        CoinPriceDTO p = prices.get(j);
+                        if (p.getTimestamp().isBefore(wavePeakTime)) break;
+
+                        double pStart = "lowHigh".equals(priceMode)
+                            ? (p.getLowPrice() != null ? p.getLowPrice() : p.getPrice())
+                            : (p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice());
+
+                        if (pStart <= lowestPrice) {
                             lowestPrice = pStart;
                             lowestTime = p.getTimestamp();
                         }
                     }
 
-                    // 以找到的最低点开始新波段
                     waveStartPrice = lowestPrice;
                     waveStartTime = lowestTime;
-                    waveLowestLow = lowestPrice; // 重置历史最低价！
-                    wavePeakPrice = peakPriceCandidate; // 根据 priceMode 使用正确的顶点价
+                    waveStartTimeMs = lowestTime.atZone(UTC_ZONE).toInstant().toEpochMilli();
+                    waveLowestLow = lowestPrice;
+                    wavePeakPrice = peakPriceCandidate;
                     wavePeakTime = timestamp;
+                    wavePeakTimeMs = timestamp.atZone(UTC_ZONE).toInstant().toEpochMilli();
                     candlesSinceNewHigh = 0;
                 }
             }
         }
 
-        // 处理最后一个波段（进行中的波段）
+        // 处理进行中的最后一个波段
         if (inWave && waveStartPrice > 0 && wavePeakPrice > waveStartPrice) {
             double uptrendPercent = (wavePeakPrice - waveStartPrice) / waveStartPrice * 100;
-
-            boolean isDifferentCandle = !waveStartTime.equals(wavePeakTime);
-            // 最后波段：检查是否还处于"有效上涨"状态
-            // noNewHighCandles == -1 表示禁用横盘检测，始终视为进行中
+            boolean isDifferentCandle = waveStartTimeMs != wavePeakTimeMs;
             boolean stillValid = noNewHighCandles == -1 || candlesSinceNewHigh < noNewHighCandles;
 
             if (uptrendPercent >= minUptrend && isDifferentCandle) {
                 waves.add(new UptrendData.CoinUptrend(
-                        symbol,
-                        Math.round(uptrendPercent * 100) / 100.0,
-                        stillValid,
-                        waveStartTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                        wavePeakTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli(),
-                        waveStartPrice,
-                        wavePeakPrice));
-            }
-        }
-
-        return waves;
-    }
-
-    /**
-     * 计算单个币种的所有符合条件的单边涨幅波段
-     *
-     * 新算法：使用位置比率法 + 横盘检测
-     * - 位置比率 = (当前价 - 起点) / (最高价 - 起点)
-     * - 当位置比率 < keepRatio 或 连续N根K线未创新高，波段结束
-     *
-     * @param symbol           币种
-     * @param startTime        开始时间
-     * @param endTime          结束时间
-     * @param keepRatio        保留比率阈值（如0.75表示回吐25%涨幅时结束）
-     * @param noNewHighCandles 连续多少根K线未创新高视为横盘结束
-     * @param minUptrend       最小涨幅过滤（百分比），低于此值的波段不返回
-     * @return 该币种的所有符合条件的单边涨幅波段列表
-     */
-    private List<UptrendData.CoinUptrend> calculateSymbolAllWaves(String symbol, LocalDateTime startTime,
-            LocalDateTime endTime, double keepRatio, int noNewHighCandles, double minUptrend) {
-        // 获取该币种的所有K线数据
         List<CoinPrice> prices = coinPriceRepository.findBySymbolInRangeOrderByTime(symbol, startTime, endTime);
         if (prices == null || prices.size() < 2) {
             return Collections.emptyList();
