@@ -19,8 +19,8 @@ RUN mvn package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# 安装 nginx 和 curl (用于邮件报警)
-RUN apk add --no-cache nginx curl
+# 安装 nginx, curl 和 ca-certificates (确保 smtps 邮件能发送成功)
+RUN apk add --no-cache nginx curl ca-certificates
 
 # 复制后端 jar
 COPY --from=backend-builder /backend/target/*.jar app.jar

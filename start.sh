@@ -1,17 +1,17 @@
 #!/bin/sh
 
-# 准备日志和 Dump 目录
+# 准备工作
 mkdir -p /app/data/logs/hprof
+touch /app/data/logs/backend.log
 
 # 邮件报警函数
 send_alert() {
   SUBJECT="[CRITICAL] Binance Index Backend Crashed"
-  BODY="The Java backend process (PID $JAVA_PID) has stopped unexpectedly at $(date '+%Y-%m-%d %H:%M:%S'). Container will restart."
+  BODY="The Java backend process has stopped unexpectedly at $(date '+%Y-%m-%d %H:%M:%S'). Nginx is still running, check backend.log."
   
-  echo "[SYSTEM] Sending crash alert email..."
+  echo "[SYSTEM] Sending crash alert email to 1206256980@qq.com..."
   
-  # 使用 curl 通过 SMTP 发送邮件 (QQ邮箱)
-  # 注意：这里直接使用了您配置在 application.properties 中的凭据
+  # 使用 curl 通过 SMTP 发送邮件
   curl --url 'smtps://smtp.qq.com:465' --ssl-reqd \
     --mail-from '1206256980@qq.com' \
     --mail-rcpt '1206256980@qq.com' \
@@ -23,68 +23,44 @@ Subject: $SUBJECT
 
 $BODY
 EOF
+  echo "[SYSTEM] Email send command finished."
 }
 
-# 清理函数：确保脚本退出时杀掉所有子进程
+# 清理函数
 cleanup() {
-  echo "[SYSTEM] Stopping all processes..."
-  
-  # 检查是否是 Java 进程挂了导致的退出
-  if ! kill -0 $JAVA_PID 2>/dev/null; then
-    echo "[ALERT] Java process is dead!"
-    send_alert
-  fi
-
-  # 杀掉后台运行的所有任务
+  echo "[SYSTEM] Stopping all background processes..."
   kill $(jobs -p) 2>/dev/null
-  exit 1
+  exit 0
 }
 
-# 捕获终止信号
 trap cleanup SIGINT SIGTERM
 
-echo "[SYSTEM] Starting backend with 4G heap and diagnostics..."
-
-# 启动后端 (后台运行并记录 PID)
-# 增加 OOM dump 和 错误日志路径，确保护久化到挂载的目录
+echo "[SYSTEM] Starting backend and redirecting to backend.log..."
+# 注意：这里去掉了 2405 线程池的并行度设置，先保证基础服务稳定
 java -Xms2g -Xmx4g \
      -XX:+UseG1GC \
-     -XX:MaxGCPauseMillis=200 \
-     -XX:+ExplicitGCInvokesConcurrent \
      -XX:+HeapDumpOnOutOfMemoryError \
      -XX:HeapDumpPath=/app/data/logs/hprof/ \
      -XX:ErrorFile=/app/data/logs/hs_err_pid%p.log \
      -Dlogging.file.path=/app/data/logs/ \
-     -jar /app/app.jar &
+     -jar /app/app.jar > /app/data/logs/backend.log 2>&1 &
 JAVA_PID=$!
 
-# 等待后端启动（检查端口 8080）
-echo "[SYSTEM] Waiting for backend to be ready on 8080..."
-n=0
-while [ $n -lt 60 ]; do
-  # 使用 netstat 或简单的 sleep 检查。Alpine 镜像通常有 netstat
-  if netstat -ltn 2>/dev/null | grep -q :8080; then
-    echo "[SYSTEM] Backend is UP!"
-    break
-  fi
-  sleep 1
-  n=$((n+1))
-done
+echo "[SYSTEM] Starting nginx in background..."
+nginx &
 
-# 如果后端没起来就退出了，直接终止
-if ! kill -0 $JAVA_PID 2>/dev/null; then
-  echo "[ERROR] Backend fails to start, exiting..."
-  exit 1
-fi
+# 后台监控 Java 进程
+(
+  while true; do
+    if ! kill -0 $JAVA_PID 2>/dev/null; then
+      echo "[ALERT] Java Process is DOWN!"
+      send_alert
+      break 
+    fi
+    sleep 10
+  done
+) &
 
-echo "[SYSTEM] Starting nginx..."
-# 启动 nginx (后台运行并记录 PID)
-nginx -g "daemon off;" &
-NGINX_PID=$!
-
-# 关键：等待任意一个进程退出。-n 只要有一个退出了，wait 就结束
-# 这样如果 Java 挂了，脚本会继续执行下面的 cleanup，从而停止容器
-wait -n
-
-echo "[SYSTEM] A critical process has stopped."
-cleanup
+# 前台核心：实时透传日志
+echo "[SYSTEM] Now streaming logs from backend.log..."
+tail -F /app/data/logs/backend.log
