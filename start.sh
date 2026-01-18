@@ -36,8 +36,8 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 echo "[SYSTEM] Starting backend and redirecting to backend.log..."
-# 注意：这里去掉了 2405 线程池的并行度设置，先保证基础服务稳定
-java -Xms2g -Xmx4g \
+# 关键修复：将 Xmx 调低至 2.5G 以适应 4G 物理内存，防止系统 OOM Killer
+java -Xms1g -Xmx2560m \
      -XX:+UseG1GC \
      -XX:+HeapDumpOnOutOfMemoryError \
      -XX:HeapDumpPath=/app/data/logs/hprof/ \
