@@ -984,4 +984,29 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 回补历史5分钟K线价格数据（专供策略优化器使用）
+     * 
+     * 此接口仅保存价格数据，不会影响基准价格。
+     * 已存在的数据会自动跳过，不会重复保存。
+     *
+     * 示例:
+     * - POST /api/index/backfill-prices?days=90 （回补最近90天的数据）
+     * - POST /api/index/backfill-prices?days=30 （回补最近30天的数据）
+     *
+     * @param days 回补天数（1-365）
+     * @return 回补结果统计
+     */
+    @PostMapping("/backfill-prices")
+    public ResponseEntity<Map<String, Object>> backfillPrices(
+            @RequestParam(defaultValue = "90") int days) {
+        log.info("收到价格数据回补请求: days={}", days);
+        Map<String, Object> result = indexCalculatorService.backfillPriceDataForOptimizer(days);
+        if ((boolean) result.get("success")) {
+            return ResponseEntity.ok(result);
+        } else {
+            return ResponseEntity.badRequest().body(result);
+        }
+    }
 }

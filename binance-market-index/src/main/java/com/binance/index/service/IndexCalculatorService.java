@@ -2682,4 +2682,47 @@ public class IndexCalculatorService {
     private List<CoinPrice> findClosestPricesForBacktestCached(LocalDateTime targetTime, int toleranceMinutes) {
         return backtestPriceCache.get(targetTime, k -> findClosestPricesForBacktest(k, toleranceMinutes));
     }
+
+    /**
+     * 回补历史5分钟K线价格数据（专供策略优化器使用）
+     * 
+     * 此方法仅保存价格数据到 coin_price 表，不会影响基准价格。
+     * 已存在的数据会自动跳过，不会重复保存。
+     *
+     * @param days 回补多少天的数据（从当前时间往前推）
+     * @return 回补结果统计
+     */
+    public Map<String, Object> backfillPriceDataForOptimizer(int days) {
+        Map<String, Object> result = new HashMap<>();
+
+        if (days <= 0 || days > 365) {
+            result.put("success", false);
+            result.put("error", "天数必须在 1-365 之间");
+            return result;
+        }
+
+        LocalDateTime endTime = LocalDateTime.now(ZoneId.of("UTC"));
+        LocalDateTime startTime = endTime.minusDays(days);
+
+        log.info("开始回补价格数据: {} 到 {} (共 {} 天)", startTime, endTime, days);
+
+        long startMs = System.currentTimeMillis();
+
+        // 调用 backfillPhaseV2，明确禁用基准价收集
+        // collectBasePrices = false 确保不会影响任何基准价
+        backfillPhaseV2(startTime, endTime, backfillConcurrency, false);
+
+        long elapsed = System.currentTimeMillis() - startMs;
+
+        result.put("success", true);
+        result.put("days", days);
+        result.put("startTime", startTime.toString());
+        result.put("endTime", endTime.toString());
+        result.put("elapsedSeconds", elapsed / 1000);
+        result.put("message", String.format("价格数据回补完成，共 %d 天，耗时 %d 秒", days, elapsed / 1000));
+
+        log.info("价格数据回补完成，耗时 {} 秒", elapsed / 1000);
+
+        return result;
+    }
 }
