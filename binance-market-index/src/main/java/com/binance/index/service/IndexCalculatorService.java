@@ -2503,12 +2503,14 @@ public class IndexCalculatorService {
 
     /**
      * 做空涨幅榜前10回测
+     * 
+     * @param rankingHours 涨幅排行榜时间范围（24/48/72/168小时）
      */
     public com.binance.index.dto.BacktestResult runShortTop10Backtest(
-            int entryHour, int entryMinute, double amountPerCoin, int days, String timezone) {
+            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, String timezone) {
 
-        log.info("开始做空涨幅榜前10回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 时区={}",
-                entryHour, entryMinute, amountPerCoin, days, timezone);
+        log.info("开始做空涨幅榜前10回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 时区={}",
+                entryHour, entryMinute, amountPerCoin, days, rankingHours, timezone);
 
         java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
         java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
@@ -2530,7 +2532,8 @@ public class IndexCalculatorService {
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(24);
-            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(24);
+            // 使用 rankingHours 计算涨幅基准时间
+            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
             java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
                     .toLocalDateTime();
@@ -2562,8 +2565,8 @@ public class IndexCalculatorService {
                 Double entryPrice = entry.getValue();
                 Double basePrice = changeBaseMap.get(symbol);
                 if (basePrice != null && basePrice > 0 && entryPrice != null && entryPrice > 0) {
-                    double change24h = (entryPrice - basePrice) / basePrice * 100;
-                    changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, change24h));
+                    double changePercent = (entryPrice - basePrice) / basePrice * 100;
+                    changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, changePercent));
                 }
             }
 

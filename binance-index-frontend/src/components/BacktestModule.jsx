@@ -10,6 +10,7 @@ function BacktestModule() {
     const [entryMinute, setEntryMinute] = useState(0)
     const [amountPerCoin, setAmountPerCoin] = useState(100)
     const [days, setDays] = useState(30)
+    const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -28,6 +29,7 @@ function BacktestModule() {
                     entryMinute,
                     amountPerCoin,
                     days,
+                    rankingHours,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -60,11 +62,25 @@ function BacktestModule() {
         <div className="backtest-module">
             <div className="backtest-header">
                 <div className="backtest-title">📊 做空涨幅榜前10回测</div>
-                <div className="backtest-subtitle">每天固定时间做空24小时涨幅前10的币种，24小时后平仓</div>
+                <div className="backtest-subtitle">每天固定时间做空涨幅榜前10的币种，24小时后平仓</div>
             </div>
 
             {/* 参数输入区 */}
             <div className="backtest-params">
+                <div className="param-group">
+                    <label>涨幅榜周期</label>
+                    <select
+                        value={rankingHours}
+                        onChange={(e) => setRankingHours(parseInt(e.target.value))}
+                        className="ranking-select"
+                    >
+                        <option value={24}>24小时涨幅榜</option>
+                        <option value={48}>48小时涨幅榜</option>
+                        <option value={72}>72小时涨幅榜</option>
+                        <option value={168}>7天涨幅榜</option>
+                    </select>
+                </div>
+
                 <div className="param-group">
                     <label>入场时间</label>
                     <div className="time-inputs">
