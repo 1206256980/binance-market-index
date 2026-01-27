@@ -964,7 +964,7 @@ public class IndexController {
                     (Double) b.get("totalProfit"),
                     (Double) a.get("totalProfit")));
 
-            List<Map<String, Object>> top10 = allResults.stream().limit(10)
+            List<Map<String, Object>> sortedResults = allResults.stream()
                     .collect(java.util.stream.Collectors.toList());
 
             response.put("success", true);
@@ -974,7 +974,7 @@ public class IndexController {
                     "timezone", timezone));
             response.put("totalCombinations", totalCombinations);
             response.put("timeTakenMs", endTime - startTime);
-            response.put("topStrategies", top10);
+            response.put("topStrategies", sortedResults);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

@@ -14,6 +14,8 @@ function OptimizerModule() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
+    const [currentPage, setCurrentPage] = useState(1)
+    const pageSize = 20
 
     const toggleHour = (hour) => {
         if (selectedHours.includes(hour)) {
@@ -35,6 +37,7 @@ function OptimizerModule() {
 
         setLoading(true)
         setError(null)
+        setCurrentPage(1) // 重置页码
 
         try {
             const res = await axios.get('/api/index/backtest/optimize', {
@@ -74,6 +77,13 @@ function OptimizerModule() {
         if (hours === 168) return '7天'
         return `${hours}h`
     }
+
+    // 分页计算
+    const paginatedStrategies = result?.topStrategies?.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    ) || []
+    const totalPages = result ? Math.ceil(result.topStrategies.length / pageSize) : 0
 
     return (
         <div className="optimizer-module">
@@ -158,13 +168,13 @@ function OptimizerModule() {
 
                     {/* 最优策略表格 */}
                     <div className="optimizer-table-wrapper">
-                        <div className="optimizer-table-title">🏆 最优策略 Top 10</div>
+                        <div className="optimizer-table-title">🏆 策略排行榜 (每页 {pageSize} 条)</div>
                         <table className="optimizer-table">
                             <thead>
                                 <tr>
                                     <th>排名</th>
                                     <th>涨幅榜</th>
-                                    <th>做空</th>
+                                    <th>数量</th>
                                     <th>入场</th>
                                     <th>持仓</th>
                                     <th>胜率</th>
@@ -173,26 +183,50 @@ function OptimizerModule() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {result.topStrategies.map((strategy, idx) => (
-                                    <tr key={idx} className={idx === 0 ? 'top-strategy' : ''}>
-                                        <td className="rank">
-                                            {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
-                                        </td>
-                                        <td>{formatRankingHours(strategy.rankingHours)}</td>
-                                        <td>前{strategy.topN}名</td>
-                                        <td>{strategy.entryHour}:00</td>
-                                        <td>{strategy.holdHours}h</td>
-                                        <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
-                                            {strategy.winRate}%
-                                        </td>
-                                        <td>{strategy.totalTrades}</td>
-                                        <td className={getProfitClass(strategy.totalProfit)}>
-                                            {formatProfit(strategy.totalProfit)} U
-                                        </td>
-                                    </tr>
-                                ))}
+                                {paginatedStrategies.map((strategy, idx) => {
+                                    const rank = (currentPage - 1) * pageSize + idx + 1;
+                                    return (
+                                        <tr key={idx} className={rank === 1 ? 'top-strategy' : ''}>
+                                            <td className="rank">
+                                                {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                                            </td>
+                                            <td>{formatRankingHours(strategy.rankingHours)}</td>
+                                            <td>前{strategy.topN}名</td>
+                                            <td>{strategy.entryHour}:00</td>
+                                            <td>{strategy.holdHours}h</td>
+                                            <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
+                                                {strategy.winRate}%
+                                            </td>
+                                            <td>{strategy.totalTrades}</td>
+                                            <td className={getProfitClass(strategy.totalProfit)}>
+                                                {formatProfit(strategy.totalProfit)} U
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
+
+                        {/* 分页控制 */}
+                        {totalPages > 1 && (
+                            <div className="optimizer-pagination">
+                                <button
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                >
+                                    上一页
+                                </button>
+                                <div className="page-info">
+                                    第 <strong>{currentPage}</strong> / {totalPages} 页
+                                </div>
+                                <button
+                                    disabled={currentPage === totalPages}
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                >
+                                    下一页
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

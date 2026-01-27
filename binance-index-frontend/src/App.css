@@ -2257,3 +2257,50 @@ body {
   color: var(--danger);
   font-size: 0.9rem;
 }
+
+/* 分页样式 */
+.optimizer-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+}
+
+.optimizer-pagination button {
+  padding: 8px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.optimizer-pagination button:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--bg-card-hover);
+}
+
+.optimizer-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.optimizer-pagination .page-info {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.optimizer-pagination .page-info strong {
+  color: var(--accent-primary);
+  font-size: 1rem;
+}
