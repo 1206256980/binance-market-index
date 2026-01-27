@@ -779,20 +779,20 @@ public class IndexController {
     /**
      * 做空涨幅榜前10回测接口
      * 
-     * @param entryHour     入场时间（小时，0-23）
-     * @param entryMinute   入场时间（分钟，0-59），默认0
-     * @param amountPerCoin 每个币投入的U数量
-     * @param days          回测天数（从昨天往前推），默认30天
-     * @param rankingHours  涨幅排行榜时间范围（24/48/72/168小时），默认24
-     * @param holdHours     持仓时间（小时），默认24
-     * @param topN          做空涨幅榜前N名，默认10
-     * @param timezone      时区，默认Asia/Shanghai（东八区）
+     * @param entryHour    入场时间（小时，0-23）
+     * @param entryMinute  入场时间（分钟，0-59），默认0
+     * @param totalAmount  每日投入总金额(U)
+     * @param days         回测天数（从昨天往前推），默认30天
+     * @param rankingHours 涨幅排行榜时间范围（24/48/72/168小时），默认24
+     * @param holdHours    持仓时间（小时），默认24
+     * @param topN         做空涨幅榜前N名，默认10
+     * @param timezone     时区，默认Asia/Shanghai（东八区）
      */
     @GetMapping("/backtest/short-top10")
     public ResponseEntity<Map<String, Object>> backtestShortTop10(
             @RequestParam int entryHour,
             @RequestParam(defaultValue = "0") int entryMinute,
-            @RequestParam double amountPerCoin,
+            @RequestParam double totalAmount,
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "24") int holdHours,
@@ -812,9 +812,9 @@ public class IndexController {
             response.put("message", "entryMinute 必须在 0-59 之间");
             return ResponseEntity.badRequest().body(response);
         }
-        if (amountPerCoin <= 0) {
+        if (totalAmount <= 0) {
             response.put("success", false);
-            response.put("message", "amountPerCoin 必须大于 0");
+            response.put("message", "totalAmount 必须大于 0");
             return ResponseEntity.badRequest().body(response);
         }
         if (days <= 0 || days > 365) {
@@ -824,6 +824,9 @@ public class IndexController {
         }
 
         try {
+            // 计算每币金额 = 总金额 / 做空数量
+            double amountPerCoin = totalAmount / topN;
+
             com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
                     entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
 
@@ -831,6 +834,7 @@ public class IndexController {
             response.put("params", Map.of(
                     "entryHour", entryHour,
                     "entryMinute", entryMinute,
+                    "totalAmount", totalAmount,
                     "amountPerCoin", amountPerCoin,
                     "days", days,
                     "rankingHours", rankingHours,

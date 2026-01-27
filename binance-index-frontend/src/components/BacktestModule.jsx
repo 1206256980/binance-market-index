@@ -8,7 +8,7 @@ function BacktestModule() {
     // 输入参数
     const [entryHour, setEntryHour] = useState(12)
     const [entryMinute, setEntryMinute] = useState(0)
-    const [amountPerCoin, setAmountPerCoin] = useState(100)
+    const [totalAmount, setTotalAmount] = useState(1000)  // 每日总金额
     const [days, setDays] = useState(30)
     const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
     const [holdHours, setHoldHours] = useState(24)  // 持仓时间（小时）
@@ -29,7 +29,7 @@ function BacktestModule() {
                 params: {
                     entryHour,
                     entryMinute,
-                    amountPerCoin,
+                    totalAmount,
                     days,
                     rankingHours,
                     holdHours,
@@ -124,13 +124,13 @@ function BacktestModule() {
                 </div>
 
                 <div className="param-group">
-                    <label>每币金额 (U)</label>
+                    <label>每日总金额 (U)</label>
                     <input
                         type="number"
                         min="1"
-                        value={amountPerCoin}
-                        onChange={(e) => setAmountPerCoin(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                        onBlur={(e) => { if (e.target.value === '' || isNaN(amountPerCoin)) setAmountPerCoin(100) }}
+                        value={totalAmount}
+                        onChange={(e) => setTotalAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '' || isNaN(totalAmount)) setTotalAmount(1000) }}
                     />
                 </div>
 
