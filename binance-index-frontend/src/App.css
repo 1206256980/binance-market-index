@@ -2537,12 +2537,59 @@ body {
   color: var(--accent-primary) !important;
 }
 
+/* 分页控制样式 - 优化版 */
 .optimizer-pagination {
-  padding: 12px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  margin-top: 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .optimizer-pagination button {
-  padding: 6px 12px !important;
-  min-width: 80px !important;
-  font-size: 12px !important;
+  padding: 10px 24px;
+  min-width: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: transparent;
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.optimizer-pagination button:hover:not(:disabled) {
+  background: var(--accent-primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.optimizer-pagination button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--border-color);
+  color: var(--text-muted);
+}
+
+.optimizer-pagination .page-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+  min-width: 80px;
+  text-align: center;
+}
+
+.optimizer-pagination .page-info strong {
+  color: var(--accent-primary);
+  font-weight: 700;
+  font-size: 16px;
 }
