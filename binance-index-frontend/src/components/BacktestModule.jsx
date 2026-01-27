@@ -11,6 +11,7 @@ function BacktestModule() {
     const [amountPerCoin, setAmountPerCoin] = useState(100)
     const [days, setDays] = useState(30)
     const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
+    const [holdHours, setHoldHours] = useState(24)  // 持仓时间（小时）
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -30,6 +31,7 @@ function BacktestModule() {
                     amountPerCoin,
                     days,
                     rankingHours,
+                    holdHours,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -124,6 +126,18 @@ function BacktestModule() {
                         value={days}
                         onChange={(e) => setDays(e.target.value === '' ? '' : parseInt(e.target.value))}
                         onBlur={(e) => { if (e.target.value === '' || isNaN(days)) setDays(30) }}
+                    />
+                </div>
+
+                <div className="param-group">
+                    <label>持仓时间 (小时)</label>
+                    <input
+                        type="number"
+                        min="1"
+                        max="720"
+                        value={holdHours}
+                        onChange={(e) => setHoldHours(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '' || isNaN(holdHours)) setHoldHours(24) }}
                     />
                 </div>
 

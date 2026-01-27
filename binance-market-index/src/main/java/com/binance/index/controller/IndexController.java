@@ -784,6 +784,7 @@ public class IndexController {
      * @param amountPerCoin 每个币投入的U数量
      * @param days          回测天数（从昨天往前推），默认30天
      * @param rankingHours  涨幅排行榜时间范围（24/48/72/168小时），默认24
+     * @param holdHours     持仓时间（小时），默认24
      * @param timezone      时区，默认Asia/Shanghai（东八区）
      */
     @GetMapping("/backtest/short-top10")
@@ -793,6 +794,7 @@ public class IndexController {
             @RequestParam double amountPerCoin,
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(defaultValue = "24") int rankingHours,
+            @RequestParam(defaultValue = "24") int holdHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
         log.info("------------------------- 开始调用 /backtest/short-top10 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
@@ -821,7 +823,7 @@ public class IndexController {
 
         try {
             com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
-                    entryHour, entryMinute, amountPerCoin, days, rankingHours, timezone);
+                    entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
 
             response.put("success", true);
             response.put("params", Map.of(
