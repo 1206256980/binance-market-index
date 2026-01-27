@@ -775,4 +775,76 @@ public class IndexController {
 
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 做空涨幅榜前10回测接口
+     * 
+     * @param entryHour     入场时间（小时，0-23）
+     * @param entryMinute   入场时间（分钟，0-59），默认0
+     * @param amountPerCoin 每个币投入的U数量
+     * @param days          回测天数（从昨天往前推），默认30天
+     * @param timezone      时区，默认Asia/Shanghai（东八区）
+     */
+    @GetMapping("/backtest/short-top10")
+    public ResponseEntity<Map<String, Object>> backtestShortTop10(
+            @RequestParam int entryHour,
+            @RequestParam(defaultValue = "0") int entryMinute,
+            @RequestParam double amountPerCoin,
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+        log.info("------------------------- 开始调用 /backtest/short-top10 接口 -------------------------");
+        Map<String, Object> response = new HashMap<>();
+
+        // 参数校验
+        if (entryHour < 0 || entryHour > 23) {
+            response.put("success", false);
+            response.put("message", "entryHour 必须在 0-23 之间");
+            return ResponseEntity.badRequest().body(response);
+        }
+        if (entryMinute < 0 || entryMinute > 59) {
+            response.put("success", false);
+            response.put("message", "entryMinute 必须在 0-59 之间");
+            return ResponseEntity.badRequest().body(response);
+        }
+        if (amountPerCoin <= 0) {
+            response.put("success", false);
+            response.put("message", "amountPerCoin 必须大于 0");
+            return ResponseEntity.badRequest().body(response);
+        }
+        if (days <= 0 || days > 365) {
+            response.put("success", false);
+            response.put("message", "days 必须在 1-365 之间");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        try {
+            com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
+                    entryHour, entryMinute, amountPerCoin, days, timezone);
+
+            response.put("success", true);
+            response.put("params", Map.of(
+                    "entryHour", entryHour,
+                    "entryMinute", entryMinute,
+                    "amountPerCoin", amountPerCoin,
+                    "days", days,
+                    "timezone", timezone));
+            response.put("summary", Map.of(
+                    "totalDays", result.getTotalDays(),
+                    "validDays", result.getValidDays(),
+                    "totalTrades", result.getTotalTrades(),
+                    "winTrades", result.getWinTrades(),
+                    "loseTrades", result.getLoseTrades(),
+                    "winRate", result.getWinRate(),
+                    "totalProfit", result.getTotalProfit()));
+            response.put("dailyResults", result.getDailyResults());
+            response.put("skippedDays", result.getSkippedDays());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("回测执行失败", e);
+            response.put("success", false);
+            response.put("message", "回测执行失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }

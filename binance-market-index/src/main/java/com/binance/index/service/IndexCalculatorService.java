@@ -2500,4 +2500,163 @@ public class IndexCalculatorService {
             log.info("无新指数需要保存");
         }
     }
+
+    /**
+     * 做空涨幅榜前10回测
+     */
+    public com.binance.index.dto.BacktestResult runShortTop10Backtest(
+            int entryHour, int entryMinute, double amountPerCoin, int days, String timezone) {
+
+        log.info("开始做空涨幅榜前10回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 时区={}",
+                entryHour, entryMinute, amountPerCoin, days, timezone);
+
+        java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+        java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+
+        java.time.LocalDate today = java.time.LocalDate.now(userZone);
+        java.time.LocalDate endDate = today.minusDays(1);
+        java.time.LocalDate startDate = endDate.minusDays(days - 1);
+
+        log.info("回测日期范围: {} 至 {}", startDate, endDate);
+
+        List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();
+        List<String> skippedDays = new ArrayList<>();
+
+        int totalTrades = 0;
+        int winTrades = 0;
+        int loseTrades = 0;
+        double totalProfit = 0;
+
+        for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
+            java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(24);
+            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(24);
+
+            java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
+            java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
+            java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
+                    .withZoneSameInstant(utcZone).toLocalDateTime();
+
+            List<CoinPrice> changeBasePrices = findClosestPricesForBacktest(changeBaseTimeUtc, 30);
+            List<CoinPrice> entryPrices = findClosestPricesForBacktest(entryTimeUtc, 30);
+            List<CoinPrice> exitPrices = findClosestPricesForBacktest(exitTimeUtc, 30);
+
+            if (changeBasePrices.isEmpty() || entryPrices.isEmpty() || exitPrices.isEmpty()) {
+                log.warn("日期 {} 数据不完整，跳过", date);
+                skippedDays.add(date.toString());
+                continue;
+            }
+
+            Map<String, Double> changeBaseMap = changeBasePrices.stream()
+                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+            Map<String, Double> entryMap = entryPrices.stream()
+                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+            Map<String, Double> exitMap = exitPrices.stream()
+                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+
+            List<Map.Entry<String, Double>> changeList = new ArrayList<>();
+            for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
+                String symbol = entry.getKey();
+                Double entryPrice = entry.getValue();
+                Double basePrice = changeBaseMap.get(symbol);
+                if (basePrice != null && basePrice > 0 && entryPrice != null && entryPrice > 0) {
+                    double change24h = (entryPrice - basePrice) / basePrice * 100;
+                    changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, change24h));
+                }
+            }
+
+            changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            List<Map.Entry<String, Double>> top10 = changeList.stream().limit(10).collect(Collectors.toList());
+
+            if (top10.isEmpty()) {
+                skippedDays.add(date.toString());
+                continue;
+            }
+
+            List<com.binance.index.dto.BacktestTrade> trades = new ArrayList<>();
+            double dailyProfit = 0;
+            int dailyWin = 0;
+            int dailyLose = 0;
+
+            for (Map.Entry<String, Double> entry : top10) {
+                String symbol = entry.getKey();
+                Double change24h = entry.getValue();
+                Double entryPrice = entryMap.get(symbol);
+                Double exitPrice = exitMap.get(symbol);
+
+                if (entryPrice == null || exitPrice == null || entryPrice <= 0)
+                    continue;
+
+                double profitPercent = (entryPrice - exitPrice) / entryPrice * 100;
+                double profit = amountPerCoin * profitPercent / 100;
+
+                trades.add(new com.binance.index.dto.BacktestTrade(
+                        symbol, entryPrice, exitPrice, change24h,
+                        Math.round(profit * 100) / 100.0,
+                        Math.round(profitPercent * 100) / 100.0));
+
+                dailyProfit += profit;
+                if (profit > 0) {
+                    dailyWin++;
+                    winTrades++;
+                } else {
+                    dailyLose++;
+                    loseTrades++;
+                }
+                totalTrades++;
+            }
+
+            totalProfit += dailyProfit;
+
+            com.binance.index.dto.BacktestDailyResult dailyResult = new com.binance.index.dto.BacktestDailyResult();
+            dailyResult.setDate(date.toString());
+            dailyResult.setEntryTime(entryTimeLocal.toString());
+            dailyResult.setExitTime(exitTimeLocal.toString());
+            dailyResult.setTotalProfit(Math.round(dailyProfit * 100) / 100.0);
+            dailyResult.setWinCount(dailyWin);
+            dailyResult.setLoseCount(dailyLose);
+            dailyResult.setTrades(trades);
+            dailyResults.add(dailyResult);
+        }
+
+        com.binance.index.dto.BacktestResult result = new com.binance.index.dto.BacktestResult();
+        result.setTotalDays(days);
+        result.setValidDays(dailyResults.size());
+        result.setTotalTrades(totalTrades);
+        result.setWinTrades(winTrades);
+        result.setLoseTrades(loseTrades);
+        result.setWinRate(totalTrades > 0 ? Math.round(winTrades * 10000.0 / totalTrades) / 100.0 : 0);
+        result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
+        result.setDailyResults(dailyResults);
+        result.setSkippedDays(skippedDays);
+
+        log.info("回测完成: 有效天数={}/{}, 总交易={}, 胜率={}%, 总盈亏={}U",
+                dailyResults.size(), days, totalTrades, result.getWinRate(), result.getTotalProfit());
+        return result;
+    }
+
+    private List<CoinPrice> findClosestPricesForBacktest(LocalDateTime targetTime, int toleranceMinutes) {
+        List<CoinPrice> prices = coinPriceRepository.findByTimestamp(targetTime);
+        if (!prices.isEmpty())
+            return prices;
+
+        LocalDateTime searchStart = targetTime.minusMinutes(toleranceMinutes);
+        List<CoinPrice> beforePrices = coinPriceRepository.findLatestPricesBefore(targetTime);
+        if (!beforePrices.isEmpty()) {
+            LocalDateTime foundTime = beforePrices.get(0).getTimestamp();
+            if (!foundTime.isBefore(searchStart))
+                return beforePrices;
+        }
+
+        LocalDateTime searchEnd = targetTime.plusMinutes(toleranceMinutes);
+        List<CoinPrice> afterPrices = coinPriceRepository.findEarliestPricesAfter(targetTime);
+        if (!afterPrices.isEmpty()) {
+            LocalDateTime foundTime = afterPrices.get(0).getTimestamp();
+            if (!foundTime.isAfter(searchEnd))
+                return afterPrices;
+        }
+        return Collections.emptyList();
+    }
 }
