@@ -917,38 +917,45 @@ public class IndexController {
 
             int[] holdHoursOptions = { 24, 48, 72 };
 
-            List<Map<String, Object>> allResults = new java.util.ArrayList<>();
-            int totalCombinations = rankingHoursOptions.length * topNOptions.length
-                    * entryHourOptions.length * holdHoursOptions.length;
-            int current = 0;
-
-            long startTime = System.currentTimeMillis();
-
+            // 预先生成所有参数组合，用于并行处理
+            List<int[]> combinations = new java.util.ArrayList<>();
             for (int rankingHours : rankingHoursOptions) {
                 for (int topN : topNOptions) {
                     for (int entryHour : entryHourOptions) {
                         for (int holdHours : holdHoursOptions) {
-                            double amountPerCoin = totalAmount / topN;
-
-                            com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
-                                    entryHour, 0, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
-
-                            Map<String, Object> combo = new HashMap<>();
-                            combo.put("rankingHours", rankingHours);
-                            combo.put("topN", topN);
-                            combo.put("entryHour", entryHour);
-                            combo.put("holdHours", holdHours);
-                            combo.put("totalProfit", result.getTotalProfit());
-                            combo.put("winRate", result.getWinRate());
-                            combo.put("totalTrades", result.getTotalTrades());
-                            combo.put("validDays", result.getValidDays());
-
-                            allResults.add(combo);
-                            current++;
+                            combinations.add(new int[] { rankingHours, topN, entryHour, holdHours });
                         }
                     }
                 }
             }
+
+            int totalCombinations = combinations.size();
+            long startTime = System.currentTimeMillis();
+
+            // 使用并行流执行回测
+            List<Map<String, Object>> allResults = combinations.parallelStream()
+                    .map(combo -> {
+                        int rankingHours = combo[0];
+                        int topN = combo[1];
+                        int entryHour = combo[2];
+                        int holdHours = combo[3];
+                        double amountPerCoin = totalAmount / topN;
+
+                        com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
+                                entryHour, 0, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+
+                        Map<String, Object> res = new HashMap<>();
+                        res.put("rankingHours", rankingHours);
+                        res.put("topN", topN);
+                        res.put("entryHour", entryHour);
+                        res.put("holdHours", holdHours);
+                        res.put("totalProfit", result.getTotalProfit());
+                        res.put("winRate", result.getWinRate());
+                        res.put("totalTrades", result.getTotalTrades());
+                        res.put("validDays", result.getValidDays());
+                        return res;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
 
             long endTime = System.currentTimeMillis();
 

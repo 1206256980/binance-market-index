@@ -68,6 +68,13 @@ public class IndexCalculatorService {
             .expireAfterWrite(5, TimeUnit.MINUTES)
             .build();
 
+    // 回测价格缓存：用于优化器并行运行时复用相同时间点的价格查询
+    // 1分钟过期，足以支撑一次优化任务的完成
+    private final Cache<LocalDateTime, List<CoinPrice>> backtestPriceCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(1, TimeUnit.MINUTES)
+            .build();
+
     // 波段计算专用线程池（使用4线程避免CPU过载）
     private final java.util.concurrent.ForkJoinPool waveCalculationPool = new java.util.concurrent.ForkJoinPool(4);
 
@@ -2512,8 +2519,9 @@ public class IndexCalculatorService {
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
             int topN, String timezone) {
 
-        log.info("开始做空涨幅榜前{}名回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
-                topN, entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
+        log.info("开始做空涨幅榜前{}名回测: 入场时间={}:{}, 每币金额={}U, 每日总额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
+                topN, entryHour, entryMinute, amountPerCoin, Math.round(amountPerCoin * topN * 100) / 100.0, days,
+                rankingHours, holdHours, timezone);
 
         java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
         java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
@@ -2539,16 +2547,12 @@ public class IndexCalculatorService {
             // 使用 rankingHours 计算涨幅基准时间
             java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
-            java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
-            java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
             java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
                     .withZoneSameInstant(utcZone).toLocalDateTime();
 
-            List<CoinPrice> changeBasePrices = findClosestPricesForBacktest(changeBaseTimeUtc, 30);
-            List<CoinPrice> entryPrices = findClosestPricesForBacktest(entryTimeUtc, 30);
-            List<CoinPrice> exitPrices = findClosestPricesForBacktest(exitTimeUtc, 30);
+            List<CoinPrice> changeBasePrices = findClosestPricesForBacktestCached(changeBaseTimeUtc, 30);
+            List<CoinPrice> entryPrices = findClosestPricesForBacktestCached(entryTimeUtc, 30);
+            List<CoinPrice> exitPrices = findClosestPricesForBacktestCached(exitTimeUtc, 30);
 
             if (changeBasePrices.isEmpty() || entryPrices.isEmpty() || exitPrices.isEmpty()) {
                 log.warn("日期 {} 数据不完整，跳过", date);
@@ -2666,5 +2670,12 @@ public class IndexCalculatorService {
                 return afterPrices;
         }
         return Collections.emptyList();
+    }
+
+    /**
+     * 带缓存的价格查找（用于回测优化，显著减少DB查询）
+     */
+    private List<CoinPrice> findClosestPricesForBacktestCached(LocalDateTime targetTime, int toleranceMinutes) {
+        return backtestPriceCache.get(targetTime, k -> findClosestPricesForBacktest(k, toleranceMinutes));
     }
 }
