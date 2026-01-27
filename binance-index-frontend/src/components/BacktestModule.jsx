@@ -184,7 +184,7 @@ function BacktestModule() {
                     {/* 每日明细 */}
                     <div className="daily-results">
                         <div className="daily-header">📋 每日明细（点击展开）</div>
-                        {result.dailyResults.map((day, idx) => (
+                        {result.dailyResults.slice().reverse().map((day, idx) => (
                             <div key={day.date} className="daily-item">
                                 <div
                                     className={`daily-summary ${expandedDay === idx ? 'expanded' : ''}`}
