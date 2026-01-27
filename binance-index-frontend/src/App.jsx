@@ -18,6 +18,24 @@ function App() {
     const [selectedTimeRange, setSelectedTimeRange] = useState(null) // 刷选的时间区间
     const [missingData, setMissingData] = useState(null) // 数据缺漏信息
     const [showMissingBanner, setShowMissingBanner] = useState(true) // 是否显示缺漏提示
+    const [view, setView] = useState('dashboard') // 'dashboard' or 'backtest'
+
+    // 处理 Hash 路由
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace('#', '')
+            if (hash === 'backtest') {
+                setView('backtest')
+            } else {
+                setView('dashboard')
+            }
+        }
+
+        window.addEventListener('hashchange', handleHashChange)
+        handleHashChange() // 初始化
+
+        return () => window.removeEventListener('hashchange', handleHashChange)
+    }, [])
 
     // 处理图表时间区间选择
     const handleTimeRangeSelect = (range) => {
@@ -118,154 +136,154 @@ function App() {
 
     return (
         <div className="app">
-            {/* 数据缺漏提示条 */}
+            {/* 顶部导航栏 */}
+            <nav className="nav-bar">
+                <div className="nav-container">
+                    <div className="nav-logo">📊 Binance Market Index</div>
+                    <div className="nav-links">
+                        <a href="#" className={`nav-link ${view === 'dashboard' ? 'active' : ''}`}>
+                            🏠 市场看板
+                        </a>
+                        <a href="#backtest" className={`nav-link ${view === 'backtest' ? 'active' : ''}`}>
+                            🧪 策略回测
+                        </a>
+                    </div>
+                </div>
+            </nav>
+
+            {/* 数据缺漏提示条 (全局显示) */}
             {missingData && showMissingBanner && (
-                <div style={{
-                    background: 'linear-gradient(90deg, #f59e0b22, #ef444422)',
-                    borderBottom: '1px solid #f59e0b55',
-                    padding: '8px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '13px',
-                    color: '#fbbf24'
-                }}>
+                <div className="missing-banner">
                     <span>
                         ⚠️ 最近24小时有 <strong>{missingData.total}</strong> 条数据缺漏
                         （{missingData.symbols} 个币种）
                         {missingData.timeRange && (
-                            <span style={{ color: '#f87171', marginLeft: '8px' }}>
+                            <span className="missing-time">
                                 缺漏时段: {missingData.timeRange}
                             </span>
                         )}
-                        <span style={{ color: '#94a3b8', marginLeft: '8px' }}>
-                            可调用 DELETE /api/index/cleanup?days=1 清理后重新回补
-                        </span>
                     </span>
-                    <button
-                        onClick={() => setShowMissingBanner(false)}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#94a3b8',
-                            cursor: 'pointer',
-                            fontSize: '16px',
-                            padding: '0 4px'
-                        }}
-                        title="关闭提示"
-                    >
-                        ✕
-                    </button>
+                    <button onClick={() => setShowMissingBanner(false)} title="关闭提示">✕</button>
                 </div>
             )}
 
-            {/* 统计卡片 */}
-            <div className="stats-container">
-                <StatsCard
-                    label="📈 当前指数"
-                    value={formatPercent(stats?.current)}
-                    valueClass={getValueClass(stats?.current)}
-                    subValue={stats?.lastUpdate ? `更新于 ${new Date(stats.lastUpdate).toLocaleTimeString()}` : ''}
-                />
-                <StatsCard
-                    label="📊 24小时变化"
-                    value={formatPercent(stats?.change24h)}
-                    valueClass={getValueClass(stats?.change24h)}
-                    subValue={stats?.high24h !== undefined ? `高: ${formatPercent(stats.high24h)} / 低: ${formatPercent(stats.low24h)}` : ''}
-                />
-                <StatsCard
-                    label="📆 3天变化"
-                    value={formatPercent(stats?.change3d)}
-                    valueClass={getValueClass(stats?.change3d)}
-                    subValue={stats?.high3d !== undefined ? `高: ${formatPercent(stats.high3d)} / 低: ${formatPercent(stats.low3d)}` : ''}
-                />
-                <StatsCard
-                    label="📅 7天变化"
-                    value={formatPercent(stats?.change7d)}
-                    valueClass={getValueClass(stats?.change7d)}
-                    subValue={stats?.high7d !== undefined ? `高: ${formatPercent(stats.high7d)} / 低: ${formatPercent(stats.low7d)}` : ''}
-                />
-                <StatsCard
-                    label="🗓️ 30天变化"
-                    value={formatPercent(stats?.change30d)}
-                    valueClass={getValueClass(stats?.change30d)}
-                    subValue={stats?.high30d !== undefined ? `高: ${formatPercent(stats.high30d)} / 低: ${formatPercent(stats.low30d)}` : ''}
-                />
-                <StatsCard
-                    label="🪙 参与币种"
-                    value={stats?.coinCount || '--'}
-                    subValue="排除 BTC、ETH"
-                />
-            </div>
-
-            {/* 控制栏 */}
-            <div className="controls">
-                <TimeRangeSelector
-                    value={timeRange}
-                    onChange={setTimeRange}
-                />
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <label className="auto-refresh">
-                        <input
-                            type="checkbox"
-                            checked={autoRefresh}
-                            onChange={(e) => setAutoRefresh(e.target.checked)}
+            {/* 市场看板视图 */}
+            {view === 'dashboard' && (
+                <>
+                    {/* 统计卡片 */}
+                    <div className="stats-container">
+                        <StatsCard
+                            label="📈 当前指数"
+                            value={formatPercent(stats?.current)}
+                            valueClass={getValueClass(stats?.current)}
+                            subValue={stats?.lastUpdate ? `更新于 ${new Date(stats.lastUpdate).toLocaleTimeString()}` : ''}
                         />
-                        自动刷新
-                    </label>
+                        <StatsCard
+                            label="📊 24小时变化"
+                            value={formatPercent(stats?.change24h)}
+                            valueClass={getValueClass(stats?.change24h)}
+                            subValue={stats?.high24h !== undefined ? `高: ${formatPercent(stats.high24h)} / 低: ${formatPercent(stats.low24h)}` : ''}
+                        />
+                        <StatsCard
+                            label="📆 3天变化"
+                            value={formatPercent(stats?.change3d)}
+                            valueClass={getValueClass(stats?.change3d)}
+                            subValue={stats?.high3d !== undefined ? `高: ${formatPercent(stats.high3d)} / 低: ${formatPercent(stats.low3d)}` : ''}
+                        />
+                        <StatsCard
+                            label="📅 7天变化"
+                            value={formatPercent(stats?.change7d)}
+                            valueClass={getValueClass(stats?.change7d)}
+                            subValue={stats?.high7d !== undefined ? `高: ${formatPercent(stats.high7d)} / 低: ${formatPercent(stats.low7d)}` : ''}
+                        />
+                        <StatsCard
+                            label="🗓️ 30天变化"
+                            value={formatPercent(stats?.change30d)}
+                            valueClass={getValueClass(stats?.change30d)}
+                            subValue={stats?.high30d !== undefined ? `高: ${formatPercent(stats.high30d)} / 低: ${formatPercent(stats.low30d)}` : ''}
+                        />
+                        <StatsCard
+                            label="🪙 参与币种"
+                            value={stats?.coinCount || '--'}
+                            subValue="排除 BTC、ETH"
+                        />
+                    </div>
 
-                    <button
-                        className={`refresh-btn ${loading ? 'loading' : ''}`}
-                        onClick={handleRefresh}
-                        disabled={loading}
-                    >
-                        🔄 刷新
-                    </button>
+                    {/* 控制栏 */}
+                    <div className="controls">
+                        <TimeRangeSelector
+                            value={timeRange}
+                            onChange={setTimeRange}
+                        />
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <label className="auto-refresh">
+                                <input
+                                    type="checkbox"
+                                    checked={autoRefresh}
+                                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                                />
+                                自动刷新
+                            </label>
+
+                            <button
+                                className={`refresh-btn ${loading ? 'loading' : ''}`}
+                                onClick={handleRefresh}
+                                disabled={loading}
+                            >
+                                🔄 刷新
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 图表区域 */}
+                    <div className="chart-container">
+                        <div className="chart-title">
+                            📊 市场指数 & 成交额走势
+                        </div>
+
+                        {loading && historyData.length === 0 ? (
+                            <div className="loading-container">
+                                <div className="loading-spinner"></div>
+                                <p>正在加载数据...</p>
+                            </div>
+                        ) : error ? (
+                            <div className="error-container">
+                                <div className="error-icon">⚠️</div>
+                                <p>{error}</p>
+                                <button className="retry-btn" onClick={handleRefresh}>
+                                    重试
+                                </button>
+                            </div>
+                        ) : historyData.length === 0 ? (
+                            <div className="no-data">
+                                <div className="icon">📭</div>
+                                <p>暂无数据</p>
+                                <p>服务启动后需要等待数据回补完成</p>
+                            </div>
+                        ) : (
+                            <CombinedChart data={historyData} onTimeRangeSelect={handleTimeRangeSelect} />
+                        )}
+                    </div>
+
+                    {/* 单边上行涨幅模块 */}
+                    <UptrendModule />
+
+                    {/* 涨幅分布模块 */}
+                    <DistributionModule externalTimeRange={selectedTimeRange} />
+                </>
+            )}
+
+            {/* 策略回测视图 */}
+            {view === 'backtest' && (
+                <div style={{ animation: 'slideUp 0.4s ease-out' }}>
+                    {/* 做空涨幅榜前10回测模块 */}
+                    <BacktestModule />
+
+                    {/* 策略优化器模块 */}
+                    <OptimizerModule />
                 </div>
-            </div>
-
-            {/* 图表区域 */}
-            <div className="chart-container">
-                <div className="chart-title">
-                    📊 市场指数 & 成交额走势
-                </div>
-
-                {loading && historyData.length === 0 ? (
-                    <div className="loading-container">
-                        <div className="loading-spinner"></div>
-                        <p>正在加载数据...</p>
-                    </div>
-                ) : error ? (
-                    <div className="error-container">
-                        <div className="error-icon">⚠️</div>
-                        <p>{error}</p>
-                        <button className="retry-btn" onClick={handleRefresh}>
-                            重试
-                        </button>
-                    </div>
-                ) : historyData.length === 0 ? (
-                    <div className="no-data">
-                        <div className="icon">📭</div>
-                        <p>暂无数据</p>
-                        <p>服务启动后需要等待数据回补完成</p>
-                    </div>
-                ) : (
-                    <CombinedChart data={historyData} onTimeRangeSelect={handleTimeRangeSelect} />
-                )}
-            </div>
-
-            {/* 单边上行涨幅模块 */}
-            <UptrendModule />
-
-            {/* 涨幅分布模块 */}
-            <DistributionModule externalTimeRange={selectedTimeRange} />
-
-            {/* 做空涨幅榜前10回测模块 */}
-            <BacktestModule />
-
-            {/* 策略优化器模块 */}
-            <OptimizerModule />
+            )}
 
             <footer className="footer">
                 <p>数据来源: 币安合约API | 每5分钟采集一次 | {stats?.coinCount || 0} 个币种参与计算</p>
