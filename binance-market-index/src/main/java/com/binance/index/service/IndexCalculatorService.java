@@ -2710,7 +2710,8 @@ public class IndexCalculatorService {
 
         // 调用 backfillPhaseV2，明确禁用基准价收集
         // collectBasePrices = false 确保不会影响任何基准价
-        backfillPhaseV2(startTime, endTime, backfillConcurrency, false);
+        // 并发数使用 5（中等并发，平衡速度与API限制）
+        backfillPhaseV2(startTime, endTime, 5, false);
 
         long elapsed = System.currentTimeMillis() - startMs;
 
