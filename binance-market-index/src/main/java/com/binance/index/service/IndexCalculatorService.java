@@ -2502,17 +2502,18 @@ public class IndexCalculatorService {
     }
 
     /**
-     * 做空涨幅榜前10回测
+     * 做空涨幅榜前N名回测
      * 
      * @param rankingHours 涨幅排行榜时间范围（24/48/72/168小时）
      * @param holdHours    持仓时间（小时）
+     * @param topN         做空前N名
      */
     public com.binance.index.dto.BacktestResult runShortTop10Backtest(
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
-            String timezone) {
+            int topN, String timezone) {
 
-        log.info("开始做空涨幅榜前10回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
-                entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
+        log.info("开始做空涨幅榜前{}名回测: 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
+                topN, entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
 
         java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
         java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
@@ -2574,9 +2575,10 @@ public class IndexCalculatorService {
             }
 
             changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
-            List<Map.Entry<String, Double>> top10 = changeList.stream().limit(10).collect(Collectors.toList());
+            // 使用 topN 参数选取前N名
+            List<Map.Entry<String, Double>> topCoins = changeList.stream().limit(topN).collect(Collectors.toList());
 
-            if (top10.isEmpty()) {
+            if (topCoins.isEmpty()) {
                 skippedDays.add(date.toString());
                 continue;
             }
@@ -2586,7 +2588,7 @@ public class IndexCalculatorService {
             int dailyWin = 0;
             int dailyLose = 0;
 
-            for (Map.Entry<String, Double> entry : top10) {
+            for (Map.Entry<String, Double> entry : topCoins) {
                 String symbol = entry.getKey();
                 Double change24h = entry.getValue();
                 Double entryPrice = entryMap.get(symbol);

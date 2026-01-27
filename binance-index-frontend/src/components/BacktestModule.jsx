@@ -12,6 +12,7 @@ function BacktestModule() {
     const [days, setDays] = useState(30)
     const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
     const [holdHours, setHoldHours] = useState(24)  // 持仓时间（小时）
+    const [topN, setTopN] = useState(10)  // 做空前 N 名
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -32,6 +33,7 @@ function BacktestModule() {
                     days,
                     rankingHours,
                     holdHours,
+                    topN,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -80,6 +82,21 @@ function BacktestModule() {
                         <option value={48}>48小时涨幅榜</option>
                         <option value={72}>72小时涨幅榜</option>
                         <option value={168}>7天涨幅榜</option>
+                    </select>
+                </div>
+
+                <div className="param-group">
+                    <label>做空前 N 名</label>
+                    <select
+                        value={topN}
+                        onChange={(e) => setTopN(parseInt(e.target.value))}
+                        className="ranking-select"
+                    >
+                        <option value={5}>前 5 名</option>
+                        <option value={10}>前 10 名</option>
+                        <option value={15}>前 15 名</option>
+                        <option value={20}>前 20 名</option>
+                        <option value={30}>前 30 名</option>
                     </select>
                 </div>
 
