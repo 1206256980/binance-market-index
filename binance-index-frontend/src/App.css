@@ -1978,7 +1978,282 @@ body {
   font-weight: 700;
 }
 
-.optimizer-table .profit-negative {
-  color: var(--profit-negative);
+/* ===== 策略优化器模块样式 ===== */
+.optimizer-module {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.optimizer-header {
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-md);
+}
+
+.optimizer-title {
+  font-size: 1.25rem;
   font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.optimizer-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.optimizer-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.params-row {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.optimizer-params .param-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.optimizer-params .param-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.optimizer-params .param-group input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.optimizer-params .param-group input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 入场时间选择样式 */
+.hour-selection-wrapper {
+  margin-top: var(--spacing-sm);
+  background: var(--bg-primary);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.hour-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.hour-selection-header label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hour-quick-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hour-quick-actions button {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.hour-quick-actions button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.hour-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 8px;
+}
+
+.hour-item {
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
+}
+
+.hour-item:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-card-hover);
+}
+
+.hour-item.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.optimizer-btn {
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  margin-top: var(--spacing-xs);
+}
+
+.optimizer-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+}
+
+.optimizer-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.optimizer-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+/* 结果表格增强 */
+.optimizer-result {
+  margin-top: var(--spacing-xl);
+  animation: slideUp 0.3s ease-out;
+}
+
+.optimizer-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.optimizer-table-wrapper {
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.optimizer-table-title {
+  padding: var(--spacing-md);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.optimizer-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.optimizer-table th {
+  background: var(--bg-card-hover);
+  padding: var(--spacing-md);
+  text-align: left;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.optimizer-table td {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+}
+
+.optimizer-table tr:last-child td {
+  border-bottom: none;
+}
+
+.optimizer-table .rank {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.optimizer-table .top-strategy {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.optimizer-table td.positive {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.optimizer-table td.negative {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.optimizer-table .profit-positive {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.optimizer-table .profit-negative {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.optimizer-error {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: 0.9rem;
 }

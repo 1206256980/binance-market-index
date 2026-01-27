@@ -870,6 +870,7 @@ public class IndexController {
     public ResponseEntity<Map<String, Object>> optimizeStrategy(
             @RequestParam(defaultValue = "1000") double totalAmount,
             @RequestParam(defaultValue = "30") int days,
+            @RequestParam(required = false) String entryHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
         log.info("------------------------- 开始调用 /backtest/optimize 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
@@ -889,7 +890,31 @@ public class IndexController {
             // 定义参数范围
             int[] rankingHoursOptions = { 24, 48, 72, 168 };
             int[] topNOptions = { 5, 10, 15, 20, 30 };
-            int[] entryHourOptions = { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 }; // 每2小时
+            int[] entryHourOptions;
+
+            if (entryHours != null && !entryHours.trim().isEmpty()) {
+                // 解析用户自定义的小时
+                try {
+                    entryHourOptions = java.util.Arrays.stream(entryHours.split(","))
+                            .map(String::trim)
+                            .mapToInt(Integer::parseInt)
+                            .filter(h -> h >= 0 && h <= 23)
+                            .distinct()
+                            .sorted()
+                            .toArray();
+
+                    if (entryHourOptions.length == 0) {
+                        entryHourOptions = new int[] { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 };
+                    }
+                } catch (Exception e) {
+                    log.error("解析 entryHours 失败: " + entryHours, e);
+                    entryHourOptions = new int[] { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 };
+                }
+            } else {
+                // 默认每2小时
+                entryHourOptions = new int[] { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 };
+            }
+
             int[] holdHoursOptions = { 24, 48, 72 };
 
             List<Map<String, Object>> allResults = new java.util.ArrayList<>();

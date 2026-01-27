@@ -8,13 +8,31 @@ function OptimizerModule() {
     // 输入参数
     const [totalAmount, setTotalAmount] = useState(1000)
     const [days, setDays] = useState(30)
+    const [selectedHours, setSelectedHours] = useState([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
 
     // 状态
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
 
+    const toggleHour = (hour) => {
+        if (selectedHours.includes(hour)) {
+            setSelectedHours(selectedHours.filter(h => h !== hour))
+        } else {
+            setSelectedHours([...selectedHours, hour].sort((a, b) => a - b))
+        }
+    }
+
+    const selectAllHours = () => setSelectedHours(Array.from({ length: 24 }, (_, i) => i))
+    const selectNoneHours = () => setSelectedHours([])
+    const selectDefaultHours = () => setSelectedHours([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22])
+
     const runOptimize = async () => {
+        if (selectedHours.length === 0) {
+            setError('请至少选择一个入场时间')
+            return
+        }
+
         setLoading(true)
         setError(null)
 
@@ -23,6 +41,7 @@ function OptimizerModule() {
                 params: {
                     totalAmount,
                     days,
+                    entryHours: selectedHours.join(','),
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -60,32 +79,56 @@ function OptimizerModule() {
         <div className="optimizer-module">
             <div className="optimizer-header">
                 <div className="optimizer-title">🔍 策略优化器</div>
-                <div className="optimizer-subtitle">遍历720种参数组合，找出盈利最高的策略</div>
+                <div className="optimizer-subtitle">自定义入场时间组合，寻找盈利最高的策略</div>
             </div>
 
             {/* 参数输入区 */}
             <div className="optimizer-params">
-                <div className="param-group">
-                    <label>每日总金额 (U)</label>
-                    <input
-                        type="number"
-                        min="1"
-                        value={totalAmount}
-                        onChange={(e) => setTotalAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                        onBlur={(e) => { if (e.target.value === '' || isNaN(totalAmount)) setTotalAmount(1000) }}
-                    />
+                <div className="params-row">
+                    <div className="param-group">
+                        <label>每日总金额 (U)</label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={totalAmount}
+                            onChange={(e) => setTotalAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(totalAmount)) setTotalAmount(1000) }}
+                        />
+                    </div>
+
+                    <div className="param-group">
+                        <label>回测天数</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={days}
+                            onChange={(e) => setDays(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(days)) setDays(30) }}
+                        />
+                    </div>
                 </div>
 
-                <div className="param-group">
-                    <label>回测天数</label>
-                    <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={days}
-                        onChange={(e) => setDays(e.target.value === '' ? '' : parseInt(e.target.value))}
-                        onBlur={(e) => { if (e.target.value === '' || isNaN(days)) setDays(30) }}
-                    />
+                <div className="hour-selection-wrapper">
+                    <div className="hour-selection-header">
+                        <label>入场时间选择 (多选)</label>
+                        <div className="hour-quick-actions">
+                            <button onClick={selectDefaultHours}>默认(2h)</button>
+                            <button onClick={selectAllHours}>全选</button>
+                            <button onClick={selectNoneHours}>全清</button>
+                        </div>
+                    </div>
+                    <div className="hour-grid">
+                        {Array.from({ length: 24 }, (_, i) => (
+                            <div
+                                key={i}
+                                className={`hour-item ${selectedHours.includes(i) ? 'active' : ''}`}
+                                onClick={() => toggleHour(i)}
+                            >
+                                {i}:00
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 <button
@@ -93,7 +136,7 @@ function OptimizerModule() {
                     onClick={runOptimize}
                     disabled={loading}
                 >
-                    {loading ? '🔄 优化中...(约60秒)' : '🚀 开始寻找最优策略'}
+                    {loading ? '🔄 优化中...(根据组合数量耗时不等)' : '🚀 开始寻找最优策略'}
                 </button>
             </div>
 
