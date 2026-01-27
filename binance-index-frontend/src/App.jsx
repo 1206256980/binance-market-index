@@ -3,6 +3,7 @@ import axios from 'axios'
 import CombinedChart from './components/CombinedChart'
 import DistributionModule from './components/DistributionModule'
 import UptrendModule from './components/UptrendModule'
+import BacktestModule from './components/BacktestModule'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
 
@@ -258,6 +259,9 @@ function App() {
 
             {/* 涨幅分布模块 */}
             <DistributionModule externalTimeRange={selectedTimeRange} />
+
+            {/* 做空涨幅榜前10回测模块 */}
+            <BacktestModule />
 
             <footer className="footer">
                 <p>数据来源: 币安合约API | 每5分钟采集一次 | {stats?.coinCount || 0} 个币种参与计算</p>
