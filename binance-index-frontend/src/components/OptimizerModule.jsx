@@ -15,6 +15,8 @@ function OptimizerModule() {
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
+    const [sortField, setSortField] = useState('totalProfit') // 'totalProfit' or 'winRate'
+    const [sortOrder, setSortOrder] = useState('desc')
     const pageSize = 20
 
     const toggleHour = (hour) => {
@@ -62,6 +64,16 @@ function OptimizerModule() {
         }
     }
 
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')
+        } else {
+            setSortField(field)
+            setSortOrder('desc')
+        }
+        setCurrentPage(1) // 排序后重置页码
+    }
+
     const formatProfit = (value) => {
         if (value === null || value === undefined) return '--'
         const prefix = value >= 0 ? '+' : ''
@@ -78,12 +90,17 @@ function OptimizerModule() {
         return `${hours}h`
     }
 
-    // 分页计算
-    const paginatedStrategies = result?.topStrategies?.slice(
+    // 排序和分页计算
+    const sortedStrategies = result?.topStrategies ? [...result.topStrategies].sort((a, b) => {
+        const factor = sortOrder === 'desc' ? -1 : 1
+        return (a[sortField] - b[sortField]) * factor
+    }) : []
+
+    const paginatedStrategies = sortedStrategies.slice(
         (currentPage - 1) * pageSize,
         currentPage * pageSize
-    ) || []
-    const totalPages = result ? Math.ceil(result.topStrategies.length / pageSize) : 0
+    )
+    const totalPages = Math.ceil(sortedStrategies.length / pageSize)
 
     return (
         <div className="optimizer-module">
@@ -92,62 +109,61 @@ function OptimizerModule() {
                 <div className="optimizer-subtitle">自定义入场时间组合，寻找盈利最高的策略</div>
             </div>
 
-            {/* 参数输入区 */}
-            <div className="optimizer-params">
-                <div className="params-row">
-                    <div className="param-group">
-                        <label>每日总金额 (U)</label>
+            {/* 参数输入区 - 紧凑型横向布局 */}
+            <div className="optimizer-params-compact">
+                <div className="params-main-row">
+                    <div className="param-item">
+                        <label>总额(U)</label>
                         <input
                             type="number"
-                            min="1"
                             value={totalAmount}
                             onChange={(e) => setTotalAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
                             onBlur={(e) => { if (e.target.value === '' || isNaN(totalAmount)) setTotalAmount(1000) }}
                         />
                     </div>
 
-                    <div className="param-group">
+                    <div className="param-item">
                         <label>回测天数</label>
                         <input
                             type="number"
-                            min="1"
-                            max="365"
                             value={days}
                             onChange={(e) => setDays(e.target.value === '' ? '' : parseInt(e.target.value))}
                             onBlur={(e) => { if (e.target.value === '' || isNaN(days)) setDays(30) }}
                         />
                     </div>
-                </div>
 
-                <div className="hour-selection-wrapper">
-                    <div className="hour-selection-header">
-                        <label>入场时间选择 (多选)</label>
-                        <div className="hour-quick-actions">
-                            <button onClick={selectDefaultHours}>默认(2h)</button>
-                            <button onClick={selectAllHours}>全选</button>
-                            <button onClick={selectNoneHours}>全清</button>
+                    <div className="divider-v"></div>
+
+                    <div className="hour-selection-compact">
+                        <div className="label-with-actions">
+                            <label>入场时间 ({selectedHours.length})</label>
+                            <div className="quick-btns">
+                                <button onClick={selectDefaultHours}>默认</button>
+                                <button onClick={selectAllHours}>全选</button>
+                                <button onClick={selectNoneHours}>全清</button>
+                            </div>
+                        </div>
+                        <div className="hour-tags-container">
+                            {Array.from({ length: 24 }, (_, i) => (
+                                <span
+                                    key={i}
+                                    className={`hour-tag ${selectedHours.includes(i) ? 'active' : ''}`}
+                                    onClick={() => toggleHour(i)}
+                                >
+                                    {i}
+                                </span>
+                            ))}
                         </div>
                     </div>
-                    <div className="hour-grid">
-                        {Array.from({ length: 24 }, (_, i) => (
-                            <div
-                                key={i}
-                                className={`hour-item ${selectedHours.includes(i) ? 'active' : ''}`}
-                                onClick={() => toggleHour(i)}
-                            >
-                                {i}:00
-                            </div>
-                        ))}
-                    </div>
-                </div>
 
-                <button
-                    className={`optimizer-btn ${loading ? 'loading' : ''}`}
-                    onClick={runOptimize}
-                    disabled={loading}
-                >
-                    {loading ? '🔄 优化中...(根据组合数量耗时不等)' : '🚀 开始寻找最优策略'}
-                </button>
+                    <button
+                        className={`optimize-run-btn ${loading ? 'loading' : ''}`}
+                        onClick={runOptimize}
+                        disabled={loading}
+                    >
+                        {loading ? '...' : '🚀 开始优化'}
+                    </button>
+                </div>
             </div>
 
             {/* 错误提示 */}
@@ -160,16 +176,16 @@ function OptimizerModule() {
             {/* 结果展示 */}
             {result && (
                 <div className="optimizer-result">
-                    {/* 统计信息 */}
-                    <div className="optimizer-stats">
-                        <span>✅ 共测试 <strong>{result.totalCombinations}</strong> 种组合</span>
-                        <span>⏱️ 耗时 <strong>{(result.timeTakenMs / 1000).toFixed(1)}</strong> 秒</span>
+                    <div className="optimizer-result-header">
+                        <div className="res-stats">
+                            <span>✅ 测试组合: <strong>{result.totalCombinations}</strong></span>
+                            <span>⏱️ 耗时: <strong>{(result.timeTakenMs / 1000).toFixed(1)}s</strong></span>
+                        </div>
+                        <div className="sort-hint">提示：点击“胜率”或“总盈亏”表头可切换排序</div>
                     </div>
 
-                    {/* 最优策略表格 */}
                     <div className="optimizer-table-wrapper">
-                        <div className="optimizer-table-title">🏆 策略排行榜 (每页 {pageSize} 条)</div>
-                        <table className="optimizer-table">
+                        <table className="optimizer-table compact">
                             <thead>
                                 <tr>
                                     <th>排名</th>
@@ -177,9 +193,13 @@ function OptimizerModule() {
                                     <th>数量</th>
                                     <th>入场</th>
                                     <th>持仓</th>
-                                    <th>胜率</th>
+                                    <th className="sortable-header" onClick={() => handleSort('winRate')}>
+                                        胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                    </th>
                                     <th>交易数</th>
-                                    <th>总盈亏</th>
+                                    <th className="sortable-header" onClick={() => handleSort('totalProfit')}>
+                                        总盈亏 {sortField === 'totalProfit' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -187,11 +207,9 @@ function OptimizerModule() {
                                     const rank = (currentPage - 1) * pageSize + idx + 1;
                                     return (
                                         <tr key={idx} className={rank === 1 ? 'top-strategy' : ''}>
-                                            <td className="rank">
-                                                {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
-                                            </td>
+                                            <td className="rank-cell">#{rank}</td>
                                             <td>{formatRankingHours(strategy.rankingHours)}</td>
-                                            <td>前{strategy.topN}名</td>
+                                            <td>{strategy.topN}</td>
                                             <td>{strategy.entryHour}:00</td>
                                             <td>{strategy.holdHours}h</td>
                                             <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
@@ -217,7 +235,7 @@ function OptimizerModule() {
                                     上一页
                                 </button>
                                 <div className="page-info">
-                                    第 <strong>{currentPage}</strong> / {totalPages} 页
+                                    <strong>{currentPage}</strong> / {totalPages}
                                 </div>
                                 <button
                                     disabled={currentPage === totalPages}

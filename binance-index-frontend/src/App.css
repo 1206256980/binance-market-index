@@ -2258,49 +2258,192 @@ body {
   font-size: 0.9rem;
 }
 
-/* 分页样式 */
-.optimizer-pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1.5rem;
+/* 紧凑型参数布局 */
+.optimizer-params-compact {
   background: var(--bg-card);
-  border-top: 1px solid var(--border-color);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  margin-bottom: 20px;
 }
 
-.optimizer-pagination button {
-  padding: 8px 20px;
+.params-main-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.param-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.param-item label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.param-item input {
+  width: 80px;
+  padding: 6px 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.divider-v {
+  width: 1px;
+  height: 36px;
+  background: var(--border-color);
+  margin: 0 4px;
+}
+
+.hour-selection-compact {
+  flex: 1;
+  min-width: 200px;
+}
+
+.label-with-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.label-with-actions label {
+  font-size: 11px;
+  color: var(--text-muted);
   font-weight: 600;
+  text-transform: uppercase;
+}
+
+.quick-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.quick-btns button {
+  padding: 2px 6px;
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 100px;
+}
+
+.quick-btns button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.hour-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hour-tag {
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 10px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
 }
 
-.optimizer-pagination button:hover:not(:disabled) {
+.hour-tag:hover {
   border-color: var(--accent-primary);
-  color: var(--accent-primary);
-  background: var(--bg-card-hover);
 }
 
-.optimizer-pagination button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.hour-tag.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+  font-weight: 700;
 }
 
-.optimizer-pagination .page-info {
-  font-size: 0.9rem;
+.optimize-run-btn {
+  padding: 8px 20px;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  height: 34px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.optimize-run-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* 结果区样式优化 */
+.optimizer-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.res-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
-.optimizer-pagination .page-info strong {
+.sort-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.optimizer-table.compact td {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.rank-cell {
+  font-weight: 700;
   color: var(--accent-primary);
-  font-size: 1rem;
+}
+
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  background: rgba(59, 130, 246, 0.05) !important;
+  transition: background 0.2s;
+}
+
+.sortable-header:hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: var(--accent-primary) !important;
+}
+
+.optimizer-pagination {
+  padding: 12px !important;
+}
+
+.optimizer-pagination button {
+  padding: 6px 12px !important;
+  min-width: 80px !important;
+  font-size: 12px !important;
 }
