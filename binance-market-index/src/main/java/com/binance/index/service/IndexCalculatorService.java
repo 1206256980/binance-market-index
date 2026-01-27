@@ -2547,6 +2547,10 @@ public class IndexCalculatorService {
             // 使用 rankingHours 计算涨幅基准时间
             java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
+            java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
+            java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
             java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
                     .withZoneSameInstant(utcZone).toLocalDateTime();
 
