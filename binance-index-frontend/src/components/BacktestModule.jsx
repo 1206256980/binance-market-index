@@ -89,7 +89,8 @@ function BacktestModule() {
                             min="0"
                             max="23"
                             value={entryHour}
-                            onChange={(e) => setEntryHour(parseInt(e.target.value) || 0)}
+                            onChange={(e) => setEntryHour(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(entryHour)) setEntryHour(0) }}
                         />
                         <span>:</span>
                         <input
@@ -97,7 +98,8 @@ function BacktestModule() {
                             min="0"
                             max="59"
                             value={entryMinute}
-                            onChange={(e) => setEntryMinute(parseInt(e.target.value) || 0)}
+                            onChange={(e) => setEntryMinute(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(entryMinute)) setEntryMinute(0) }}
                         />
                     </div>
                 </div>
@@ -108,7 +110,8 @@ function BacktestModule() {
                         type="number"
                         min="1"
                         value={amountPerCoin}
-                        onChange={(e) => setAmountPerCoin(parseFloat(e.target.value) || 100)}
+                        onChange={(e) => setAmountPerCoin(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '' || isNaN(amountPerCoin)) setAmountPerCoin(100) }}
                     />
                 </div>
 
@@ -119,7 +122,8 @@ function BacktestModule() {
                         min="1"
                         max="365"
                         value={days}
-                        onChange={(e) => setDays(parseInt(e.target.value) || 30)}
+                        onChange={(e) => setDays(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '' || isNaN(days)) setDays(30) }}
                     />
                 </div>
 
