@@ -4,6 +4,7 @@ import CombinedChart from './components/CombinedChart'
 import DistributionModule from './components/DistributionModule'
 import UptrendModule from './components/UptrendModule'
 import BacktestModule from './components/BacktestModule'
+import OptimizerModule from './components/OptimizerModule'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
 
@@ -262,6 +263,9 @@ function App() {
 
             {/* 做空涨幅榜前10回测模块 */}
             <BacktestModule />
+
+            {/* 策略优化器模块 */}
+            <OptimizerModule />
 
             <footer className="footer">
                 <p>数据来源: 币安合约API | 每5分钟采集一次 | {stats?.coinCount || 0} 个币种参与计算</p>

@@ -147,15 +147,16 @@ function BacktestModule() {
                 </div>
 
                 <div className="param-group">
-                    <label>持仓时间 (小时)</label>
-                    <input
-                        type="number"
-                        min="1"
-                        max="720"
+                    <label>持仓时间</label>
+                    <select
                         value={holdHours}
-                        onChange={(e) => setHoldHours(e.target.value === '' ? '' : parseInt(e.target.value))}
-                        onBlur={(e) => { if (e.target.value === '' || isNaN(holdHours)) setHoldHours(24) }}
-                    />
+                        onChange={(e) => setHoldHours(parseInt(e.target.value))}
+                        className="ranking-select"
+                    >
+                        <option value={24}>24小时</option>
+                        <option value={48}>48小时</option>
+                        <option value={72}>72小时</option>
+                    </select>
                 </div>
 
                 <button

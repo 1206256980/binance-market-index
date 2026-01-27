@@ -858,4 +858,98 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 策略优化器 - 遍历所有参数组合找出最优策略
+     * 
+     * @param totalAmount 每日投入总金额(U)
+     * @param days        回测天数（从昨天往前推），默认30天
+     * @param timezone    时区，默认Asia/Shanghai
+     */
+    @GetMapping("/backtest/optimize")
+    public ResponseEntity<Map<String, Object>> optimizeStrategy(
+            @RequestParam(defaultValue = "1000") double totalAmount,
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+        log.info("------------------------- 开始调用 /backtest/optimize 接口 -------------------------");
+        Map<String, Object> response = new HashMap<>();
+
+        if (totalAmount <= 0) {
+            response.put("success", false);
+            response.put("message", "totalAmount 必须大于 0");
+            return ResponseEntity.badRequest().body(response);
+        }
+        if (days <= 0 || days > 365) {
+            response.put("success", false);
+            response.put("message", "days 必须在 1-365 之间");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        try {
+            // 定义参数范围
+            int[] rankingHoursOptions = { 24, 48, 72, 168 };
+            int[] topNOptions = { 5, 10, 15, 20, 30 };
+            int[] entryHourOptions = { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 }; // 每2小时
+            int[] holdHoursOptions = { 24, 48, 72 };
+
+            List<Map<String, Object>> allResults = new java.util.ArrayList<>();
+            int totalCombinations = rankingHoursOptions.length * topNOptions.length
+                    * entryHourOptions.length * holdHoursOptions.length;
+            int current = 0;
+
+            long startTime = System.currentTimeMillis();
+
+            for (int rankingHours : rankingHoursOptions) {
+                for (int topN : topNOptions) {
+                    for (int entryHour : entryHourOptions) {
+                        for (int holdHours : holdHoursOptions) {
+                            double amountPerCoin = totalAmount / topN;
+
+                            com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
+                                    entryHour, 0, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+
+                            Map<String, Object> combo = new HashMap<>();
+                            combo.put("rankingHours", rankingHours);
+                            combo.put("topN", topN);
+                            combo.put("entryHour", entryHour);
+                            combo.put("holdHours", holdHours);
+                            combo.put("totalProfit", result.getTotalProfit());
+                            combo.put("winRate", result.getWinRate());
+                            combo.put("totalTrades", result.getTotalTrades());
+                            combo.put("validDays", result.getValidDays());
+
+                            allResults.add(combo);
+                            current++;
+                        }
+                    }
+                }
+            }
+
+            long endTime = System.currentTimeMillis();
+
+            // 按总盈亏排序，取前10
+            allResults.sort((a, b) -> Double.compare(
+                    (Double) b.get("totalProfit"),
+                    (Double) a.get("totalProfit")));
+
+            List<Map<String, Object>> top10 = allResults.stream().limit(10)
+                    .collect(java.util.stream.Collectors.toList());
+
+            response.put("success", true);
+            response.put("params", Map.of(
+                    "totalAmount", totalAmount,
+                    "days", days,
+                    "timezone", timezone));
+            response.put("totalCombinations", totalCombinations);
+            response.put("timeTakenMs", endTime - startTime);
+            response.put("topStrategies", top10);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("策略优化失败", e);
+            response.put("success", false);
+            response.put("message", "策略优化失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
