@@ -859,6 +859,12 @@ public class IndexController {
                     "winTrades", result.getWinTrades(),
                     "loseTrades", result.getLoseTrades(),
                     "winRate", result.getWinRate(),
+                    "winDays", result.getWinDays(),
+                    "loseDays", result.getLoseDays(),
+                    "dailyWinRate", result.getDailyWinRate(),
+                    "winMonths", result.getWinMonths(),
+                    "loseMonths", result.getLoseMonths(),
+                    "monthlyWinRate", result.getMonthlyWinRate(),
                     "totalProfit", result.getTotalProfit()));
             response.put("dailyResults", result.getDailyResults());
             response.put("skippedDays", result.getSkippedDays());
@@ -1062,7 +1068,11 @@ public class IndexController {
                         res.put("totalProfit", backtestResult.getTotalProfit());
                         res.put("winRate", backtestResult.getWinRate());
                         res.put("dailyWinRate", backtestResult.getDailyWinRate());
+                        res.put("winDays", backtestResult.getWinDays());
+                        res.put("loseDays", backtestResult.getLoseDays());
                         res.put("monthlyWinRate", backtestResult.getMonthlyWinRate());
+                        res.put("winMonths", backtestResult.getWinMonths());
+                        res.put("loseMonths", backtestResult.getLoseMonths());
                         res.put("totalTrades", backtestResult.getTotalTrades());
                         res.put("validDays", backtestResult.getValidDays());
                         return res;

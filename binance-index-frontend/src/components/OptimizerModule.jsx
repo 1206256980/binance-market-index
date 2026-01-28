@@ -281,10 +281,10 @@ function OptimizerModule() {
                                                 {strategy.winRate}%
                                             </td>
                                             <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                {strategy.dailyWinRate}%
+                                                {strategy.dailyWinRate}% ({strategy.winDays}/{strategy.winDays + strategy.loseDays})
                                             </td>
                                             <td className={strategy.monthlyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                {strategy.monthlyWinRate}%
+                                                {strategy.monthlyWinRate}% ({strategy.winMonths}/{strategy.winMonths + strategy.loseMonths})
                                             </td>
                                             <td>{strategy.totalTrades}</td>
                                             <td className={getProfitClass(strategy.totalProfit)}>
