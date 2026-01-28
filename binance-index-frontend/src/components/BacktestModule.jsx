@@ -211,7 +211,13 @@ function BacktestModule() {
                         <div className="summary-card">
                             <div className="summary-label">📊 每日胜率</div>
                             <div className={`summary-value ${result.summary.dailyWinRate >= 50 ? 'positive' : 'negative'}`}>
-                                {result.summary.dailyWinRate}%
+                                {result.summary.dailyWinRate}% ({result.summary.winDays}/{result.summary.winDays + result.summary.loseDays})
+                            </div>
+                        </div>
+                        <div className="summary-card">
+                            <div className="summary-label">📆 每月胜率</div>
+                            <div className={`summary-value ${result.summary.monthlyWinRate >= 50 ? 'positive' : 'negative'}`}>
+                                {result.summary.monthlyWinRate}% ({result.summary.winMonths}/{result.summary.winMonths + result.summary.loseMonths})
                             </div>
                         </div>
                         <div className="summary-card">

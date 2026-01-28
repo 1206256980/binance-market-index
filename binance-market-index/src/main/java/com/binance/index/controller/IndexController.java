@@ -1062,6 +1062,7 @@ public class IndexController {
                         res.put("totalProfit", backtestResult.getTotalProfit());
                         res.put("winRate", backtestResult.getWinRate());
                         res.put("dailyWinRate", backtestResult.getDailyWinRate());
+                        res.put("monthlyWinRate", backtestResult.getMonthlyWinRate());
                         res.put("totalTrades", backtestResult.getTotalTrades());
                         res.put("validDays", backtestResult.getValidDays());
                         return res;

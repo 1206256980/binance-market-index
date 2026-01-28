@@ -258,6 +258,9 @@ function OptimizerModule() {
                                     <th className="sortable-header" onClick={() => handleSort('dailyWinRate')}>
                                         每日胜率 {sortField === 'dailyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
                                     </th>
+                                    <th className="sortable-header" onClick={() => handleSort('monthlyWinRate')}>
+                                        每月胜率 {sortField === 'monthlyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                    </th>
                                     <th>交易数</th>
                                     <th className="sortable-header" onClick={() => handleSort('totalProfit')}>
                                         总盈亏 {sortField === 'totalProfit' && (sortOrder === 'desc' ? '▼' : '▲')}
@@ -279,6 +282,9 @@ function OptimizerModule() {
                                             </td>
                                             <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
                                                 {strategy.dailyWinRate}%
+                                            </td>
+                                            <td className={strategy.monthlyWinRate >= 50 ? 'positive' : 'negative'}>
+                                                {strategy.monthlyWinRate}%
                                             </td>
                                             <td>{strategy.totalTrades}</td>
                                             <td className={getProfitClass(strategy.totalProfit)}>

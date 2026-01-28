@@ -2674,6 +2674,28 @@ public class IndexCalculatorService {
         result.setLoseDays(loseDays);
         result.setDailyWinRate(
                 dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
+
+        // 计算每月胜率（30天为一个月）
+        int winMonths = 0;
+        int loseMonths = 0;
+        double monthProfit = 0;
+        for (int i = 0; i < dailyResults.size(); i++) {
+            monthProfit += dailyResults.get(i).getTotalProfit();
+            // 每30天结算一次，或者到达最后一天
+            if ((i + 1) % 30 == 0 || i == dailyResults.size() - 1) {
+                if (monthProfit > 0) {
+                    winMonths++;
+                } else {
+                    loseMonths++;
+                }
+                monthProfit = 0; // 重置月度累计
+            }
+        }
+        int totalMonths = winMonths + loseMonths;
+        result.setWinMonths(winMonths);
+        result.setLoseMonths(loseMonths);
+        result.setMonthlyWinRate(totalMonths > 0 ? Math.round(winMonths * 10000.0 / totalMonths) / 100.0 : 0);
+
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);
         result.setSkippedDays(skippedDays);
@@ -2994,6 +3016,28 @@ public class IndexCalculatorService {
         result.setLoseDays(loseDays);
         result.setDailyWinRate(
                 dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
+
+        // 计算每月胜率（30天为一个月）
+        int winMonths = 0;
+        int loseMonths = 0;
+        double monthProfit = 0;
+        for (int i = 0; i < dailyResults.size(); i++) {
+            monthProfit += dailyResults.get(i).getTotalProfit();
+            // 每30天结算一次，或者到达最后一天
+            if ((i + 1) % 30 == 0 || i == dailyResults.size() - 1) {
+                if (monthProfit > 0) {
+                    winMonths++;
+                } else {
+                    loseMonths++;
+                }
+                monthProfit = 0; // 重置月度累计
+            }
+        }
+        int totalMonths = winMonths + loseMonths;
+        result.setWinMonths(winMonths);
+        result.setLoseMonths(loseMonths);
+        result.setMonthlyWinRate(totalMonths > 0 ? Math.round(winMonths * 10000.0 / totalMonths) / 100.0 : 0);
+
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);
         result.setSkippedDays(skippedDays);

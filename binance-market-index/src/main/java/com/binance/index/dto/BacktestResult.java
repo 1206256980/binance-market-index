@@ -17,6 +17,9 @@ public class BacktestResult {
     private Integer winDays; // 盈利天数（当日总盈亏>0）
     private Integer loseDays; // 亏损天数（当日总盈亏<=0）
     private Double dailyWinRate; // 每日盈利胜率(%)
+    private Integer winMonths; // 盈利月数（30天为一月，当月总盈亏>0）
+    private Integer loseMonths; // 亏损月数（30天为一月，当月总盈亏<=0）
+    private Double monthlyWinRate; // 每月盈利胜率(%)
     private Double totalProfit; // 总盈亏(U)
 
     // 每日明细
@@ -99,6 +102,30 @@ public class BacktestResult {
 
     public void setDailyWinRate(Double dailyWinRate) {
         this.dailyWinRate = dailyWinRate;
+    }
+
+    public Integer getWinMonths() {
+        return winMonths;
+    }
+
+    public void setWinMonths(Integer winMonths) {
+        this.winMonths = winMonths;
+    }
+
+    public Integer getLoseMonths() {
+        return loseMonths;
+    }
+
+    public void setLoseMonths(Integer loseMonths) {
+        this.loseMonths = loseMonths;
+    }
+
+    public Double getMonthlyWinRate() {
+        return monthlyWinRate;
+    }
+
+    public void setMonthlyWinRate(Double monthlyWinRate) {
+        this.monthlyWinRate = monthlyWinRate;
     }
 
     public Double getTotalProfit() {
