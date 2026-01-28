@@ -797,8 +797,10 @@ public class IndexController {
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "24") int holdHours,
             @RequestParam(defaultValue = "10") int topN,
+            @RequestParam(defaultValue = "false") boolean useApi,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
-        log.info("------------------------- 开始调用 /backtest/short-top10 接口 -------------------------");
+        log.info("------------------------- 开始调用 /backtest/short-top10 接口 (useApi={}) -------------------------",
+                useApi);
         Map<String, Object> response = new HashMap<>();
 
         // 参数校验
@@ -827,8 +829,16 @@ public class IndexController {
             // 计算每币金额 = 总金额 / 做空数量
             double amountPerCoin = totalAmount / topN;
 
-            com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
-                    entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+            com.binance.index.dto.BacktestResult result;
+            if (useApi) {
+                // 使用币安API获取历史数据（支持更长时间范围）
+                result = indexCalculatorService.runShortTopNBacktestApi(
+                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+            } else {
+                // 使用本地数据库（更快但数据有限）
+                result = indexCalculatorService.runShortTop10Backtest(
+                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+            }
 
             response.put("success", true);
             response.put("params", Map.of(

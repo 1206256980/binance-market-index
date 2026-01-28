@@ -58,6 +58,9 @@ public class IndexCalculatorService {
     private final BasePriceRepository basePriceRepository;
     private final ExecutorService executorService;
 
+    @Autowired(required = false)
+    private KlineService klineService;
+
     // 缓存各币种的基准价格（回补起始时间的价格）
     private Map<String, Double> basePrices = new HashMap<>();
     private LocalDateTime basePriceTime;
@@ -2723,6 +2726,155 @@ public class IndexCalculatorService {
         result.put("message", String.format("价格数据回补完成，共 %d 天，耗时 %d 秒", days, elapsed / 1000));
 
         log.info("价格数据回补完成，耗时 {} 秒", elapsed / 1000);
+
+        return result;
+    }
+
+    /**
+     * 做空涨幅榜前N名回测（API版本）
+     * 使用币安API获取历史数据，支持更长时间范围的回测
+     * 
+     * @param rankingHours 涨幅排行榜时间范围（24/48/72/168小时）
+     * @param holdHours    持仓时间（小时）
+     * @param topN         做空前N名
+     */
+    public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
+            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
+            int topN, String timezone) {
+
+        if (klineService == null) {
+            log.error("KlineService未初始化，无法使用API回测");
+            com.binance.index.dto.BacktestResult errorResult = new com.binance.index.dto.BacktestResult();
+            errorResult.setTotalDays(0);
+            errorResult.setValidDays(0);
+            errorResult.setSkippedDays(java.util.List.of("KlineService未初始化"));
+            return errorResult;
+        }
+
+        log.info("开始做空涨幅榜前{}名回测(API版): 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
+                topN, entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
+
+        java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+        java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+
+        java.time.LocalDate today = java.time.LocalDate.now(userZone);
+        java.time.LocalDate endDate = today.minusDays(1);
+        java.time.LocalDate startDate = endDate.minusDays(days - 1);
+
+        log.info("回测日期范围: {} 至 {}", startDate, endDate);
+
+        List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();
+        List<String> skippedDays = new ArrayList<>();
+
+        int totalTrades = 0;
+        int winTrades = 0;
+        int loseTrades = 0;
+        double totalProfit = 0;
+
+        for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
+            java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
+            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
+
+            java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
+            java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime();
+            java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
+                    .withZoneSameInstant(utcZone).toLocalDateTime();
+
+            // 使用 KlineService 从API获取价格（会自动缓存）
+            Map<String, Double> changeBaseMap = klineService.getPricesAtTime(changeBaseTimeUtc);
+            Map<String, Double> entryMap = klineService.getPricesAtTime(entryTimeUtc);
+            Map<String, Double> exitMap = klineService.getPricesAtTime(exitTimeUtc);
+
+            if (changeBaseMap.isEmpty() || entryMap.isEmpty() || exitMap.isEmpty()) {
+                log.warn("日期 {} 数据不完整，跳过", date);
+                skippedDays.add(date.toString());
+                continue;
+            }
+
+            // 计算涨幅并排序
+            List<Map.Entry<String, Double>> changeList = new ArrayList<>();
+            for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
+                String symbol = entry.getKey();
+                Double entryPrice = entry.getValue();
+                Double basePrice = changeBaseMap.get(symbol);
+                if (basePrice != null && basePrice > 0 && entryPrice != null && entryPrice > 0) {
+                    double changePercent = (entryPrice - basePrice) / basePrice * 100;
+                    changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, changePercent));
+                }
+            }
+
+            changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            List<Map.Entry<String, Double>> topCoins = changeList.stream().limit(topN).collect(Collectors.toList());
+
+            if (topCoins.isEmpty()) {
+                skippedDays.add(date.toString());
+                continue;
+            }
+
+            List<com.binance.index.dto.BacktestTrade> trades = new ArrayList<>();
+            double dailyProfit = 0;
+            int dailyWin = 0;
+            int dailyLose = 0;
+
+            for (Map.Entry<String, Double> entry : topCoins) {
+                String symbol = entry.getKey();
+                Double change24h = entry.getValue();
+                Double entryPrice = entryMap.get(symbol);
+                Double exitPrice = exitMap.get(symbol);
+
+                if (entryPrice == null || exitPrice == null || entryPrice <= 0)
+                    continue;
+
+                double profitPercent = (entryPrice - exitPrice) / entryPrice * 100;
+                double profit = amountPerCoin * profitPercent / 100;
+
+                trades.add(new com.binance.index.dto.BacktestTrade(
+                        symbol, entryPrice, exitPrice, change24h,
+                        Math.round(profit * 100) / 100.0,
+                        Math.round(profitPercent * 100) / 100.0));
+
+                dailyProfit += profit;
+                if (profit > 0) {
+                    dailyWin++;
+                    winTrades++;
+                } else {
+                    dailyLose++;
+                    loseTrades++;
+                }
+                totalTrades++;
+            }
+
+            totalProfit += dailyProfit;
+
+            // 使用setter创建每日结果
+            com.binance.index.dto.BacktestDailyResult dailyResult = new com.binance.index.dto.BacktestDailyResult();
+            dailyResult.setDate(date.toString());
+            dailyResult.setEntryTime(entryTimeLocal.toString());
+            dailyResult.setExitTime(exitTimeLocal.toString());
+            dailyResult.setTotalProfit(Math.round(dailyProfit * 100) / 100.0);
+            dailyResult.setWinCount(dailyWin);
+            dailyResult.setLoseCount(dailyLose);
+            dailyResult.setTrades(trades);
+            dailyResults.add(dailyResult);
+        }
+
+        // 使用setter创建总结果
+        com.binance.index.dto.BacktestResult result = new com.binance.index.dto.BacktestResult();
+        result.setTotalDays(days);
+        result.setValidDays(dailyResults.size());
+        result.setTotalTrades(totalTrades);
+        result.setWinTrades(winTrades);
+        result.setLoseTrades(loseTrades);
+        result.setWinRate(totalTrades > 0 ? Math.round(winTrades * 10000.0 / totalTrades) / 100.0 : 0);
+        result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
+        result.setDailyResults(dailyResults);
+        result.setSkippedDays(skippedDays);
+
+        log.info("API回测完成: 总交易{}笔, 盈利{}笔, 亏损{}笔, 胜率{}%, 总盈亏{}U",
+                totalTrades, winTrades, loseTrades, result.getWinRate(), result.getTotalProfit());
 
         return result;
     }

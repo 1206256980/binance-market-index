@@ -13,6 +13,7 @@ function BacktestModule() {
     const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
     const [holdHours, setHoldHours] = useState(24)  // 持仓时间（小时）
     const [topN, setTopN] = useState(10)  // 做空前 N 名
+    const [useApi, setUseApi] = useState(false)  // 是否使用币安API获取数据
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -34,6 +35,7 @@ function BacktestModule() {
                     rankingHours,
                     holdHours,
                     topN,
+                    useApi,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -157,6 +159,18 @@ function BacktestModule() {
                         <option value={48}>48小时</option>
                         <option value={72}>72小时</option>
                     </select>
+                </div>
+
+                <div className="param-group use-api-toggle">
+                    <label className="checkbox-label">
+                        <input
+                            type="checkbox"
+                            checked={useApi}
+                            onChange={(e) => setUseApi(e.target.checked)}
+                        />
+                        <span>使用币安API</span>
+                        <span className="api-hint">(支持90天+回测，首次较慢)</span>
+                    </label>
                 </div>
 
                 <button
