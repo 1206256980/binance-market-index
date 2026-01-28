@@ -133,7 +133,6 @@ public class KlineService {
      * 预加载指定日期范围的所有K线数据
      * 用于回测前预先缓存数据，提高回测速度，并防止IP被封
      */
-    @Transactional
     public void preloadKlines(LocalDateTime startTime, LocalDateTime endTime, List<String> symbols) {
         log.info("开始预加载K线数据: {} 至 {}, {} 个币种", startTime, endTime, symbols.size());
 

@@ -4,8 +4,9 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * 小时K线数据（用于回测）
- * 数据来源：币安API历史K线
+ * 小时K线数据表 (hourly_kline) - 用于回测的历史价格缓存
+ * 存储每小时的开高低收价格和成交量
+ * 数据来源：币安 API 历史 K 线
  */
 @Entity
 @Table(name = "hourly_kline", indexes = {
