@@ -6,6 +6,7 @@ import com.binance.index.dto.DistributionData;
 
 import com.binance.index.dto.KlineData;
 import com.binance.index.dto.UptrendData;
+import com.binance.index.dto.BacktestMonthlyResult;
 import com.binance.index.entity.BasePrice;
 import com.binance.index.entity.CoinPrice;
 import com.binance.index.entity.MarketIndex;
@@ -2676,25 +2677,47 @@ public class IndexCalculatorService {
                 dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
 
         // 计算每月胜率（30天为一个月）
+        List<BacktestMonthlyResult> monthlyDetail = new ArrayList<>();
         int winMonths = 0;
         int loseMonths = 0;
         double monthProfit = 0;
+        int mWinDays = 0;
+        int mLoseDays = 0;
+        int monthCount = 0;
+
         for (int i = 0; i < dailyResults.size(); i++) {
-            monthProfit += dailyResults.get(i).getTotalProfit();
+            com.binance.index.dto.BacktestDailyResult dr = dailyResults.get(i);
+            monthProfit += dr.getTotalProfit();
+            if (dr.getTotalProfit() > 0)
+                mWinDays++;
+            else if (dr.getTotalProfit() < 0)
+                mLoseDays++;
+
             // 每30天结算一次，或者到达最后一天
             if ((i + 1) % 30 == 0 || i == dailyResults.size() - 1) {
+                monthCount++;
+                BacktestMonthlyResult mr = new BacktestMonthlyResult();
+                mr.setMonthLabel("第 " + monthCount + " 个月");
+                mr.setTotalProfit(Math.round(monthProfit * 100) / 100.0);
+                mr.setWinDays(mWinDays);
+                mr.setLoseDays(mLoseDays);
+                monthlyDetail.add(mr);
+
                 if (monthProfit > 0) {
                     winMonths++;
                 } else {
                     loseMonths++;
                 }
                 monthProfit = 0; // 重置月度累计
+                mWinDays = 0;
+                mLoseDays = 0;
             }
         }
         int totalMonths = winMonths + loseMonths;
         result.setWinMonths(winMonths);
         result.setLoseMonths(loseMonths);
         result.setMonthlyWinRate(totalMonths > 0 ? Math.round(winMonths * 10000.0 / totalMonths) / 100.0 : 0);
+        result.setMonthlyResults(monthlyDetail);
 
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);
@@ -3018,25 +3041,47 @@ public class IndexCalculatorService {
                 dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
 
         // 计算每月胜率（30天为一个月）
+        List<BacktestMonthlyResult> monthlyDetail = new ArrayList<>();
         int winMonths = 0;
         int loseMonths = 0;
         double monthProfit = 0;
+        int mWinDays = 0;
+        int mLoseDays = 0;
+        int monthCount = 0;
+
         for (int i = 0; i < dailyResults.size(); i++) {
-            monthProfit += dailyResults.get(i).getTotalProfit();
+            com.binance.index.dto.BacktestDailyResult dr = dailyResults.get(i);
+            monthProfit += dr.getTotalProfit();
+            if (dr.getTotalProfit() > 0)
+                mWinDays++;
+            else if (dr.getTotalProfit() < 0)
+                mLoseDays++;
+
             // 每30天结算一次，或者到达最后一天
             if ((i + 1) % 30 == 0 || i == dailyResults.size() - 1) {
+                monthCount++;
+                BacktestMonthlyResult mr = new BacktestMonthlyResult();
+                mr.setMonthLabel("第 " + monthCount + " 个月");
+                mr.setTotalProfit(Math.round(monthProfit * 100) / 100.0);
+                mr.setWinDays(mWinDays);
+                mr.setLoseDays(mLoseDays);
+                monthlyDetail.add(mr);
+
                 if (monthProfit > 0) {
                     winMonths++;
                 } else {
                     loseMonths++;
                 }
                 monthProfit = 0; // 重置月度累计
+                mWinDays = 0;
+                mLoseDays = 0;
             }
         }
         int totalMonths = winMonths + loseMonths;
         result.setWinMonths(winMonths);
         result.setLoseMonths(loseMonths);
         result.setMonthlyWinRate(totalMonths > 0 ? Math.round(winMonths * 10000.0 / totalMonths) / 100.0 : 0);
+        result.setMonthlyResults(monthlyDetail);
 
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);

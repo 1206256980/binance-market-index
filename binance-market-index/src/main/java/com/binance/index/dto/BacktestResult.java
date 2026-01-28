@@ -28,6 +28,9 @@ public class BacktestResult {
     // 跳过的日期（无数据）
     private List<String> skippedDays;
 
+    // 月度明细
+    private List<BacktestMonthlyResult> monthlyResults;
+
     public BacktestResult() {
     }
 
@@ -150,5 +153,13 @@ public class BacktestResult {
 
     public void setSkippedDays(List<String> skippedDays) {
         this.skippedDays = skippedDays;
+    }
+
+    public List<BacktestMonthlyResult> getMonthlyResults() {
+        return monthlyResults;
+    }
+
+    public void setMonthlyResults(List<BacktestMonthlyResult> monthlyResults) {
+        this.monthlyResults = monthlyResults;
     }
 }

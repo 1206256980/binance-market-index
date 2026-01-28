@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import axios from 'axios'
 
 /**
@@ -22,6 +22,7 @@ function OptimizerModule() {
     const [currentPage, setCurrentPage] = useState(1)
     const [sortField, setSortField] = useState('totalProfit') // 'totalProfit' or 'winRate'
     const [sortOrder, setSortOrder] = useState('desc')
+    const [expandedRow, setExpandedRow] = useState(null)
     const pageSize = 20
 
     const toggleHour = (hour) => {
@@ -94,7 +95,14 @@ function OptimizerModule() {
             setSortOrder('desc')
         }
         setCurrentPage(1) // 排序后重置页码
+        setExpandedRow(null) // 排序后收起所有行
     }
+
+    const handleRowClick = (key) => {
+        setExpandedRow(expandedRow === key ? null : key)
+    }
+
+    const getStrategyKey = (s) => `${s.rankingHours}-${s.topN}-${s.entryHour}-${s.holdHours}`
 
     const formatProfit = (value) => {
         if (value === null || value === undefined) return '--'
@@ -270,27 +278,57 @@ function OptimizerModule() {
                             <tbody>
                                 {paginatedStrategies.map((strategy, idx) => {
                                     const rank = (currentPage - 1) * pageSize + idx + 1;
+                                    const key = getStrategyKey(strategy);
+                                    const isExpanded = expandedRow === key;
+
                                     return (
-                                        <tr key={idx} className={rank === 1 ? 'top-strategy' : ''}>
-                                            <td className="rank-cell">#{rank}</td>
-                                            <td>{formatRankingHours(strategy.rankingHours)}</td>
-                                            <td>{strategy.topN}</td>
-                                            <td>{strategy.entryHour}:00</td>
-                                            <td>{strategy.holdHours}h</td>
-                                            <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
-                                                {strategy.winRate}%
-                                            </td>
-                                            <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                {strategy.dailyWinRate}% ({strategy.winDays}/{strategy.winDays + strategy.loseDays})
-                                            </td>
-                                            <td className={strategy.monthlyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                {strategy.monthlyWinRate}% ({strategy.winMonths}/{strategy.winMonths + strategy.loseMonths})
-                                            </td>
-                                            <td>{strategy.totalTrades}</td>
-                                            <td className={getProfitClass(strategy.totalProfit)}>
-                                                {formatProfit(strategy.totalProfit)} U
-                                            </td>
-                                        </tr>
+                                        <React.Fragment key={key}>
+                                            <tr
+                                                className={`${rank === 1 ? 'top-strategy' : ''} clickable-row ${isExpanded ? 'active-row' : ''}`}
+                                                onClick={() => handleRowClick(key)}
+                                            >
+                                                <td className="rank-cell">#{rank}</td>
+                                                <td>{formatRankingHours(strategy.rankingHours)}</td>
+                                                <td>{strategy.topN}</td>
+                                                <td>{strategy.entryHour}:00</td>
+                                                <td>{strategy.holdHours}h</td>
+                                                <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
+                                                    {strategy.winRate}%
+                                                </td>
+                                                <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
+                                                    {strategy.dailyWinRate}% ({strategy.winDays}/{strategy.winDays + strategy.loseDays})
+                                                </td>
+                                                <td className={strategy.monthlyWinRate >= 50 ? 'positive' : 'negative'}>
+                                                    {strategy.monthlyWinRate}% ({strategy.winMonths}/{strategy.winMonths + strategy.loseMonths})
+                                                </td>
+                                                <td>{strategy.totalTrades}</td>
+                                                <td className={getProfitClass(strategy.totalProfit)}>
+                                                    {formatProfit(strategy.totalProfit)} U
+                                                </td>
+                                            </tr>
+                                            {isExpanded && strategy.monthlyResults && (
+                                                <tr className="expanded-details-row">
+                                                    <td colSpan="10">
+                                                        <div className="monthly-details-wrapper">
+                                                            {strategy.monthlyResults.map((m, mIdx) => (
+                                                                <div key={mIdx} className="monthly-detail-card">
+                                                                    <div className="monthly-detail-header">
+                                                                        <span>{m.monthLabel}</span>
+                                                                        {m.totalProfit > 0 ? '🟢 盈利' : '🔴 亏损'}
+                                                                    </div>
+                                                                    <div className={`monthly-detail-profit ${m.totalProfit >= 0 ? 'positive' : 'negative'}`}>
+                                                                        {m.totalProfit > 0 ? '+' : ''}{m.totalProfit} U
+                                                                    </div>
+                                                                    <div className="monthly-detail-days">
+                                                                        📅 盈利 {m.winDays} 天 / 亏损 {m.loseDays} 天
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     );
                                 })}
                             </tbody>
