@@ -2781,6 +2781,24 @@ public class IndexCalculatorService {
         klineService.preloadKlines(preloadStart, preloadEnd, symbols);
         // --- 优化结束 ---
 
+        // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
+        List<java.time.LocalDateTime> allRequiredTimesUtc = new ArrayList<>();
+        for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
+            java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
+            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
+
+            allRequiredTimesUtc.add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+            allRequiredTimesUtc.add(exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+            allRequiredTimesUtc
+                    .add(changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+        }
+
+        // 批量获取所有价格
+        Map<java.time.LocalDateTime, Map<String, Double>> bulkPriceMap = klineService
+                .getBulkPricesAtTimes(allRequiredTimesUtc);
+        // --- 性能优化结束 ---
+
         List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();
         List<String> skippedDays = new ArrayList<>();
 
@@ -2792,22 +2810,22 @@ public class IndexCalculatorService {
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
-            java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
             java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
                     .toLocalDateTime();
             java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
                     .toLocalDateTime();
-            java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
-                    .withZoneSameInstant(utcZone).toLocalDateTime();
+            java.time.LocalDateTime changeBaseTimeUtc = entryTimeLocal.minusHours(rankingHours)
+                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
-            // 使用 KlineService 从API获取价格（会自动缓存）
-            Map<String, Double> changeBaseMap = klineService.getPricesAtTime(changeBaseTimeUtc);
-            Map<String, Double> entryMap = klineService.getPricesAtTime(entryTimeUtc);
-            Map<String, Double> exitMap = klineService.getPricesAtTime(exitTimeUtc);
+            // 从批量映射中获取价格，不再触发数据库查询
+            Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtc, new HashMap<>());
+            Map<String, Double> entryMap = bulkPriceMap.getOrDefault(entryTimeUtc, new HashMap<>());
+            Map<String, Double> exitMap = bulkPriceMap.getOrDefault(exitTimeUtc, new HashMap<>());
 
             if (changeBaseMap.isEmpty() || entryMap.isEmpty() || exitMap.isEmpty()) {
-                log.warn("日期 {} 数据不完整，跳过", date);
+                log.warn("日期 {} 数据不完整 (Base:{}, Entry:{}, Exit:{})，跳过",
+                        date, changeBaseMap.size(), entryMap.size(), exitMap.size());
                 skippedDays.add(date.toString());
                 continue;
             }

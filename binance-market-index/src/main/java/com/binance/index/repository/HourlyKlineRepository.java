@@ -45,6 +45,12 @@ public interface HourlyKlineRepository extends JpaRepository<HourlyKline, Long> 
     List<HourlyKline> findAllByOpenTime(@Param("openTime") LocalDateTime openTime);
 
     /**
+     * 批量查询多个时间点的所有价格数据
+     */
+    @Query("SELECT k FROM HourlyKline k WHERE k.openTime IN :times")
+    List<HourlyKline> findAllByOpenTimeIn(@Param("times") java.util.Collection<LocalDateTime> times);
+
+    /**
      * 查找最接近目标时间的K线（往前找）
      */
     @Query("SELECT k FROM HourlyKline k WHERE k.openTime <= :targetTime ORDER BY k.openTime DESC")

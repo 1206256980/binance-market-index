@@ -206,6 +206,31 @@ public class KlineService {
     }
 
     /**
+     * 批量获取多个时间点的所有价格数据
+     * 用于优化回测性能，将数百次数据库查询减少为一次
+     * 
+     * @param times 需要查询的时间点集合
+     * @return Map<时间点, Map<币种, 价格>>
+     */
+    public Map<LocalDateTime, Map<String, Double>> getBulkPricesAtTimes(java.util.Collection<LocalDateTime> times) {
+        if (times == null || times.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        log.info("开始批量从本地查询 {} 个时间点的价格数据...", times.size());
+        List<HourlyKline> klines = hourlyKlineRepository.findAllByOpenTimeIn(times);
+
+        // 按时间点分组，再按币种分组存价格
+        Map<LocalDateTime, Map<String, Double>> result = klines.stream()
+                .collect(Collectors.groupingBy(
+                        HourlyKline::getOpenTime,
+                        Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getClosePrice, (v1, v2) -> v1)));
+
+        log.info("本地批量查询完成，共获取 {} 个时间点的数据", result.size());
+        return result;
+    }
+
+    /**
      * 获取指定币种在指定时间范围内的涨幅
      * 
      * @param symbol      币种
