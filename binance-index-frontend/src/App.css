@@ -1,4 +1,4 @@
-/* ===== 全局样式 - 白色主题 ===== */
+﻿/* ===== 鍏ㄥ眬鏍峰紡 - 鐧借壊涓婚 ===== */
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +6,7 @@
 }
 
 :root {
-  /* 白色主题颜色变量 */
+  /* 鐧借壊涓婚棰滆壊鍙橀噺 */
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
@@ -26,19 +26,19 @@
   --danger: #ef4444;
   --warning: #f59e0b;
 
-  /* 间距 */
+  /* 闂磋窛 */
   --spacing-xs: 0.5rem;
   --spacing-sm: 0.75rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
 
-  /* 圆角 */
+  /* 鍦嗚 */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  /* 阴影 */
+  /* 闃村奖 */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
@@ -52,18 +52,18 @@ body {
   line-height: 1.6;
 }
 
-/* ===== 主容器 ===== */
+/* ===== 涓诲鍣?===== */
 .app {
   max-width: 1400px;
   margin: 0 auto;
   padding: 80px 20px 40px;
-  /* 为顶部固定导航留出空间 */
+  /* 涓洪《閮ㄥ浐瀹氬鑸暀鍑虹┖闂?*/
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* 导航栏样式 */
+/* 瀵艰埅鏍忔牱寮?*/
 .nav-bar {
   position: fixed;
   top: 0;
@@ -124,7 +124,7 @@ body {
   box-shadow: 0 0 0 1px var(--accent-primary);
 }
 
-/* 缺漏提示样式增强 */
+/* 缂烘紡鎻愮ず鏍峰紡澧炲己 */
 .missing-banner {
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1));
   border: 1px solid rgba(245, 158, 11, 0.3);
@@ -158,7 +158,7 @@ body {
   font-weight: 600;
 }
 
-/* ===== 统计卡片容器 ===== */
+/* ===== 缁熻鍗＄墖瀹瑰櫒 ===== */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -166,7 +166,7 @@ body {
   margin-bottom: var(--spacing-lg);
 }
 
-/* ===== 单个统计卡片 ===== */
+/* ===== 鍗曚釜缁熻鍗＄墖 ===== */
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -211,7 +211,7 @@ body {
   margin-top: 2px;
 }
 
-/* ===== 控制栏 ===== */
+/* ===== 鎺у埗鏍?===== */
 .controls {
   display: flex;
   justify-content: space-between;
@@ -292,7 +292,7 @@ body {
   pointer-events: none;
 }
 
-/* ===== 图表容器 ===== */
+/* ===== 鍥捐〃瀹瑰櫒 ===== */
 .chart-container {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -312,7 +312,7 @@ body {
   gap: var(--spacing-xs);
 }
 
-/* ===== 加载状态 ===== */
+/* ===== 鍔犺浇鐘舵€?===== */
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -338,7 +338,7 @@ body {
   }
 }
 
-/* ===== 错误状态 ===== */
+/* ===== 閿欒鐘舵€?===== */
 .error-container {
   display: flex;
   flex-direction: column;
@@ -371,7 +371,7 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* ===== 无数据状态 ===== */
+/* ===== 鏃犳暟鎹姸鎬?===== */
 .no-data {
   display: flex;
   flex-direction: column;
@@ -387,7 +387,7 @@ body {
   opacity: 0.5;
 }
 
-/* ===== 页脚 ===== */
+/* ===== 椤佃剼 ===== */
 .footer {
   text-align: center;
   margin-top: var(--spacing-lg);
@@ -397,7 +397,7 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
-/* ===== 涨幅分布模块 ===== */
+/* ===== 娑ㄥ箙鍒嗗竷妯″潡 ===== */
 .distribution-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -492,7 +492,7 @@ body {
   margin-left: var(--spacing-sm);
 }
 
-/* 时间模式切换按钮 */
+/* 鏃堕棿妯″紡鍒囨崲鎸夐挳 */
 .time-mode-toggle {
   display: flex;
   gap: 2px;
@@ -524,7 +524,7 @@ body {
   color: white;
 }
 
-/* 联动徽章样式 */
+/* 鑱斿姩寰界珷鏍峰紡 */
 .linked-badge {
   display: inline-flex;
   align-items: center;
@@ -552,7 +552,7 @@ body {
   }
 }
 
-/* 时间输入框 */
+/* 鏃堕棿杈撳叆妗?*/
 .time-base-selector .time-input {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
@@ -581,7 +581,7 @@ body {
   font-weight: 400;
 }
 
-/* 分布统计 */
+/* 鍒嗗竷缁熻 */
 .distribution-stats {
   display: flex;
   gap: var(--spacing-lg);
@@ -629,7 +629,7 @@ body {
   color: var(--accent-primary);
 }
 
-/* 图表区域 - 水平布局以容纳排行榜面板 */
+/* 鍥捐〃鍖哄煙 - 姘村钩甯冨眬浠ュ绾虫帓琛屾闈㈡澘 */
 .distribution-charts {
   display: flex;
   gap: var(--spacing-md);
@@ -660,7 +660,7 @@ body {
   gap: var(--spacing-sm);
 }
 
-/* 查看全部排行按钮 */
+/* 鏌ョ湅鍏ㄩ儴鎺掕鎸夐挳 */
 .all-ranking-btn {
   margin-left: auto;
   padding: 6px 14px;
@@ -692,7 +692,7 @@ body {
   color: var(--text-muted);
 }
 
-/* 遮罩层 - 点击关闭侧边栏 */
+/* 閬僵灞?- 鐐瑰嚮鍏抽棴渚ц竟鏍?*/
 .ranking-overlay {
   position: fixed;
   top: 0;
@@ -715,7 +715,7 @@ body {
   }
 }
 
-/* ===== 排行榜滑出面板 ===== */
+/* ===== 鎺掕姒滄粦鍑洪潰鏉?===== */
 .ranking-panel {
   position: fixed;
   top: 0;
@@ -794,7 +794,7 @@ body {
   color: white;
 }
 
-/* 排序控制栏 */
+/* 鎺掑簭鎺у埗鏍?*/
 .sort-controls {
   display: flex;
   align-items: center;
@@ -853,7 +853,7 @@ body {
   border-color: var(--accent-primary);
 }
 
-/* 排序类型切换 */
+/* 鎺掑簭绫诲瀷鍒囨崲 */
 .sort-type-toggle {
   display: flex;
   gap: 2px;
@@ -1016,7 +1016,7 @@ body {
   font-size: 0.85rem;
 }
 
-/* ===== 响应式 ===== */
+/* ===== 鍝嶅簲寮?===== */
 @media (max-width: 768px) {
   .app {
     padding: var(--spacing-sm);
@@ -1057,7 +1057,7 @@ body {
     flex-wrap: wrap;
   }
 
-  /* 移动端排行榜面板 - 侧边栏占满屏幕 */
+  /* 绉诲姩绔帓琛屾闈㈡澘 - 渚ц竟鏍忓崰婊″睆骞?*/
   .ranking-panel.open {
     width: 100%;
   }
@@ -1090,12 +1090,12 @@ body {
   }
 }
 
-/* ===== 单边上行涨幅模块专属样式 ===== */
+/* ===== 鍗曡竟涓婅娑ㄥ箙妯″潡涓撳睘鏍峰紡 ===== */
 .uptrend-module .distribution-title {
   color: var(--danger);
 }
 
-/* 阈值输入框 */
+/* 闃堝€艰緭鍏ユ */
 .threshold-input {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
@@ -1118,7 +1118,7 @@ body {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
-/* 只看进行中筛选 */
+/* 鍙湅杩涜涓瓫閫?*/
 .filter-ongoing {
   display: flex;
   align-items: center;
@@ -1135,7 +1135,7 @@ body {
   cursor: pointer;
 }
 
-/* 币种搜索框 */
+/* 甯佺鎼滅储妗?*/
 .symbol-search {
   display: flex;
   align-items: center;
@@ -1188,7 +1188,7 @@ body {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
-/* 单边涨幅排行项目样式 */
+/* 鍗曡竟娑ㄥ箙鎺掕椤圭洰鏍峰紡 */
 .uptrend-item {
   display: grid;
   grid-template-columns: 32px 1fr auto 32px;
@@ -1277,7 +1277,7 @@ body {
   margin-top: 2px;
 }
 
-/* 详情按钮 */
+/* 璇︽儏鎸夐挳 */
 .detail-btn {
   width: 28px;
   height: 28px;
@@ -1298,7 +1298,7 @@ body {
   transform: scale(1.05);
 }
 
-/* 返回按钮 */
+/* 杩斿洖鎸夐挳 */
 .back-btn {
   display: flex;
   align-items: center;
@@ -1323,7 +1323,7 @@ body {
   transform: translateX(-2px);
 }
 
-/* 时间输入框 */
+/* 鏃堕棿杈撳叆妗?*/
 .time-input {
   background: var(--bg-card-hover);
   border: 1px solid var(--border-color);
@@ -1344,7 +1344,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* ===== 币种统计卡片 ===== */
+/* ===== 甯佺缁熻鍗＄墖 ===== */
 .symbol-stats-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1396,7 +1396,7 @@ body {
   text-overflow: ellipsis;
 }
 
-/* ===== 胜率分析卡片 ===== */
+/* ===== 鑳滅巼鍒嗘瀽鍗＄墖 ===== */
 .win-rate-card {
   min-width: 180px;
 }
@@ -1442,7 +1442,7 @@ body {
   white-space: nowrap;
 }
 
-/* ===== 搜索卡片 ===== */
+/* ===== 鎼滅储鍗＄墖 ===== */
 .search-card {
   min-width: 160px;
 }
@@ -1508,7 +1508,7 @@ body {
   color: white;
 }
 
-/* ===== 重置按钮 ===== */
+/* ===== 閲嶇疆鎸夐挳 ===== */
 .reset-btn {
   width: 32px;
   height: 32px;
@@ -1531,7 +1531,7 @@ body {
   color: white;
 }
 
-/* ===== 控制栏搜索框 ===== */
+/* ===== 鎺у埗鏍忔悳绱㈡ ===== */
 .header-search {
   display: flex;
   align-items: center;
@@ -1588,7 +1588,7 @@ body {
   color: white;
 }
 
-/* ===== 加载更多提示 ===== */
+/* ===== 鍔犺浇鏇村鎻愮ず ===== */
 .load-more-hint {
   text-align: center;
   padding: 16px;
@@ -1610,7 +1610,7 @@ body {
   }
 }
 
-/* ===== 回测模块样式 ===== */
+/* ===== 鍥炴祴妯″潡鏍峰紡 ===== */
 .backtest-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -1765,7 +1765,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 
-/* 结果汇总卡片 */
+/* 缁撴灉姹囨€诲崱鐗?*/
 .result-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1821,7 +1821,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 
-/* 每日明细 */
+/* 姣忔棩鏄庣粏 */
 .daily-results {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1894,7 +1894,7 @@ body {
   width: 20px;
 }
 
-/* 交易明细表格 */
+/* 浜ゆ槗鏄庣粏琛ㄦ牸 */
 .daily-trades {
   padding: var(--spacing-md);
   background: var(--bg-primary);
@@ -1953,7 +1953,7 @@ body {
   }
 }
 
-/* ========== 策略优化器模块 ========== */
+/* ========== 绛栫暐浼樺寲鍣ㄦā鍧?========== */
 .optimizer-module {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
@@ -2102,7 +2102,7 @@ body {
   font-weight: 700;
 }
 
-/* ===== 策略优化器模块样式 ===== */
+/* ===== 绛栫暐浼樺寲鍣ㄦā鍧楁牱寮?===== */
 .optimizer-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -2172,7 +2172,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* 入场时间选择样式 */
+/* 鍏ュ満鏃堕棿閫夋嫨鏍峰紡 */
 .hour-selection-wrapper {
   margin-top: var(--spacing-sm);
   background: var(--bg-primary);
@@ -2277,7 +2277,7 @@ body {
   filter: grayscale(0.5);
 }
 
-/* 结果表格增强 */
+/* 缁撴灉琛ㄦ牸澧炲己 */
 .optimizer-result {
   margin-top: var(--spacing-xl);
   animation: slideUp 0.3s ease-out;
@@ -2382,7 +2382,7 @@ body {
   font-size: 0.9rem;
 }
 
-/* 紧凑型参数布局 */
+/* 绱у噾鍨嬪弬鏁板竷灞€ */
 .optimizer-params-compact {
   background: var(--bg-secondary);
   border-radius: 12px;
@@ -2396,7 +2396,7 @@ body {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  /* 允许在窄屏下换行 */
+  /* 鍏佽鍦ㄧ獎灞忎笅鎹㈣ */
 }
 
 .param-item {
@@ -2520,7 +2520,7 @@ body {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* 结果区样式优化 */
+/* 缁撴灉鍖烘牱寮忎紭鍖?*/
 .optimizer-result-header {
   display: flex;
   justify-content: space-between;
@@ -2563,7 +2563,7 @@ body {
   color: var(--accent-primary) !important;
 }
 
-/* 分页控制样式 - 优化版 */
+/* 鍒嗛〉鎺у埗鏍峰紡 - 浼樺寲鐗?*/
 .optimizer-pagination {
   display: flex;
   justify-content: center;
@@ -2620,7 +2620,7 @@ body {
   font-size: 16px;
 }
 
-/* API 数据源切换样式 */
+/* API 鏁版嵁婧愬垏鎹㈡牱寮?*/
 .api-toggle-compact {
   display: flex;
   align-items: center;
@@ -2649,81 +2649,87 @@ body {
   width: 14px;
   height: 14px;
 }
- / *   V{euOShVh�<h�SU\ _7h_  * / 
- . o p t i m i z e r - t a b l e   t b o d y   t r . c l i c k a b l e - r o w   { 
-     c u r s o r :   p o i n t e r ; 
-     t r a n s i t i o n :   b a c k g r o u n d - c o l o r   0 . 2 s ; 
- } 
- 
- . o p t i m i z e r - t a b l e   t b o d y   t r . c l i c k a b l e - r o w : h o v e r   { 
-     b a c k g r o u n d - c o l o r :   v a r ( - - b g - c a r d - h o v e r )   ! i m p o r t a n t ; 
- } 
- 
- . o p t i m i z e r - t a b l e   t r . a c t i v e - r o w   { 
-     b a c k g r o u n d - c o l o r :   v a r ( - - b g - c a r d - h o v e r )   ! i m p o r t a n t ; 
- } 
- 
- . o p t i m i z e r - t a b l e   t r . e x p a n d e d - d e t a i l s - r o w   { 
-     b a c k g r o u n d - c o l o r :   v a r ( - - b g - p r i m a r y )   ! i m p o r t a n t ; 
- } 
- 
- . o p t i m i z e r - t a b l e   t r . e x p a n d e d - d e t a i l s - r o w   t d   { 
-     p a d d i n g :   0   ! i m p o r t a n t ; 
-     b o r d e r - b o t t o m :   2 p x   s o l i d   v a r ( - - b o r d e r - c o l o r ) ; 
- } 
- 
- . m o n t h l y - d e t a i l s - w r a p p e r   { 
-     p a d d i n g :   2 0 p x ; 
-     d i s p l a y :   g r i d ; 
-     g r i d - t e m p l a t e - c o l u m n s :   r e p e a t ( a u t o - f i l l ,   m i n m a x ( 2 2 0 p x ,   1 f r ) ) ; 
-     g a p :   1 6 p x ; 
-     b a c k g r o u n d :   v a r ( - - b g - p r i m a r y ) ; 
-     a n i m a t i o n :   f a d e I n   0 . 3 s   e a s e - i n - o u t ; 
- } 
- 
- . m o n t h l y - d e t a i l - c a r d   { 
-     b a c k g r o u n d :   v a r ( - - b g - c a r d ) ; 
-     b o r d e r :   1 p x   s o l i d   v a r ( - - b o r d e r - c o l o r ) ; 
-     b o r d e r - r a d i u s :   v a r ( - - r a d i u s - m d ) ; 
-     p a d d i n g :   1 4 p x ; 
-     b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ; 
-     t r a n s i t i o n :   t r a n s f o r m   0 . 2 s   e a s e ,   b o x - s h a d o w   0 . 2 s   e a s e ; 
- } 
- 
- . m o n t h l y - d e t a i l - c a r d : h o v e r   { 
-     t r a n s f o r m :   t r a n s l a t e Y ( - 2 p x ) ; 
-     b o x - s h a d o w :   v a r ( - - s h a d o w - m d ) ; 
- } 
- 
- . m o n t h l y - d e t a i l - h e a d e r   { 
-     f o n t - s i z e :   0 . 7 5 r e m ; 
-     f o n t - w e i g h t :   7 0 0 ; 
-     c o l o r :   v a r ( - - t e x t - m u t e d ) ; 
-     m a r g i n - b o t t o m :   1 0 p x ; 
-     d i s p l a y :   f l e x ; 
-     j u s t i f y - c o n t e n t :   s p a c e - b e t w e e n ; 
-     a l i g n - i t e m s :   c e n t e r ; 
-     t e x t - t r a n s f o r m :   u p p e r c a s e ; 
-     l e t t e r - s p a c i n g :   0 . 5 p x ; 
- } 
- 
- . m o n t h l y - d e t a i l - p r o f i t   { 
-     f o n t - s i z e :   1 . 2 5 r e m ; 
-     f o n t - w e i g h t :   8 0 0 ; 
-     m a r g i n - b o t t o m :   6 p x ; 
- } 
- 
- . m o n t h l y - d e t a i l - d a y s   { 
-     f o n t - s i z e :   0 . 8 r e m ; 
-     c o l o r :   v a r ( - - t e x t - s e c o n d a r y ) ; 
-     d i s p l a y :   f l e x ; 
-     a l i g n - i t e m s :   c e n t e r ; 
-     g a p :   6 p x ; 
- } 
- 
- @ k e y f r a m e s   f a d e I n   { 
-     f r o m   {   o p a c i t y :   0 ;   t r a n s f o r m :   t r a n s l a t e Y ( - 5 p x ) ;   } 
-     t o   {   o p a c i t y :   1 ;   t r a n s f o r m :   t r a n s l a t e Y ( 0 ) ;   } 
- } 
-  
- 
+
+/* 策略优化器表格可展开样式 */
+.optimizer-table tbody tr.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.optimizer-table tbody tr.clickable-row:hover {
+  background-color: var(--bg-card-hover) !important;
+}
+
+.optimizer-table tr.active-row {
+  background-color: var(--bg-card-hover) !important;
+}
+
+.optimizer-table tr.expanded-details-row {
+  background-color: var(--bg-primary) !important;
+}
+
+.optimizer-table tr.expanded-details-row td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.monthly-details-wrapper {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  background: var(--bg-primary);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.monthly-detail-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.monthly-detail-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.monthly-detail-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.monthly-detail-profit {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.monthly-detail-days {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
