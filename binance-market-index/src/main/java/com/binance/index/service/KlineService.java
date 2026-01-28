@@ -129,38 +129,41 @@ public class KlineService {
         return prices;
     }
 
-    /**
-     * 预加载指定日期范围的所有K线数据
-     * 用于回测前预先缓存数据，提高回测速度，并防止IP被封
-     */
     public void preloadKlines(LocalDateTime startTime, LocalDateTime endTime, List<String> symbols) {
         log.info("开始预加载K线数据: {} 至 {}, {} 个币种", startTime, endTime, symbols.size());
+        long startPreload = System.currentTimeMillis();
 
         long startTimeMs = startTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         long endTimeMs = endTime.atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        long expectedHours = java.time.Duration.between(startTime, endTime).toHours() + 1;
 
-        int totalSymbols = symbols.size();
+        // 1. 优化：一次性查出所有币种在时间段内的计数
+        log.info("🔍 正在检查本地缓存状态...");
+        long startCheck = System.currentTimeMillis();
+        List<Object[]> counts = hourlyKlineRepository.countBySymbolInRange(startTime, endTime);
+        Map<String, Long> symbolCountMap = counts.stream()
+                .collect(Collectors.toMap(c -> (String) c[0], c -> (Long) c[1]));
+        log.info("⏱️ 缓存状态检查完成, 耗时: {}ms", (System.currentTimeMillis() - startCheck));
+
+        List<String> symbolsToFetch = symbols.stream()
+                .filter(s -> symbolCountMap.getOrDefault(s, 0L) < expectedHours * 0.9)
+                .collect(Collectors.toList());
+
+        if (symbolsToFetch.isEmpty()) {
+            log.info("✅ 所有币种本地数据已就绪，无需从API拉取。预加载总耗时: {}ms", (System.currentTimeMillis() - startPreload));
+            return;
+        }
+
+        log.info("💡 发现 {} 个币种数据不全，开始从币安API拉取...", symbolsToFetch.size());
+
+        int totalToFetch = symbolsToFetch.size();
         int processed = 0;
         int newKlinesCount = 0;
 
-        for (String symbol : symbols) {
+        for (String symbol : symbolsToFetch) {
             processed++;
-
             try {
-                // 1. 检查本地是否已有足够数据（粗略检查）
-                long existingCount = hourlyKlineRepository.countBySymbolAndTimeRange(symbol, startTime, endTime);
-                long expectedHours = java.time.Duration.between(startTime, endTime).toHours() + 1;
-
-                if (existingCount >= expectedHours * 0.9) {
-                    if (processed % 50 == 0) {
-                        log.info("进度: {}/{} - {} 已有缓存", processed, totalSymbols, symbol);
-                    }
-                    continue;
-                }
-
-                log.info("进度: {}/{} - 正在从API拉取 {} 的历史K线 (预期 {} 条)...", processed, totalSymbols, symbol, expectedHours);
-
-                // 2. 从API获取1小时K线（分页获取，每页1000条，90天只需3页）
+                // 从API获取1小时K线
                 List<KlineData> klines = binanceApiService.getKlinesWithPagination(
                         symbol, "1h", startTimeMs, endTimeMs, 1000);
 
@@ -176,8 +179,7 @@ public class KlineService {
                                     k.getVolume()))
                             .collect(Collectors.toList());
 
-                    // 3. 批量保存（saveAll比循环save快得多）
-                    // 为了处理可能存在的唯一索引冲突，可以先查出已有的时间点
+                    // 批量查询已有的时间点以防重复
                     List<HourlyKline> existing = hourlyKlineRepository.findBySymbolAndOpenTimeBetweenOrderByOpenTime(
                             symbol, startTime, endTime);
                     Set<LocalDateTime> existingTimes = existing.stream()
@@ -194,15 +196,18 @@ public class KlineService {
                     }
                 }
 
-                // 为了保险起见，每处理完一个币种稍微停一下（虽然 getKlinesWithPagination 内部已有停顿）
-                Thread.sleep(100);
+                if (processed % 20 == 0 || processed == totalToFetch) {
+                    log.info("API拉取进度: {}/{} - {} 完成", processed, totalToFetch, symbol);
+                }
 
+                Thread.sleep(50); // 防限流保护
             } catch (Exception e) {
-                log.warn("进度: {}/{} - {} 预加载失败: {}", processed, totalSymbols, symbol, e.getMessage());
+                log.warn("进度: {}/{} - {} 拉取失败: {}", processed, totalToFetch, symbol, e.getMessage());
             }
         }
 
-        log.info("K线数据预加载成功！共计处理 {} 个币种，新增保存 {} 条K线数据", totalSymbols, newKlinesCount);
+        log.info("🎉 K线数据预加载成功！共计拉取 {} 个币种，新增保存 {} 条K线数据。总耗时: {}ms",
+                totalToFetch, newKlinesCount, (System.currentTimeMillis() - startPreload));
     }
 
     /**
@@ -230,7 +235,7 @@ public class KlineService {
                         Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getClosePrice, (v1, v2) -> v1)));
         long processElapsed = System.currentTimeMillis() - startProcess;
 
-        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB查询 {}ms, 内存处理 {}ms)", 
+        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB查询 {}ms, 内存处理 {}ms)",
                 klines.size(), result.size(), (queryElapsed + processElapsed), queryElapsed, processElapsed);
         return result;
     }

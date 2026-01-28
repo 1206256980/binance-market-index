@@ -968,9 +968,43 @@ public class IndexController {
             int totalCombinations = combinations.size();
             long startTime = System.currentTimeMillis();
 
-            // 如果使用 API，优化循环中直接调用 API 版回测
-            // 注意：API 版内部已有批量查询优化，但在并行流中频繁调用 preload 可能仍有性能开销
-            // 最佳实践是先拉取整个范围的数据，但由于组合太多，这里保持现状
+            // --- 性能极致优化：预加载外提 ---
+            List<String> finalSymbols = null;
+            if (useApi) {
+                log.info("🚀 优化器检测到使用 API，开始执行全局预加载...");
+                long startGlobalPreload = System.currentTimeMillis();
+
+                // 1. 获取所有币种
+                finalSymbols = indexCalculatorService.getBinanceApiService().getAllUsdtSymbols();
+
+                // 2. 找到所有组合中的最大回退范围和最大持仓时间
+                int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(24);
+                int maxHoldHours = java.util.Arrays.stream(holdHoursOptions).max().orElse(24);
+
+                // 3. 计算全局预加载范围
+                java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+                java.time.LocalDate today = java.time.LocalDate.now(userZone);
+                java.time.LocalDate endDate = today.minusDays(1);
+                java.time.LocalDate startDate = endDate.minusDays(days - 1);
+
+                // 取最早可能的入场时间点
+                int minEntryHour = java.util.Arrays.stream(entryHourOptions).min().orElse(0);
+                // 取最晚可能的入场时间点
+                int maxEntryHour = java.util.Arrays.stream(entryHourOptions).max().orElse(23);
+
+                java.time.LocalDateTime globalPreloadStart = startDate.atTime(minEntryHour, 0)
+                        .minusHours(maxRankingHours + 1);
+                java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxEntryHour, 0).plusHours(maxHoldHours);
+
+                log.info("📦 执行全局预加载: {} 至 {}", globalPreloadStart, globalPreloadEnd);
+                indexCalculatorService.getKlineService().preloadKlines(globalPreloadStart, globalPreloadEnd,
+                        finalSymbols);
+                log.info("⏱️ 全局预加载完成，共耗时: {}ms", (System.currentTimeMillis() - startGlobalPreload));
+            }
+            // --- 优化结束 ---
+
+            // 使用并行流执行回测
+            final List<String> symbolsForTask = finalSymbols; // effectively final
             List<Map<String, Object>> allResults = combinations.parallelStream()
                     .map(combo -> {
                         int rHours = combo[0];
@@ -981,8 +1015,9 @@ public class IndexController {
 
                         com.binance.index.dto.BacktestResult backtestResult;
                         if (useApi) {
+                            // 使用性能优化版，传入预加载好的币种并跳过内部 preload
                             backtestResult = indexCalculatorService.runShortTopNBacktestApi(
-                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);
+                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, symbolsForTask, true);
                         } else {
                             backtestResult = indexCalculatorService.runShortTop10Backtest(
                                     eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);

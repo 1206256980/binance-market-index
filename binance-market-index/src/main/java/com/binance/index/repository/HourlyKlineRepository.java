@@ -51,8 +51,12 @@ public interface HourlyKlineRepository extends JpaRepository<HourlyKline, Long> 
     List<HourlyKline> findAllByOpenTimeIn(@Param("times") java.util.Collection<LocalDateTime> times);
 
     /**
-     * 查找最接近目标时间的K线（往前找）
+     * 聚合查询：一次性统计多个币种在指定范围内的记录数
+     * 用于优化 preloadKlines 的性能，避免循环单条 count
+     * 返回结果为 Object[]，0位是symbol, 1位是count
      */
-    @Query("SELECT k FROM HourlyKline k WHERE k.openTime <= :targetTime ORDER BY k.openTime DESC")
-    List<HourlyKline> findLatestBefore(@Param("targetTime") LocalDateTime targetTime);
+    @Query("SELECT k.symbol, COUNT(k) FROM HourlyKline k WHERE k.openTime BETWEEN :startTime AND :endTime GROUP BY k.symbol")
+    List<Object[]> countBySymbolInRange(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }

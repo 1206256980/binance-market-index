@@ -61,6 +61,14 @@ public class IndexCalculatorService {
     @Autowired(required = false)
     private KlineService klineService;
 
+    public BinanceApiService getBinanceApiService() {
+        return binanceApiService;
+    }
+
+    public KlineService getKlineService() {
+        return klineService;
+    }
+
     // 缓存各币种的基准价格（回补起始时间的价格）
     private Map<String, Double> basePrices = new HashMap<>();
     private LocalDateTime basePriceTime;
@@ -2730,17 +2738,19 @@ public class IndexCalculatorService {
         return result;
     }
 
-    /**
-     * 做空涨幅榜前N名回测（API版本）
-     * 使用币安API获取历史数据，支持更长时间范围的回测
-     * 
-     * @param rankingHours 涨幅排行榜时间范围（24/48/72/168小时）
-     * @param holdHours    持仓时间（小时）
-     * @param topN         做空前N名
-     */
     public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
             int topN, String timezone) {
+        return runShortTopNBacktestApi(entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN,
+                timezone, null, false);
+    }
+
+    /**
+     * 做空涨幅榜前N名回测（API版本）- 性能优化版
+     */
+    public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
+            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
+            int topN, String timezone, List<String> symbols, boolean skipPreload) {
 
         if (klineService == null) {
             log.error("KlineService未初始化，无法使用API回测");
@@ -2751,8 +2761,10 @@ public class IndexCalculatorService {
             return errorResult;
         }
 
-        log.info("开始做空涨幅榜前{}名回测(API版): 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
-                topN, entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
+        if (!skipPreload) {
+            log.info("开始做空涨幅榜前{}名回测(API版): 入场时间={}:{}, 每币金额={}U, 回测{}天, 涨幅榜{}小时, 持仓{}小时, 时区={}",
+                    topN, entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, timezone);
+        }
 
         java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
         java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
@@ -2765,11 +2777,16 @@ public class IndexCalculatorService {
 
         // --- 优化：预加载所有需要的K线数据 ---
         // 1. 获取所有交易对
-        long startSymbolsTime = System.currentTimeMillis();
-        List<String> symbols = binanceApiService.getAllUsdtSymbols();
-        log.info("📊 获取 {} 个交易对耗时: {}ms", symbols.size(), (System.currentTimeMillis() - startSymbolsTime));
+        List<String> finalSymbols;
+        if (skipPreload && symbols != null) {
+            finalSymbols = symbols;
+        } else {
+            long startSymbolsTime = System.currentTimeMillis();
+            finalSymbols = binanceApiService.getAllUsdtSymbols();
+            log.info("📊 获取 {} 个交易对耗时: {}ms", finalSymbols.size(), (System.currentTimeMillis() - startSymbolsTime));
+        }
 
-        if (symbols.isEmpty()) {
+        if (finalSymbols.isEmpty()) {
             log.warn("无法获取交易对列表，回测终止");
             com.binance.index.dto.BacktestResult errorResult = new com.binance.index.dto.BacktestResult();
             errorResult.setSkippedDays(java.util.List.of("无法获取交易对列表"));
@@ -2780,10 +2797,12 @@ public class IndexCalculatorService {
         java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours + 1);
         java.time.LocalDateTime preloadEnd = endDate.atTime(entryHour, entryMinute).plusHours(holdHours);
 
-        log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
-        long startPreloadTime = System.currentTimeMillis();
-        klineService.preloadKlines(preloadStart, preloadEnd, symbols);
-        log.info("⏱️ 数据预拉取完成，总耗时: {}ms", (System.currentTimeMillis() - startPreloadTime));
+        if (!skipPreload) {
+            log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
+            long startPreloadTime = System.currentTimeMillis();
+            klineService.preloadKlines(preloadStart, preloadEnd, finalSymbols);
+            log.info("⏱️ 数据预拉取完成，总耗时: {}ms", (System.currentTimeMillis() - startPreloadTime));
+        }
         // --- 优化结束 ---
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
