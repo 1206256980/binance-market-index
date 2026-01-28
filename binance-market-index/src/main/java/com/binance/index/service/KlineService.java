@@ -222,21 +222,36 @@ public class KlineService {
             return new HashMap<>();
         }
 
-        log.info("开始批量从本地查询 {} 个时间点的价格数据...", times.size());
-        long startQuery = System.currentTimeMillis();
-        List<HourlyKline> klines = hourlyKlineRepository.findAllByOpenTimeIn(times);
-        long queryElapsed = System.currentTimeMillis() - startQuery;
+        List<LocalDateTime> timeList = new ArrayList<>(times);
+        int totalSize = timeList.size();
+        int batchSize = 200; // 每批查询200个时间点，防止IN子句过大
+
+        log.info("开始批量从本地查询 {} 个时间点的价格数据 (分批大小: {})...", totalSize, batchSize);
+        long startTotal = System.currentTimeMillis();
+
+        List<HourlyKline> allKlines = new ArrayList<>();
+        long totalQueryMs = 0;
+
+        for (int i = 0; i < totalSize; i += batchSize) {
+            int end = Math.min(i + batchSize, totalSize);
+            List<LocalDateTime> batch = timeList.subList(i, end);
+
+            long startQuery = System.currentTimeMillis();
+            allKlines.addAll(hourlyKlineRepository.findAllByOpenTimeIn(batch));
+            totalQueryMs += (System.currentTimeMillis() - startQuery);
+        }
 
         // 按时间点分组，再按币种分组存价格
         long startProcess = System.currentTimeMillis();
-        Map<LocalDateTime, Map<String, Double>> result = klines.stream()
+        Map<LocalDateTime, Map<String, Double>> result = allKlines.stream()
                 .collect(Collectors.groupingBy(
                         HourlyKline::getOpenTime,
                         Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getClosePrice, (v1, v2) -> v1)));
         long processElapsed = System.currentTimeMillis() - startProcess;
 
-        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB查询 {}ms, 内存处理 {}ms)",
-                klines.size(), result.size(), (queryElapsed + processElapsed), queryElapsed, processElapsed);
+        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB分批查询 {}ms, 内存处理 {}ms)",
+                allKlines.size(), result.size(), (System.currentTimeMillis() - startTotal), totalQueryMs,
+                processElapsed);
         return result;
     }
 

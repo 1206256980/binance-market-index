@@ -2751,6 +2751,17 @@ public class IndexCalculatorService {
     public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
             int topN, String timezone, List<String> symbols, boolean skipPreload) {
+        return runShortTopNBacktestApi(entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN,
+                timezone, symbols, skipPreload, null);
+    }
+
+    /**
+     * 做空涨幅榜前N名回测（API版本）- 极致性能版 (支持外部共享价格图)
+     */
+    public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
+            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
+            int topN, String timezone, List<String> symbols, boolean skipPreload,
+            Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap) {
 
         if (klineService == null) {
             log.error("KlineService未初始化，无法使用API回测");
@@ -2820,11 +2831,16 @@ public class IndexCalculatorService {
                     changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
         }
 
-        log.info("🔍 开始批量从数据库查询 {} 个时间点的价格汇总...", allRequiredTimesUtc.size());
-        long startBulkTime = System.currentTimeMillis();
-        Map<java.time.LocalDateTime, Map<String, Double>> bulkPriceMap = klineService
-                .getBulkPricesAtTimes(allRequiredTimesUtc);
-        log.info("⏱️ 数据库价格批量查询完成，耗时: {}ms", (System.currentTimeMillis() - startBulkTime));
+        // 批量获取所有价格
+        Map<java.time.LocalDateTime, Map<String, Double>> bulkPriceMap;
+        if (sharedPriceMap != null && !sharedPriceMap.isEmpty()) {
+            bulkPriceMap = sharedPriceMap;
+        } else {
+            log.info("🔍 开始批量从数据库查询 {} 个时间点的价格汇总...", allRequiredTimesUtc.size());
+            long startBulkTime = System.currentTimeMillis();
+            bulkPriceMap = klineService.getBulkPricesAtTimes(allRequiredTimesUtc);
+            log.info("⏱️ 数据库价格批量查询完成，耗时: {}ms", (System.currentTimeMillis() - startBulkTime));
+        }
         // --- 性能优化结束 ---
 
         List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();

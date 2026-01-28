@@ -970,41 +970,70 @@ public class IndexController {
 
             // --- 性能极致优化：预加载外提 ---
             List<String> finalSymbols = null;
+            Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = null;
             if (useApi) {
-                log.info("🚀 优化器检测到使用 API，开始执行全局预加载...");
+                log.info("🚀 优化器检测到使用 API，开始执行全局预加载与价格预取...");
                 long startGlobalPreload = System.currentTimeMillis();
 
                 // 1. 获取所有币种
                 finalSymbols = indexCalculatorService.getBinanceApiService().getAllUsdtSymbols();
 
-                // 2. 找到所有组合中的最大回退范围和最大持仓时间
+                // 2. 找到所有组合中的参数极值
                 int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(24);
                 int maxHoldHours = java.util.Arrays.stream(holdHoursOptions).max().orElse(24);
 
-                // 3. 计算全局预加载范围
+                // 3. 计算全局预加载范围 (用于拉取 API 数据并缓存到本地)
                 java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+                java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
                 java.time.LocalDate today = java.time.LocalDate.now(userZone);
                 java.time.LocalDate endDate = today.minusDays(1);
                 java.time.LocalDate startDate = endDate.minusDays(days - 1);
 
-                // 取最早可能的入场时间点
                 int minEntryHour = java.util.Arrays.stream(entryHourOptions).min().orElse(0);
-                // 取最晚可能的入场时间点
                 int maxEntryHour = java.util.Arrays.stream(entryHourOptions).max().orElse(23);
 
                 java.time.LocalDateTime globalPreloadStart = startDate.atTime(minEntryHour, 0)
                         .minusHours(maxRankingHours + 1);
                 java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxEntryHour, 0).plusHours(maxHoldHours);
 
-                log.info("📦 执行全局预加载: {} 至 {}", globalPreloadStart, globalPreloadEnd);
+                log.info("📦 执行全局 K 线同步: {} 至 {}", globalPreloadStart, globalPreloadEnd);
                 indexCalculatorService.getKlineService().preloadKlines(globalPreloadStart, globalPreloadEnd,
                         finalSymbols);
-                log.info("⏱️ 全局预加载完成，共耗时: {}ms", (System.currentTimeMillis() - startGlobalPreload));
+
+                // 4. 汇总所有组合需要的精确时间点 (用于从本地批量抓取到内存)
+                log.info("🔍 汇总所有参数组合所需的精确时间点...");
+                java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.HashSet<>();
+                for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                    for (int eHour : entryHourOptions) {
+                        java.time.LocalDateTime entryTimeUtcLookup = date.atTime(eHour, 0).atZone(userZone)
+                                .withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                        allRequiredTimesUtc.add(entryTimeUtcLookup);
+
+                        // 由于 holdHours 有多种可能，汇总所有可能
+                        for (int hHours : holdHoursOptions) {
+                            java.time.LocalDateTime exitTimeUtcLookup = date.atTime(eHour, 0).plusHours(hHours)
+                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                            allRequiredTimesUtc.add(exitTimeUtcLookup);
+                        }
+
+                        // 由于 rankingHours 有多种可能，汇总所有可能
+                        for (int rHours : rankingHoursOptions) {
+                            java.time.LocalDateTime baseTimeUtcLookup = date.atTime(eHour, 0).minusHours(rHours)
+                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                            allRequiredTimesUtc.add(baseTimeUtcLookup);
+                        }
+                    }
+                }
+
+                log.info("🔍 共汇总 {} 个全局时间点，开始执行分注批量抓取...", allRequiredTimesUtc.size());
+                sharedPriceMap = indexCalculatorService.getKlineService().getBulkPricesAtTimes(allRequiredTimesUtc);
+                log.info("⏱️ 全局预取完成，共耗时: {}ms", (System.currentTimeMillis() - startGlobalPreload));
             }
             // --- 优化结束 ---
 
             // 使用并行流执行回测
             final List<String> symbolsForTask = finalSymbols; // effectively final
+            final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
             List<Map<String, Object>> allResults = combinations.parallelStream()
                     .map(combo -> {
                         int rHours = combo[0];
@@ -1015,9 +1044,10 @@ public class IndexController {
 
                         com.binance.index.dto.BacktestResult backtestResult;
                         if (useApi) {
-                            // 使用性能优化版，传入预加载好的币种并跳过内部 preload
+                            // 使用极致优化版，传入预先抓取的全局价格图，实现 0 DB 竞态
                             backtestResult = indexCalculatorService.runShortTopNBacktestApi(
-                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, symbolsForTask, true);
+                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, symbolsForTask, true,
+                                    pricesForTask);
                         } else {
                             backtestResult = indexCalculatorService.runShortTop10Backtest(
                                     eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);
