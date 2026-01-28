@@ -1001,25 +1001,26 @@ public class IndexController {
                         finalSymbols);
 
                 // 4. 汇总所有组合需要的精确时间点 (用于从本地批量抓取到内存)
+                // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
                 log.info("🔍 汇总所有参数组合所需的精确时间点...");
                 java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.HashSet<>();
                 for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
                     for (int eHour : entryHourOptions) {
                         java.time.LocalDateTime entryTimeUtcLookup = date.atTime(eHour, 0).atZone(userZone)
-                                .withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                                .withZoneSameInstant(utcZone).toLocalDateTime();
                         allRequiredTimesUtc.add(entryTimeUtcLookup);
 
                         // 由于 holdHours 有多种可能，汇总所有可能
                         for (int hHours : holdHoursOptions) {
                             java.time.LocalDateTime exitTimeUtcLookup = date.atTime(eHour, 0).plusHours(hHours)
-                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
                             allRequiredTimesUtc.add(exitTimeUtcLookup);
                         }
 
                         // 由于 rankingHours 有多种可能，汇总所有可能
                         for (int rHours : rankingHoursOptions) {
                             java.time.LocalDateTime baseTimeUtcLookup = date.atTime(eHour, 0).minusHours(rHours)
-                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
                             allRequiredTimesUtc.add(baseTimeUtcLookup);
                         }
                     }

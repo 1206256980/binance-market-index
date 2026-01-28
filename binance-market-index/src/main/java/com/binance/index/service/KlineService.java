@@ -242,11 +242,12 @@ public class KlineService {
         }
 
         // 按时间点分组，再按币种分组存价格
+        // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格
         long startProcess = System.currentTimeMillis();
         Map<LocalDateTime, Map<String, Double>> result = allKlines.stream()
                 .collect(Collectors.groupingBy(
                         HourlyKline::getOpenTime,
-                        Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getClosePrice, (v1, v2) -> v1)));
+                        Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getOpenPrice, (v1, v2) -> v1)));
         long processElapsed = System.currentTimeMillis() - startProcess;
 
         log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB分批查询 {}ms, 内存处理 {}ms)",

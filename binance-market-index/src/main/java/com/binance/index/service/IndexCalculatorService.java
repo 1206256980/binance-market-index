@@ -2565,6 +2565,8 @@ public class IndexCalculatorService {
             java.time.LocalDateTime changeBaseTimeUtc = changeBaseTimeLocal.atZone(userZone)
                     .withZoneSameInstant(utcZone).toLocalDateTime();
 
+            // 使用 openPrice 作为该时刻的价格：12:00的K线的openPrice就是12:00那一刻的价格
+            // 无需时间偏移，逻辑更清晰
             List<CoinPrice> changeBasePrices = findClosestPricesForBacktestCached(changeBaseTimeUtc, 30);
             List<CoinPrice> entryPrices = findClosestPricesForBacktestCached(entryTimeUtc, 30);
             List<CoinPrice> exitPrices = findClosestPricesForBacktestCached(exitTimeUtc, 30);
@@ -2575,12 +2577,16 @@ public class IndexCalculatorService {
                 continue;
             }
 
+            // 使用 openPrice 获取价格（如果没有则回退到 closePrice）
             Map<String, Double> changeBaseMap = changeBasePrices.stream()
-                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+                    .collect(Collectors.toMap(CoinPrice::getSymbol,
+                            p -> p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice(), (a, b) -> a));
             Map<String, Double> entryMap = entryPrices.stream()
-                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+                    .collect(Collectors.toMap(CoinPrice::getSymbol,
+                            p -> p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice(), (a, b) -> a));
             Map<String, Double> exitMap = exitPrices.stream()
-                    .collect(Collectors.toMap(CoinPrice::getSymbol, CoinPrice::getPrice, (a, b) -> a));
+                    .collect(Collectors.toMap(CoinPrice::getSymbol,
+                            p -> p.getOpenPrice() != null ? p.getOpenPrice() : p.getPrice(), (a, b) -> a));
 
             List<Map.Entry<String, Double>> changeList = new ArrayList<>();
             for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
@@ -2817,6 +2823,7 @@ public class IndexCalculatorService {
         // --- 优化结束 ---
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
+        // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
         List<java.time.LocalDateTime> allRequiredTimesUtc = new ArrayList<>();
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
@@ -2824,11 +2831,11 @@ public class IndexCalculatorService {
             java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
             allRequiredTimesUtc
-                    .add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
+                    .add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
             allRequiredTimesUtc
-                    .add(exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
+                    .add(exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
             allRequiredTimesUtc.add(
-                    changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
+                    changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
         }
 
         // 批量获取所有价格
@@ -2857,13 +2864,13 @@ public class IndexCalculatorService {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
 
-            // 获取 UTC 时间并偏移 -1 小时，以取到对应时刻的 closePrice
+            // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
             java.time.LocalDateTime entryTimeUtcLookup = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime().minusHours(1);
+                    .toLocalDateTime();
             java.time.LocalDateTime exitTimeUtcLookup = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime().minusHours(1);
+                    .toLocalDateTime();
             java.time.LocalDateTime changeBaseTimeUtcLookup = entryTimeLocal.minusHours(rankingHours)
-                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
+                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
             // 从批量映射中获取价格，不再触发数据库查询
             Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtcLookup, new HashMap<>());
