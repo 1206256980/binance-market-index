@@ -852,20 +852,21 @@ public class IndexController {
                     "days", days,
                     "rankingHours", rankingHours,
                     "timezone", timezone));
-            response.put("summary", Map.of(
-                    "totalDays", result.getTotalDays(),
-                    "validDays", result.getValidDays(),
-                    "totalTrades", result.getTotalTrades(),
-                    "winTrades", result.getWinTrades(),
-                    "loseTrades", result.getLoseTrades(),
-                    "winRate", result.getWinRate(),
-                    "winDays", result.getWinDays(),
-                    "loseDays", result.getLoseDays(),
-                    "dailyWinRate", result.getDailyWinRate(),
-                    "winMonths", result.getWinMonths(),
-                    "loseMonths", result.getLoseMonths(),
-                    "monthlyWinRate", result.getMonthlyWinRate(),
-                    "totalProfit", result.getTotalProfit()));
+            Map<String, Object> summary = new HashMap<>();
+            summary.put("totalDays", result.getTotalDays());
+            summary.put("validDays", result.getValidDays());
+            summary.put("totalTrades", result.getTotalTrades());
+            summary.put("winTrades", result.getWinTrades());
+            summary.put("loseTrades", result.getLoseTrades());
+            summary.put("winRate", result.getWinRate());
+            summary.put("winDays", result.getWinDays());
+            summary.put("loseDays", result.getLoseDays());
+            summary.put("dailyWinRate", result.getDailyWinRate());
+            summary.put("winMonths", result.getWinMonths());
+            summary.put("loseMonths", result.getLoseMonths());
+            summary.put("monthlyWinRate", result.getMonthlyWinRate());
+            summary.put("totalProfit", result.getTotalProfit());
+            response.put("summary", summary);
             response.put("dailyResults", result.getDailyResults());
             response.put("skippedDays", result.getSkippedDays());
 
