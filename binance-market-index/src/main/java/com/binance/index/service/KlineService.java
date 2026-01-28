@@ -218,15 +218,20 @@ public class KlineService {
         }
 
         log.info("开始批量从本地查询 {} 个时间点的价格数据...", times.size());
+        long startQuery = System.currentTimeMillis();
         List<HourlyKline> klines = hourlyKlineRepository.findAllByOpenTimeIn(times);
+        long queryElapsed = System.currentTimeMillis() - startQuery;
 
         // 按时间点分组，再按币种分组存价格
+        long startProcess = System.currentTimeMillis();
         Map<LocalDateTime, Map<String, Double>> result = klines.stream()
                 .collect(Collectors.groupingBy(
                         HourlyKline::getOpenTime,
                         Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getClosePrice, (v1, v2) -> v1)));
+        long processElapsed = System.currentTimeMillis() - startProcess;
 
-        log.info("本地批量查询完成，共获取 {} 个时间点的数据", result.size());
+        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB查询 {}ms, 内存处理 {}ms)", 
+                klines.size(), result.size(), (queryElapsed + processElapsed), queryElapsed, processElapsed);
         return result;
     }
 

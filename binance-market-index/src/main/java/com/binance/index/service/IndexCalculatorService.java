@@ -2765,7 +2765,10 @@ public class IndexCalculatorService {
 
         // --- 优化：预加载所有需要的K线数据 ---
         // 1. 获取所有交易对
+        long startSymbolsTime = System.currentTimeMillis();
         List<String> symbols = binanceApiService.getAllUsdtSymbols();
+        log.info("📊 获取 {} 个交易对耗时: {}ms", symbols.size(), (System.currentTimeMillis() - startSymbolsTime));
+
         if (symbols.isEmpty()) {
             log.warn("无法获取交易对列表，回测终止");
             com.binance.index.dto.BacktestResult errorResult = new com.binance.index.dto.BacktestResult();
@@ -2774,23 +2777,22 @@ public class IndexCalculatorService {
         }
 
         // 2. 预加载时间范围（基准时间到结束时间）
-        // 修正：向前多取1小时，以支持 T-1h 的价格查找
         java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours + 1);
         java.time.LocalDateTime preloadEnd = endDate.atTime(entryHour, entryMinute).plusHours(holdHours);
 
-        log.info("🚀 启动数据预拉取器 (修正对齐版): {} 至 {}", preloadStart, preloadEnd);
+        log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
+        long startPreloadTime = System.currentTimeMillis();
         klineService.preloadKlines(preloadStart, preloadEnd, symbols);
+        log.info("⏱️ 数据预拉取完成，总耗时: {}ms", (System.currentTimeMillis() - startPreloadTime));
         // --- 优化结束 ---
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
-        // 修正：所有查询点都要包含 T 和 T-1h
         List<java.time.LocalDateTime> allRequiredTimesUtc = new ArrayList<>();
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
             java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
-            // 我们需要 T-1h 的 K 线来获得 T 时刻的价格
             allRequiredTimesUtc
                     .add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
             allRequiredTimesUtc
@@ -2799,9 +2801,11 @@ public class IndexCalculatorService {
                     changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
         }
 
-        // 批量获取所有价格
+        log.info("🔍 开始批量从数据库查询 {} 个时间点的价格汇总...", allRequiredTimesUtc.size());
+        long startBulkTime = System.currentTimeMillis();
         Map<java.time.LocalDateTime, Map<String, Double>> bulkPriceMap = klineService
                 .getBulkPricesAtTimes(allRequiredTimesUtc);
+        log.info("⏱️ 数据库价格批量查询完成，耗时: {}ms", (System.currentTimeMillis() - startBulkTime));
         // --- 性能优化结束 ---
 
         List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();
@@ -2812,7 +2816,9 @@ public class IndexCalculatorService {
         int loseTrades = 0;
         double totalProfit = 0;
 
+        long startLoopTime = System.currentTimeMillis();
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            long startDayTime = System.currentTimeMillis();
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
 
@@ -2837,6 +2843,7 @@ public class IndexCalculatorService {
             }
 
             // 计算涨幅并排序
+            long startRankTime = System.currentTimeMillis();
             List<Map.Entry<String, Double>> changeList = new ArrayList<>();
             for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
                 String symbol = entry.getKey();
@@ -2850,6 +2857,7 @@ public class IndexCalculatorService {
 
             changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
             List<Map.Entry<String, Double>> topCoins = changeList.stream().limit(topN).collect(Collectors.toList());
+            long rankElapsed = System.currentTimeMillis() - startRankTime;
 
             if (topCoins.isEmpty()) {
                 skippedDays.add(date.toString());
@@ -2901,7 +2909,13 @@ public class IndexCalculatorService {
             dailyResult.setLoseCount(dailyLose);
             dailyResult.setTrades(trades);
             dailyResults.add(dailyResult);
+
+            if (days <= 7) {
+                log.debug("📅 日期 {} 计算完成，耗时: {}ms (排名耗时: {}ms)", date, (System.currentTimeMillis() - startDayTime),
+                        rankElapsed);
+            }
         }
+        log.info("⏱️ 回测循环执行完成，总耗时: {}ms", (System.currentTimeMillis() - startLoopTime));
 
         // 使用setter创建总结果
         com.binance.index.dto.BacktestResult result = new com.binance.index.dto.BacktestResult();
