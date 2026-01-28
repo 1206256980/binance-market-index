@@ -9,6 +9,10 @@ function OptimizerModule() {
     const [totalAmount, setTotalAmount] = useState(1000)
     const [days, setDays] = useState(30)
     const [selectedHours, setSelectedHours] = useState([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
+    const [selectedHoldHours, setSelectedHoldHours] = useState([24, 48, 72])
+
+    // 配置项
+    const holdHourOptions = [1, 2, 4, 8, 12, 24, 48, 72, 96, 120, 168]
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -27,13 +31,28 @@ function OptimizerModule() {
         }
     }
 
+    const toggleHoldHour = (hour) => {
+        if (selectedHoldHours.includes(hour)) {
+            setSelectedHoldHours(selectedHoldHours.filter(h => h !== hour))
+        } else {
+            setSelectedHoldHours([...selectedHoldHours, hour].sort((a, b) => a - b))
+        }
+    }
+
     const selectAllHours = () => setSelectedHours(Array.from({ length: 24 }, (_, i) => i))
     const selectNoneHours = () => setSelectedHours([])
     const selectDefaultHours = () => setSelectedHours([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22])
 
+    const selectAllHoldHours = () => setSelectedHoldHours([...holdHourOptions])
+    const selectNoneHoldHours = () => setSelectedHoldHours([])
+
     const runOptimize = async () => {
         if (selectedHours.length === 0) {
             setError('请至少选择一个入场时间')
+            return
+        }
+        if (selectedHoldHours.length === 0) {
+            setError('请至少选择一个持仓时间')
             return
         }
 
@@ -47,6 +66,7 @@ function OptimizerModule() {
                     totalAmount,
                     days,
                     entryHours: selectedHours.join(','),
+                    holdHours: selectedHoldHours.join(','),
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -151,6 +171,30 @@ function OptimizerModule() {
                                     onClick={() => toggleHour(i)}
                                 >
                                     {i}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="divider-v"></div>
+
+                    <div className="hour-selection-compact">
+                        <div className="label-with-actions">
+                            <label>持仓时间 ({selectedHoldHours.length})</label>
+                            <div className="quick-btns">
+                                <button onClick={selectAllHoldHours}>全选</button>
+                                <button onClick={selectNoneHoldHours}>全清</button>
+                            </div>
+                        </div>
+                        <div className="hour-tags-container">
+                            {holdHourOptions.map(h => (
+                                <span
+                                    key={h}
+                                    className={`hour-tag ${selectedHoldHours.includes(h) ? 'active' : ''}`}
+                                    onClick={() => toggleHoldHour(h)}
+                                    style={{ minWidth: '32px' }}
+                                >
+                                    {h}
                                 </span>
                             ))}
                         </div>

@@ -884,7 +884,8 @@ public class IndexController {
             @RequestParam(defaultValue = "1000") double totalAmount,
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(required = false) String entryHours,
-            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
+            @RequestParam(required = false) String holdHours) {
         log.info("------------------------- 开始调用 /backtest/optimize 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
 
@@ -904,9 +905,10 @@ public class IndexController {
             int[] rankingHoursOptions = { 24, 48, 72, 168 };
             int[] topNOptions = { 5, 10, 15, 20, 30 };
             int[] entryHourOptions;
+            int[] holdHoursOptions;
 
+            // 解析入场时间
             if (entryHours != null && !entryHours.trim().isEmpty()) {
-                // 解析用户自定义的小时
                 try {
                     entryHourOptions = java.util.Arrays.stream(entryHours.split(","))
                             .map(String::trim)
@@ -924,19 +926,39 @@ public class IndexController {
                     entryHourOptions = new int[] { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 };
                 }
             } else {
-                // 默认每2小时
                 entryHourOptions = new int[] { 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22 };
             }
 
-            int[] holdHoursOptions = { 24, 48, 72 };
+            // 解析持仓时间
+            if (holdHours != null && !holdHours.trim().isEmpty()) {
+                try {
+                    holdHoursOptions = java.util.Arrays.stream(holdHours.split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .mapToInt(Integer::parseInt)
+                            .filter(h -> h > 0)
+                            .distinct()
+                            .sorted()
+                            .toArray();
+
+                    if (holdHoursOptions.length == 0) {
+                        holdHoursOptions = new int[] { 24, 48, 72 };
+                    }
+                } catch (Exception e) {
+                    log.error("解析 holdHours 失败: " + holdHours, e);
+                    holdHoursOptions = new int[] { 24, 48, 72 };
+                }
+            } else {
+                holdHoursOptions = new int[] { 24, 48, 72 };
+            }
 
             // 预先生成所有参数组合，用于并行处理
             List<int[]> combinations = new java.util.ArrayList<>();
             for (int rankingHours : rankingHoursOptions) {
                 for (int topN : topNOptions) {
                     for (int entryHour : entryHourOptions) {
-                        for (int holdHours : holdHoursOptions) {
-                            combinations.add(new int[] { rankingHours, topN, entryHour, holdHours });
+                        for (int holdHour : holdHoursOptions) {
+                            combinations.add(new int[] { rankingHours, topN, entryHour, holdHour });
                         }
                     }
                 }
@@ -951,17 +973,17 @@ public class IndexController {
                         int rankingHours = combo[0];
                         int topN = combo[1];
                         int entryHour = combo[2];
-                        int holdHours = combo[3];
+                        int hHours = combo[3];
                         double amountPerCoin = totalAmount / topN;
 
                         com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
-                                entryHour, 0, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+                                entryHour, 0, amountPerCoin, days, rankingHours, hHours, topN, timezone);
 
                         Map<String, Object> res = new HashMap<>();
                         res.put("rankingHours", rankingHours);
                         res.put("topN", topN);
                         res.put("entryHour", entryHour);
-                        res.put("holdHours", holdHours);
+                        res.put("holdHours", hHours);
                         res.put("totalProfit", result.getTotalProfit());
                         res.put("winRate", result.getWinRate());
                         res.put("totalTrades", result.getTotalTrades());
