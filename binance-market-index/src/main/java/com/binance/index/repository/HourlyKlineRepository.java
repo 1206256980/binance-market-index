@@ -13,50 +13,61 @@ import java.util.Optional;
 @Repository
 public interface HourlyKlineRepository extends JpaRepository<HourlyKline, Long> {
 
-    /**
-     * 查找指定币种在指定时间点的K线
-     */
-    Optional<HourlyKline> findBySymbolAndOpenTime(String symbol, LocalDateTime openTime);
+        /**
+         * 查找指定币种在指定时间点的K线
+         */
+        Optional<HourlyKline> findBySymbolAndOpenTime(String symbol, LocalDateTime openTime);
 
-    /**
-     * 查找指定币种在时间范围内的所有K线
-     */
-    List<HourlyKline> findBySymbolAndOpenTimeBetweenOrderByOpenTime(
-            String symbol, LocalDateTime startTime, LocalDateTime endTime);
+        /**
+         * 查找指定币种在时间范围内的所有K线
+         */
+        List<HourlyKline> findBySymbolAndOpenTimeBetweenOrderByOpenTime(
+                        String symbol, LocalDateTime startTime, LocalDateTime endTime);
 
-    /**
-     * 查找指定时间点所有币种的K线
-     */
-    List<HourlyKline> findByOpenTime(LocalDateTime openTime);
+        /**
+         * 查找指定时间点所有币种的K线
+         */
+        List<HourlyKline> findByOpenTime(LocalDateTime openTime);
 
-    /**
-     * 检查指定币种在指定时间范围内是否有数据
-     */
-    @Query("SELECT COUNT(k) FROM HourlyKline k WHERE k.symbol = :symbol AND k.openTime BETWEEN :startTime AND :endTime")
-    long countBySymbolAndTimeRange(
-            @Param("symbol") String symbol,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime") LocalDateTime endTime);
+        /**
+         * 检查指定币种在指定时间范围内是否有数据
+         */
+        @Query("SELECT COUNT(k) FROM HourlyKline k WHERE k.symbol = :symbol AND k.openTime BETWEEN :startTime AND :endTime")
+        long countBySymbolAndTimeRange(
+                        @Param("symbol") String symbol,
+                        @Param("startTime") LocalDateTime startTime,
+                        @Param("endTime") LocalDateTime endTime);
 
-    /**
-     * 批量查询多个币种在指定时间点的收盘价
-     */
-    @Query("SELECT k FROM HourlyKline k WHERE k.openTime = :openTime")
-    List<HourlyKline> findAllByOpenTime(@Param("openTime") LocalDateTime openTime);
+        /**
+         * 批量查询多个币种在指定时间点的收盘价
+         */
+        @Query("SELECT k FROM HourlyKline k WHERE k.openTime = :openTime")
+        List<HourlyKline> findAllByOpenTime(@Param("openTime") LocalDateTime openTime);
 
-    /**
-     * 批量查询多个时间点的所有价格数据
-     */
-    @Query("SELECT k FROM HourlyKline k WHERE k.openTime IN :times")
-    List<HourlyKline> findAllByOpenTimeIn(@Param("times") java.util.Collection<LocalDateTime> times);
+        /**
+         * 批量查询多个时间点的所有价格数据
+         */
+        @Query("SELECT k FROM HourlyKline k WHERE k.openTime IN :times")
+        List<HourlyKline> findAllByOpenTimeIn(@Param("times") java.util.Collection<LocalDateTime> times);
 
-    /**
-     * 聚合查询：一次性统计多个币种在指定范围内的记录数
-     * 用于优化 preloadKlines 的性能，避免循环单条 count
-     * 返回结果为 Object[]，0位是symbol, 1位是count
-     */
-    @Query("SELECT k.symbol, COUNT(k) FROM HourlyKline k WHERE k.openTime BETWEEN :startTime AND :endTime GROUP BY k.symbol")
-    List<Object[]> countBySymbolInRange(
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime") LocalDateTime endTime);
+        /**
+         * 聚合查询：一次性统计多个币种在指定范围内的记录数
+         * 用于优化 preloadKlines 的性能，避免循环单条 count
+         * 返回结果为 Object[]，0位是symbol, 1位是count
+         */
+        @Query("SELECT k.symbol, COUNT(k) FROM HourlyKline k WHERE k.openTime BETWEEN :startTime AND :endTime GROUP BY k.symbol")
+        List<Object[]> countBySymbolInRange(
+                        @Param("startTime") LocalDateTime startTime,
+                        @Param("endTime") LocalDateTime endTime);
+
+        /**
+         * 查找指定币种的所有K线（按时间降序）
+         */
+        List<HourlyKline> findBySymbolOrderByOpenTimeDesc(String symbol);
+
+        /**
+         * 查找指定币种的K线（分页，按时间降序）
+         */
+        List<HourlyKline> findBySymbolOrderByOpenTimeDesc(String symbol,
+                        org.springframework.data.domain.Pageable pageable);
 }

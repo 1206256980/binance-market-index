@@ -1121,4 +1121,71 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(result);
         }
     }
+
+    /**
+     * 查询指定币种的历史小时K线价格
+     * 用于验证数据库数据是否正确完整
+     * 
+     * @param symbol 币种名称（如 BTCUSDT）
+     * @param hours  限制返回最近多少小时的数据（可选，不传则返回全部）
+     */
+    @GetMapping("/kline/history")
+    public ResponseEntity<Map<String, Object>> getKlineHistory(
+            @RequestParam String symbol,
+            @RequestParam(required = false) Integer hours) {
+
+        log.info("查询K线历史: symbol={}, hours={}", symbol, hours);
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 确保 symbol 格式正确（大写）
+            String normalizedSymbol = symbol.toUpperCase();
+
+            List<com.binance.index.entity.HourlyKline> klines;
+
+            if (hours != null && hours > 0) {
+                // 返回最近 N 小时的数据
+                org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0,
+                        hours);
+                klines = klineService.getHourlyKlineRepository()
+                        .findBySymbolOrderByOpenTimeDesc(normalizedSymbol, pageable);
+            } else {
+                // 返回全部数据
+                klines = klineService.getHourlyKlineRepository()
+                        .findBySymbolOrderByOpenTimeDesc(normalizedSymbol);
+            }
+
+            // 转换为简洁的响应格式
+            List<Map<String, Object>> data = klines.stream().map(k -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("openTime", k.getOpenTime().toString());
+                item.put("openPrice", k.getOpenPrice());
+                item.put("highPrice", k.getHighPrice());
+                item.put("lowPrice", k.getLowPrice());
+                item.put("closePrice", k.getClosePrice());
+                item.put("volume", k.getVolume());
+                return item;
+            }).collect(Collectors.toList());
+
+            response.put("success", true);
+            response.put("symbol", normalizedSymbol);
+            response.put("count", data.size());
+            response.put("data", data);
+
+            // 添加数据完整性信息
+            if (!klines.isEmpty()) {
+                response.put("latestTime", klines.get(0).getOpenTime().toString());
+                response.put("earliestTime", klines.get(klines.size() - 1).getOpenTime().toString());
+            }
+
+            log.info("K线历史查询完成: symbol={}, 返回 {} 条记录", normalizedSymbol, data.size());
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("查询K线历史失败: symbol={}", symbol, e);
+            response.put("success", false);
+            response.put("message", "查询失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }

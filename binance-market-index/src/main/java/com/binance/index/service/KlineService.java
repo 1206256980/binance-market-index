@@ -32,6 +32,13 @@ public class KlineService {
     private BinanceApiService binanceApiService;
 
     /**
+     * 获取 HourlyKlineRepository（用于外部查询）
+     */
+    public HourlyKlineRepository getHourlyKlineRepository() {
+        return hourlyKlineRepository;
+    }
+
+    /**
      * 获取指定时间点所有币种的收盘价（用于回测）
      * 会自动处理数据缓存
      * 
