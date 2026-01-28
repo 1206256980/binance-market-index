@@ -131,7 +131,7 @@ public class KlineService {
 
     /**
      * 预加载指定日期范围的所有K线数据
-     * 用于回测前预先缓存数据，提高回测速度
+     * 用于回测前预先缓存数据，提高回测速度，并防止IP被封
      */
     @Transactional
     public void preloadKlines(LocalDateTime startTime, LocalDateTime endTime, List<String> symbols) {
@@ -142,23 +142,26 @@ public class KlineService {
 
         int totalSymbols = symbols.size();
         int processed = 0;
+        int newKlinesCount = 0;
 
         for (String symbol : symbols) {
             processed++;
 
             try {
-                // 检查本地是否已有足够数据
+                // 1. 检查本地是否已有足够数据（粗略检查）
                 long existingCount = hourlyKlineRepository.countBySymbolAndTimeRange(symbol, startTime, endTime);
-                long expectedCount = (endTimeMs - startTimeMs) / 3600000; // 预期的小时数
+                long expectedHours = java.time.Duration.between(startTime, endTime).toHours() + 1;
 
-                if (existingCount >= expectedCount * 0.9) {
-                    log.debug("[{}/{}] {} 已有足够缓存数据，跳过", processed, totalSymbols, symbol);
+                if (existingCount >= expectedHours * 0.9) {
+                    if (processed % 50 == 0) {
+                        log.info("进度: {}/{} - {} 已有缓存", processed, totalSymbols, symbol);
+                    }
                     continue;
                 }
 
-                log.info("[{}/{}] 正在获取 {} 的历史K线...", processed, totalSymbols, symbol);
+                log.info("进度: {}/{} - 正在从API拉取 {} 的历史K线 (预期 {} 条)...", processed, totalSymbols, symbol, expectedHours);
 
-                // 从API获取1小时K线
+                // 2. 从API获取1小时K线（分页获取，每页1000条，90天只需3页）
                 List<KlineData> klines = binanceApiService.getKlinesWithPagination(
                         symbol, "1h", startTimeMs, endTimeMs, 1000);
 
@@ -174,27 +177,33 @@ public class KlineService {
                                     k.getVolume()))
                             .collect(Collectors.toList());
 
-                    // 逐条保存，忽略重复
-                    int saved = 0;
-                    for (HourlyKline kline : toSave) {
-                        try {
-                            if (!hourlyKlineRepository.findBySymbolAndOpenTime(
-                                    kline.getSymbol(), kline.getOpenTime()).isPresent()) {
-                                hourlyKlineRepository.save(kline);
-                                saved++;
-                            }
-                        } catch (Exception ignored) {
-                        }
+                    // 3. 批量保存（saveAll比循环save快得多）
+                    // 为了处理可能存在的唯一索引冲突，可以先查出已有的时间点
+                    List<HourlyKline> existing = hourlyKlineRepository.findBySymbolAndOpenTimeBetweenOrderByOpenTime(
+                            symbol, startTime, endTime);
+                    Set<LocalDateTime> existingTimes = existing.stream()
+                            .map(HourlyKline::getOpenTime)
+                            .collect(Collectors.toSet());
+
+                    List<HourlyKline> filteredToSave = toSave.stream()
+                            .filter(k -> !existingTimes.contains(k.getOpenTime()))
+                            .collect(Collectors.toList());
+
+                    if (!filteredToSave.isEmpty()) {
+                        hourlyKlineRepository.saveAll(filteredToSave);
+                        newKlinesCount += filteredToSave.size();
                     }
-                    log.debug("[{}/{}] {} 保存了 {} 条K线", processed, totalSymbols, symbol, saved);
                 }
 
+                // 为了保险起见，每处理完一个币种稍微停一下（虽然 getKlinesWithPagination 内部已有停顿）
+                Thread.sleep(100);
+
             } catch (Exception e) {
-                log.warn("[{}/{}] {} 获取失败: {}", processed, totalSymbols, symbol, e.getMessage());
+                log.warn("进度: {}/{} - {} 预加载失败: {}", processed, totalSymbols, symbol, e.getMessage());
             }
         }
 
-        log.info("K线数据预加载完成");
+        log.info("K线数据预加载成功！共计处理 {} 个币种，新增保存 {} 条K线数据", totalSymbols, newKlinesCount);
     }
 
     /**

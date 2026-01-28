@@ -2763,6 +2763,24 @@ public class IndexCalculatorService {
 
         log.info("回测日期范围: {} 至 {}", startDate, endDate);
 
+        // --- 优化：预加载所有需要的K线数据 ---
+        // 1. 获取所有交易对
+        List<String> symbols = binanceApiService.getAllUsdtSymbols();
+        if (symbols.isEmpty()) {
+            log.warn("无法获取交易对列表，回测终止");
+            com.binance.index.dto.BacktestResult errorResult = new com.binance.index.dto.BacktestResult();
+            errorResult.setSkippedDays(java.util.List.of("无法获取交易对列表"));
+            return errorResult;
+        }
+
+        // 2. 预加载时间范围（基准时间到结束时间）
+        java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours);
+        java.time.LocalDateTime preloadEnd = endDate.atTime(entryHour, entryMinute).plusHours(holdHours);
+
+        log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
+        klineService.preloadKlines(preloadStart, preloadEnd, symbols);
+        // --- 优化结束 ---
+
         List<com.binance.index.dto.BacktestDailyResult> dailyResults = new ArrayList<>();
         List<String> skippedDays = new ArrayList<>();
 
