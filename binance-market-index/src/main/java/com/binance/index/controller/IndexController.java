@@ -24,14 +24,17 @@ public class IndexController {
     private static final Logger log = LoggerFactory.getLogger(IndexController.class);
     private final IndexCalculatorService indexCalculatorService;
     private final com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler;
+    private final com.binance.index.service.KlineService klineService;
 
     // 限制 uptrend-distribution 接口并发为1的信号量
     private final Semaphore uptrendSemaphore = new Semaphore(1);
 
     public IndexController(IndexCalculatorService indexCalculatorService,
-            com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler) {
+            com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler,
+            com.binance.index.service.KlineService klineService) {
         this.indexCalculatorService = indexCalculatorService;
         this.dataCollectorScheduler = dataCollectorScheduler;
+        this.klineService = klineService;
     }
 
     /**
@@ -996,27 +999,28 @@ public class IndexController {
     }
 
     /**
-     * 回补历史5分钟K线价格数据（专供策略优化器使用）
-     * 
-     * 此接口仅保存价格数据，不会影响基准价格。
-     * 已存在的数据会自动跳过，不会重复保存。
-     *
-     * 示例:
-     * - POST /api/index/backfill-prices?days=90 （回补最近90天的数据）
-     * - POST /api/index/backfill-prices?days=30 （回补最近30天的数据）
-     *
-     * @param days 回补天数（1-365）
-     * @return 回补结果统计
+     * 清空本地小时K线缓存数据
      */
-    @PostMapping("/backfill-prices")
-    public ResponseEntity<Map<String, Object>> backfillPrices(
-            @RequestParam(defaultValue = "90") int days) {
-        log.info("收到价格数据回补请求: days={}", days);
-        Map<String, Object> result = indexCalculatorService.backfillPriceDataForOptimizer(days);
-        if ((boolean) result.get("success")) {
-            return ResponseEntity.ok(result);
-        } else {
-            return ResponseEntity.badRequest().body(result);
+    @PostMapping("/backtest/clear-cache")
+    public ResponseEntity<Map<String, Object>> clearKlineCache() {
+        log.info("收到清空 K 线缓存请求");
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (klineService != null) {
+                klineService.clearCache();
+                result.put("success", true);
+                result.put("message", "本地 K 线缓存已成功清空");
+                return ResponseEntity.ok(result);
+            } else {
+                result.put("success", false);
+                result.put("message", "KlineService 未初始化");
+                return ResponseEntity.badRequest().body(result);
+            }
+        } catch (Exception e) {
+            log.error("清空缓存失败", e);
+            result.put("success", false);
+            result.put("message", "清空缓存失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(result);
         }
     }
 }

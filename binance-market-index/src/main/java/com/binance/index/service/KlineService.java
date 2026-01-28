@@ -232,4 +232,15 @@ public class KlineService {
 
         return null;
     }
+
+    /**
+     * 清空本地所有K线缓存
+     */
+    @Transactional
+    public void clearCache() {
+        log.info("正在清空本地 K 线缓存数据...");
+        long count = hourlyKlineRepository.count();
+        hourlyKlineRepository.deleteAllInBatch();
+        log.info("本地 K 线缓存已清空，共删除 {} 条记录", count);
+    }
 }
