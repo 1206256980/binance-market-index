@@ -2774,24 +2774,29 @@ public class IndexCalculatorService {
         }
 
         // 2. 预加载时间范围（基准时间到结束时间）
-        java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours);
+        // 修正：向前多取1小时，以支持 T-1h 的价格查找
+        java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours + 1);
         java.time.LocalDateTime preloadEnd = endDate.atTime(entryHour, entryMinute).plusHours(holdHours);
 
-        log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
+        log.info("🚀 启动数据预拉取器 (修正对齐版): {} 至 {}", preloadStart, preloadEnd);
         klineService.preloadKlines(preloadStart, preloadEnd, symbols);
         // --- 优化结束 ---
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
+        // 修正：所有查询点都要包含 T 和 T-1h
         List<java.time.LocalDateTime> allRequiredTimesUtc = new ArrayList<>();
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
             java.time.LocalDateTime changeBaseTimeLocal = entryTimeLocal.minusHours(rankingHours);
 
-            allRequiredTimesUtc.add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
-            allRequiredTimesUtc.add(exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+            // 我们需要 T-1h 的 K 线来获得 T 时刻的价格
             allRequiredTimesUtc
-                    .add(changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+                    .add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
+            allRequiredTimesUtc
+                    .add(exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
+            allRequiredTimesUtc.add(
+                    changeBaseTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1));
         }
 
         // 批量获取所有价格
@@ -2811,20 +2816,21 @@ public class IndexCalculatorService {
             java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
             java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
 
-            java.time.LocalDateTime entryTimeUtc = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
-            java.time.LocalDateTime exitTimeUtc = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
-            java.time.LocalDateTime changeBaseTimeUtc = entryTimeLocal.minusHours(rankingHours)
-                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+            // 获取 UTC 时间并偏移 -1 小时，以取到对应时刻的 closePrice
+            java.time.LocalDateTime entryTimeUtcLookup = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime().minusHours(1);
+            java.time.LocalDateTime exitTimeUtcLookup = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
+                    .toLocalDateTime().minusHours(1);
+            java.time.LocalDateTime changeBaseTimeUtcLookup = entryTimeLocal.minusHours(rankingHours)
+                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime().minusHours(1);
 
             // 从批量映射中获取价格，不再触发数据库查询
-            Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtc, new HashMap<>());
-            Map<String, Double> entryMap = bulkPriceMap.getOrDefault(entryTimeUtc, new HashMap<>());
-            Map<String, Double> exitMap = bulkPriceMap.getOrDefault(exitTimeUtc, new HashMap<>());
+            Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtcLookup, new HashMap<>());
+            Map<String, Double> entryMap = bulkPriceMap.getOrDefault(entryTimeUtcLookup, new HashMap<>());
+            Map<String, Double> exitMap = bulkPriceMap.getOrDefault(exitTimeUtcLookup, new HashMap<>());
 
             if (changeBaseMap.isEmpty() || entryMap.isEmpty() || exitMap.isEmpty()) {
-                log.warn("日期 {} 数据不完整 (Base:{}, Entry:{}, Exit:{})，跳过",
+                log.warn("日期 {} 数据不完整 (BaseLookup:{}, EntryLookup:{}, ExitLookup:{})，跳过",
                         date, changeBaseMap.size(), entryMap.size(), exitMap.size());
                 skippedDays.add(date.toString());
                 continue;
