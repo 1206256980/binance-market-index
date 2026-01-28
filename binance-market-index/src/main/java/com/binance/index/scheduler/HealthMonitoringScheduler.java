@@ -35,25 +35,26 @@ public class HealthMonitoringScheduler {
     /**
      * 每分钟检查一次 JVM 内存使用情况
      */
-    @Scheduled(fixedDelay = 60000)
-    public void monitorMemory() {
-        Runtime runtime = Runtime.getRuntime();
-        long maxMemory = runtime.maxMemory();
-        long totalMemory = runtime.totalMemory();
-        long freeMemory = runtime.freeMemory();
-        long usedMemory = totalMemory - freeMemory;
+    // @Scheduled(fixedDelay = 60000)
+    // public void monitorMemory() {
+    // Runtime runtime = Runtime.getRuntime();
+    // long maxMemory = runtime.maxMemory();
+    // long totalMemory = runtime.totalMemory();
+    // long freeMemory = runtime.freeMemory();
+    // long usedMemory = totalMemory - freeMemory;
 
-        double usageRatio = (double) usedMemory / maxMemory;
+    // double usageRatio = (double) usedMemory / maxMemory;
 
-        if (log.isDebugEnabled()) {
-            log.debug("[JVM-MONITOR] Heap Usage: {} / {} ({})",
-                    formatSize(usedMemory), formatSize(maxMemory), String.format("%.2f%%", usageRatio * 100));
-        }
+    // if (log.isDebugEnabled()) {
+    // log.debug("[JVM-MONITOR] Heap Usage: {} / {} ({})",
+    // formatSize(usedMemory), formatSize(maxMemory), String.format("%.2f%%",
+    // usageRatio * 100));
+    // }
 
-        if (usageRatio >= memoryThreshold) {
-            handleMemoryAlert(usedMemory, maxMemory, usageRatio);
-        }
-    }
+    // if (usageRatio >= memoryThreshold) {
+    // handleMemoryAlert(usedMemory, maxMemory, usageRatio);
+    // }
+    // }
 
     private void handleMemoryAlert(long used, long max, double ratio) {
         LocalDateTime now = LocalDateTime.now();

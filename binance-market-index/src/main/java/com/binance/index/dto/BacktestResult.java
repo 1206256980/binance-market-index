@@ -13,7 +13,10 @@ public class BacktestResult {
     private Integer totalTrades; // 总交易笔数
     private Integer winTrades; // 盈利笔数
     private Integer loseTrades; // 亏损笔数
-    private Double winRate; // 胜率(%)
+    private Double winRate; // 单笔胜率(%)
+    private Integer winDays; // 盈利天数（当日总盈亏>0）
+    private Integer loseDays; // 亏损天数（当日总盈亏<=0）
+    private Double dailyWinRate; // 每日盈利胜率(%)
     private Double totalProfit; // 总盈亏(U)
 
     // 每日明细
@@ -72,6 +75,30 @@ public class BacktestResult {
 
     public void setWinRate(Double winRate) {
         this.winRate = winRate;
+    }
+
+    public Integer getWinDays() {
+        return winDays;
+    }
+
+    public void setWinDays(Integer winDays) {
+        this.winDays = winDays;
+    }
+
+    public Integer getLoseDays() {
+        return loseDays;
+    }
+
+    public void setLoseDays(Integer loseDays) {
+        this.loseDays = loseDays;
+    }
+
+    public Double getDailyWinRate() {
+        return dailyWinRate;
+    }
+
+    public void setDailyWinRate(Double dailyWinRate) {
+        this.dailyWinRate = dailyWinRate;
     }
 
     public Double getTotalProfit() {

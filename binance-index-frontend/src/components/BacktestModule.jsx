@@ -203,9 +203,15 @@ function BacktestModule() {
                             <div className="summary-value">{result.summary.totalTrades} 笔</div>
                         </div>
                         <div className="summary-card">
-                            <div className="summary-label">🎯 胜率</div>
+                            <div className="summary-label">🎯 单笔胜率</div>
                             <div className={`summary-value ${result.summary.winRate >= 50 ? 'positive' : 'negative'}`}>
                                 {result.summary.winRate}%
+                            </div>
+                        </div>
+                        <div className="summary-card">
+                            <div className="summary-label">📊 每日胜率</div>
+                            <div className={`summary-value ${result.summary.dailyWinRate >= 50 ? 'positive' : 'negative'}`}>
+                                {result.summary.dailyWinRate}%
                             </div>
                         </div>
                         <div className="summary-card">

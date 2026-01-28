@@ -253,7 +253,10 @@ function OptimizerModule() {
                                     <th>入场</th>
                                     <th>持仓</th>
                                     <th className="sortable-header" onClick={() => handleSort('winRate')}>
-                                        胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                        单笔胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                    </th>
+                                    <th className="sortable-header" onClick={() => handleSort('dailyWinRate')}>
+                                        每日胜率 {sortField === 'dailyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
                                     </th>
                                     <th>交易数</th>
                                     <th className="sortable-header" onClick={() => handleSort('totalProfit')}>
@@ -273,6 +276,9 @@ function OptimizerModule() {
                                             <td>{strategy.holdHours}h</td>
                                             <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
                                                 {strategy.winRate}%
+                                            </td>
+                                            <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
+                                                {strategy.dailyWinRate}%
                                             </td>
                                             <td>{strategy.totalTrades}</td>
                                             <td className={getProfitClass(strategy.totalProfit)}>

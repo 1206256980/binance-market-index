@@ -2549,6 +2549,8 @@ public class IndexCalculatorService {
         int totalTrades = 0;
         int winTrades = 0;
         int loseTrades = 0;
+        int winDays = 0; // 盈利天数（当日总盈亏>0）
+        int loseDays = 0; // 亏损天数（当日总盈亏<=0）
         double totalProfit = 0;
 
         for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
@@ -2643,6 +2645,13 @@ public class IndexCalculatorService {
 
             totalProfit += dailyProfit;
 
+            // 统计每日胜率
+            if (dailyProfit > 0) {
+                winDays++;
+            } else {
+                loseDays++;
+            }
+
             com.binance.index.dto.BacktestDailyResult dailyResult = new com.binance.index.dto.BacktestDailyResult();
             dailyResult.setDate(date.toString());
             dailyResult.setEntryTime(entryTimeLocal.toString());
@@ -2661,12 +2670,17 @@ public class IndexCalculatorService {
         result.setWinTrades(winTrades);
         result.setLoseTrades(loseTrades);
         result.setWinRate(totalTrades > 0 ? Math.round(winTrades * 10000.0 / totalTrades) / 100.0 : 0);
+        result.setWinDays(winDays);
+        result.setLoseDays(loseDays);
+        result.setDailyWinRate(
+                dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);
         result.setSkippedDays(skippedDays);
 
-        log.info("回测完成: 有效天数={}/{}, 总交易={}, 胜率={}%, 总盈亏={}U",
-                dailyResults.size(), days, totalTrades, result.getWinRate(), result.getTotalProfit());
+        log.info("回测完成: 有效天数={}/{}, 总交易={}, 单笔胜率={}%, 每日胜率={}%, 总盈亏={}U",
+                dailyResults.size(), days, totalTrades, result.getWinRate(), result.getDailyWinRate(),
+                result.getTotalProfit());
         return result;
     }
 
@@ -2856,6 +2870,8 @@ public class IndexCalculatorService {
         int totalTrades = 0;
         int winTrades = 0;
         int loseTrades = 0;
+        int winDays = 0; // 盈利天数（当日总盈亏>0）
+        int loseDays = 0; // 亏损天数（当日总盈亏<=0）
         double totalProfit = 0;
 
         long startLoopTime = System.currentTimeMillis();
@@ -2941,6 +2957,13 @@ public class IndexCalculatorService {
 
             totalProfit += dailyProfit;
 
+            // 统计每日胜率
+            if (dailyProfit > 0) {
+                winDays++;
+            } else {
+                loseDays++;
+            }
+
             // 使用setter创建每日结果
             com.binance.index.dto.BacktestDailyResult dailyResult = new com.binance.index.dto.BacktestDailyResult();
             dailyResult.setDate(date.toString());
@@ -2967,12 +2990,17 @@ public class IndexCalculatorService {
         result.setWinTrades(winTrades);
         result.setLoseTrades(loseTrades);
         result.setWinRate(totalTrades > 0 ? Math.round(winTrades * 10000.0 / totalTrades) / 100.0 : 0);
+        result.setWinDays(winDays);
+        result.setLoseDays(loseDays);
+        result.setDailyWinRate(
+                dailyResults.size() > 0 ? Math.round(winDays * 10000.0 / dailyResults.size()) / 100.0 : 0);
         result.setTotalProfit(Math.round(totalProfit * 100) / 100.0);
         result.setDailyResults(dailyResults);
         result.setSkippedDays(skippedDays);
 
-        log.info("API回测完成: 总交易{}笔, 盈利{}笔, 亏损{}笔, 胜率{}%, 总盈亏{}U",
-                totalTrades, winTrades, loseTrades, result.getWinRate(), result.getTotalProfit());
+        log.info("API回测完成: 总交易{}笔, 盈利{}笔, 亏损{}笔, 单笔胜率{}%, 每日胜率{}%, 总盈亏{}U",
+                totalTrades, winTrades, loseTrades, result.getWinRate(), result.getDailyWinRate(),
+                result.getTotalProfit());
 
         return result;
     }
