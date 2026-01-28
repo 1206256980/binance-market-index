@@ -885,8 +885,9 @@ public class IndexController {
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(required = false) String entryHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
-            @RequestParam(required = false) String holdHours) {
-        log.info("------------------------- 开始调用 /backtest/optimize 接口 -------------------------");
+            @RequestParam(required = false) String holdHours,
+            @RequestParam(defaultValue = "false") boolean useApi) {
+        log.info("------------------------- 开始调用 /backtest/optimize 接口 (useApi={}) -------------------------", useApi);
         Map<String, Object> response = new HashMap<>();
 
         if (totalAmount <= 0) {
@@ -954,11 +955,11 @@ public class IndexController {
 
             // 预先生成所有参数组合，用于并行处理
             List<int[]> combinations = new java.util.ArrayList<>();
-            for (int rankingHours : rankingHoursOptions) {
-                for (int topN : topNOptions) {
-                    for (int entryHour : entryHourOptions) {
-                        for (int holdHour : holdHoursOptions) {
-                            combinations.add(new int[] { rankingHours, topN, entryHour, holdHour });
+            for (int rHours : rankingHoursOptions) {
+                for (int tN : topNOptions) {
+                    for (int eHour : entryHourOptions) {
+                        for (int hHour : holdHoursOptions) {
+                            combinations.add(new int[] { rHours, tN, eHour, hHour });
                         }
                     }
                 }
@@ -967,27 +968,35 @@ public class IndexController {
             int totalCombinations = combinations.size();
             long startTime = System.currentTimeMillis();
 
-            // 使用并行流执行回测
+            // 如果使用 API，优化循环中直接调用 API 版回测
+            // 注意：API 版内部已有批量查询优化，但在并行流中频繁调用 preload 可能仍有性能开销
+            // 最佳实践是先拉取整个范围的数据，但由于组合太多，这里保持现状
             List<Map<String, Object>> allResults = combinations.parallelStream()
                     .map(combo -> {
-                        int rankingHours = combo[0];
-                        int topN = combo[1];
-                        int entryHour = combo[2];
+                        int rHours = combo[0];
+                        int tN = combo[1];
+                        int eHour = combo[2];
                         int hHours = combo[3];
-                        double amountPerCoin = totalAmount / topN;
+                        double amountPerCoin = totalAmount / tN;
 
-                        com.binance.index.dto.BacktestResult result = indexCalculatorService.runShortTop10Backtest(
-                                entryHour, 0, amountPerCoin, days, rankingHours, hHours, topN, timezone);
+                        com.binance.index.dto.BacktestResult backtestResult;
+                        if (useApi) {
+                            backtestResult = indexCalculatorService.runShortTopNBacktestApi(
+                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);
+                        } else {
+                            backtestResult = indexCalculatorService.runShortTop10Backtest(
+                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);
+                        }
 
                         Map<String, Object> res = new HashMap<>();
-                        res.put("rankingHours", rankingHours);
-                        res.put("topN", topN);
-                        res.put("entryHour", entryHour);
+                        res.put("rankingHours", rHours);
+                        res.put("topN", tN);
+                        res.put("entryHour", eHour);
                         res.put("holdHours", hHours);
-                        res.put("totalProfit", result.getTotalProfit());
-                        res.put("winRate", result.getWinRate());
-                        res.put("totalTrades", result.getTotalTrades());
-                        res.put("validDays", result.getValidDays());
+                        res.put("totalProfit", backtestResult.getTotalProfit());
+                        res.put("winRate", backtestResult.getWinRate());
+                        res.put("totalTrades", backtestResult.getTotalTrades());
+                        res.put("validDays", backtestResult.getValidDays());
                         return res;
                     })
                     .collect(java.util.stream.Collectors.toList());

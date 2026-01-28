@@ -16,6 +16,7 @@ function OptimizerModule() {
 
     // 状态
     const [loading, setLoading] = useState(false)
+    const [useApi, setUseApi] = useState(false)
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
@@ -67,6 +68,7 @@ function OptimizerModule() {
                     days,
                     entryHours: selectedHours.join(','),
                     holdHours: selectedHoldHours.join(','),
+                    useApi,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -198,6 +200,19 @@ function OptimizerModule() {
                                 </span>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="divider-v"></div>
+
+                    <div className="api-toggle-compact">
+                        <label className="checkbox-label">
+                            <input
+                                type="checkbox"
+                                checked={useApi}
+                                onChange={(e) => setUseApi(e.target.checked)}
+                            />
+                            <span>使用API</span>
+                        </label>
                     </div>
 
                     <button

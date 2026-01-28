@@ -2619,3 +2619,33 @@ body {
   font-weight: 700;
   font-size: 16px;
 }
+
+/* API 数据源切换样式 */
+.api-toggle-compact {
+  display: flex;
+  align-items: center;
+  padding-top: 18px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.checkbox-label:hover {
+  color: var(--accent-primary);
+}
+
+.checkbox-label input {
+  margin: 0;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
