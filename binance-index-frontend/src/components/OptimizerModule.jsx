@@ -39,6 +39,15 @@ function OptimizerModule() {
     const [expandedRows, setExpandedRows] = useState([])
     const pageSize = 20
 
+    // 持久化输入参数
+    useEffect(() => {
+        localStorage.setItem('opt_totalAmount', totalAmount.toString());
+        localStorage.setItem('opt_days', days.toString());
+        localStorage.setItem('opt_selectedHours', JSON.stringify(selectedHours));
+        localStorage.setItem('opt_selectedHoldHours', JSON.stringify(selectedHoldHours));
+        localStorage.setItem('opt_useApi', useApi.toString());
+    }, [totalAmount, days, selectedHours, selectedHoldHours, useApi])
+
     const toggleHour = (hour) => {
         if (selectedHours.includes(hour)) {
             setSelectedHours(selectedHours.filter(h => h !== hour))
@@ -142,7 +151,20 @@ function OptimizerModule() {
     // 排序和分页计算
     const sortedStrategies = result?.topStrategies ? [...result.topStrategies].sort((a, b) => {
         const factor = sortOrder === 'desc' ? -1 : 1
-        return (a[sortField] - b[sortField]) * factor
+
+        let valA, valB;
+        if (sortField.startsWith('month:')) {
+            const mLabel = sortField.split(':')[1];
+            const resA = a.monthlyResults?.find(m => m.monthLabel === mLabel);
+            const resB = b.monthlyResults?.find(m => m.monthLabel === mLabel);
+            valA = resA ? resA.totalProfit : -999999;
+            valB = resB ? resB.totalProfit : -999999;
+        } else {
+            valA = a[sortField] || 0;
+            valB = b[sortField] || 0;
+        }
+
+        return (valA - valB) * factor
     }) : []
 
     const paginatedStrategies = sortedStrategies.slice(
@@ -300,7 +322,13 @@ function OptimizerModule() {
                                     <th>排名</th>
                                     <th>策略配置 (榜/数/入/持)</th>
                                     {allMonths.map(month => (
-                                        <th key={month}>{month.split('-')[1]}月收益</th>
+                                        <th
+                                            key={month}
+                                            className="sortable-header"
+                                            onClick={() => handleSort(`month:${month}`)}
+                                        >
+                                            {month.split('-')[1]}月收益 {sortField === `month:${month}` && (sortOrder === 'desc' ? '▼' : '▲')}
+                                        </th>
                                     ))}
                                     <th className="sortable-header" onClick={() => handleSort('winRate')}>
                                         胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
