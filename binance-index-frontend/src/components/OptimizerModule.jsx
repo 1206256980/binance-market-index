@@ -36,7 +36,7 @@ function OptimizerModule() {
     const [currentPage, setCurrentPage] = useState(1)
     const [sortField, setSortField] = useState('totalProfit') // 'totalProfit' or 'winRate'
     const [sortOrder, setSortOrder] = useState('desc')
-    const [expandedRow, setExpandedRow] = useState(null)
+    const [expandedRows, setExpandedRows] = useState([])
     const pageSize = 20
 
     const toggleHour = (hour) => {
@@ -75,6 +75,7 @@ function OptimizerModule() {
         setLoading(true)
         setError(null)
         setCurrentPage(1) // 重置页码
+        setExpandedRows([]) // 重置展开行
 
         try {
             const res = await axios.get('/api/index/backtest/optimize', {
@@ -109,11 +110,15 @@ function OptimizerModule() {
             setSortOrder('desc')
         }
         setCurrentPage(1) // 排序后重置页码
-        setExpandedRow(null) // 排序后收起所有行
+        setExpandedRows([]) // 排序后收起所有行
     }
 
     const handleRowClick = (key) => {
-        setExpandedRow(expandedRow === key ? null : key)
+        if (expandedRows.includes(key)) {
+            setExpandedRows(expandedRows.filter(k => k !== key))
+        } else {
+            setExpandedRows([...expandedRows, key])
+        }
     }
 
     const getStrategyKey = (s) => `${s.rankingHours}-${s.topN}-${s.entryHour}-${s.holdHours}`
@@ -293,7 +298,7 @@ function OptimizerModule() {
                                 {paginatedStrategies.map((strategy, idx) => {
                                     const rank = (currentPage - 1) * pageSize + idx + 1;
                                     const key = getStrategyKey(strategy);
-                                    const isExpanded = expandedRow === key;
+                                    const isExpanded = expandedRows.includes(key);
 
                                     return (
                                         <React.Fragment key={key}>

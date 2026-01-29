@@ -54,13 +54,14 @@ function BacktestModule() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
-    const [expandedDay, setExpandedDay] = useState(null)
+    const [expandedDays, setExpandedDays] = useState([])
     const [currentPage, setCurrentPage] = useState(1)
     const pageSize = 30
 
     const runBacktest = async () => {
         setLoading(true)
         setError(null)
+        setExpandedDays([]) // 重置展开行
 
         try {
             const res = await axios.get('/api/index/backtest/short-top10', {
@@ -285,11 +286,18 @@ function BacktestModule() {
                         <div className="daily-header">📋 每日明细（点击展开）</div>
                         {result.dailyResults.slice().reverse().slice((currentPage - 1) * pageSize, currentPage * pageSize).map((day, idx) => {
                             const globalIdx = (currentPage - 1) * pageSize + idx;
+                            const isExpanded = expandedDays.includes(globalIdx);
                             return (
                                 <div key={day.date} className="daily-item">
                                     <div
-                                        className={`daily-summary ${expandedDay === globalIdx ? 'expanded' : ''}`}
-                                        onClick={() => setExpandedDay(expandedDay === globalIdx ? null : globalIdx)}
+                                        className={`daily-summary ${isExpanded ? 'expanded' : ''}`}
+                                        onClick={() => {
+                                            if (isExpanded) {
+                                                setExpandedDays(expandedDays.filter(i => i !== globalIdx));
+                                            } else {
+                                                setExpandedDays([...expandedDays, globalIdx]);
+                                            }
+                                        }}
                                     >
                                         <span className="daily-date">{day.date}</span>
                                         <span className="daily-stats">
@@ -299,10 +307,10 @@ function BacktestModule() {
                                         <span className={`daily-profit ${getProfitClass(day.totalProfit)}`}>
                                             {formatProfit(day.totalProfit)} U
                                         </span>
-                                        <span className="expand-icon">{expandedDay === globalIdx ? '▼' : '▶'}</span>
+                                        <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                                     </div>
 
-                                    {expandedDay === globalIdx && (
+                                    {isExpanded && (
                                         <div className="daily-trades">
                                             <div className="trade-header">
                                                 <span>币种</span>
@@ -339,7 +347,7 @@ function BacktestModule() {
                                     disabled={currentPage === 1}
                                     onClick={() => {
                                         setCurrentPage(prev => Math.max(1, prev - 1));
-                                        setExpandedDay(null);
+                                        setExpandedDays([]);
                                     }}
                                 >
                                     上一页
@@ -351,7 +359,7 @@ function BacktestModule() {
                                     disabled={currentPage === Math.ceil(result.dailyResults.length / pageSize)}
                                     onClick={() => {
                                         setCurrentPage(prev => Math.min(Math.ceil(result.dailyResults.length / pageSize), prev + 1));
-                                        setExpandedDay(null);
+                                        setExpandedDays([]);
                                     }}
                                 >
                                     下一页
