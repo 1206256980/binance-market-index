@@ -2733,3 +2733,42 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Optimization Table Improvements */
+.strategy-config-tag {
+  display: inline-block;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin: 1px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.monthly-profit-cell {
+  padding: 6px !important;
+  line-height: 1.2;
+}
+
+.monthly-rank {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.optimizer-table.compact td {
+  padding: 4px 8px;
+}
+
+.strategy-config-tag:nth-child(even) {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.monthly-profit-cell .monthly-rank {
+  font-weight: normal;
+}
+
+.optimizer-table strong {
+  color: var(--text-primary);
+}

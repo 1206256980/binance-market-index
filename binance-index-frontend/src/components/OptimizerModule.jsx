@@ -151,6 +151,29 @@ function OptimizerModule() {
     )
     const totalPages = Math.ceil(sortedStrategies.length / pageSize)
 
+    // 提取所有出现的月份，并按时间排序
+    const allMonths = Array.from(new Set(
+        result?.topStrategies?.flatMap(s => s.monthlyResults?.map(m => m.monthLabel) || [])
+    )).sort();
+
+    // 计算每个月各策略的排名
+    const monthlyRankings = {}; // { "2024-09": { "strategyKey": rank } }
+    if (result?.topStrategies) {
+        allMonths.forEach(month => {
+            const sortedForMonth = [...result.topStrategies]
+                .map(s => {
+                    const monthResult = s.monthlyResults?.find(m => m.monthLabel === month);
+                    return { key: getStrategyKey(s), profit: monthResult ? monthResult.totalProfit : -999999 };
+                })
+                .sort((a, b) => b.profit - a.profit);
+
+            monthlyRankings[month] = {};
+            sortedForMonth.forEach((s, idx) => {
+                monthlyRankings[month][s.key] = idx + 1;
+            });
+        });
+    }
+
     return (
         <div className="optimizer-module">
             <div className="optimizer-header">
@@ -275,18 +298,15 @@ function OptimizerModule() {
                             <thead>
                                 <tr>
                                     <th>排名</th>
-                                    <th>涨幅榜</th>
-                                    <th>数量</th>
-                                    <th>入场</th>
-                                    <th>持仓</th>
+                                    <th>策略配置 (榜/数/入/持)</th>
+                                    {allMonths.map(month => (
+                                        <th key={month}>{month.split('-')[1]}月收益</th>
+                                    ))}
                                     <th className="sortable-header" onClick={() => handleSort('winRate')}>
-                                        单笔胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                        胜率 {sortField === 'winRate' && (sortOrder === 'desc' ? '▼' : '▲')}
                                     </th>
                                     <th className="sortable-header" onClick={() => handleSort('dailyWinRate')}>
-                                        每日胜率 {sortField === 'dailyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
-                                    </th>
-                                    <th className="sortable-header" onClick={() => handleSort('monthlyWinRate')}>
-                                        每月胜率 {sortField === 'monthlyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
+                                        日胜率 {sortField === 'dailyWinRate' && (sortOrder === 'desc' ? '▼' : '▲')}
                                     </th>
                                     <th>交易数</th>
                                     <th className="sortable-header" onClick={() => handleSort('totalProfit')}>
@@ -307,27 +327,38 @@ function OptimizerModule() {
                                                 onClick={() => handleRowClick(key)}
                                             >
                                                 <td className="rank-cell">#{rank}</td>
-                                                <td>{formatRankingHours(strategy.rankingHours)}</td>
-                                                <td>{strategy.topN}</td>
-                                                <td>{strategy.entryHour}:00</td>
-                                                <td>{strategy.holdHours}h</td>
+                                                <td>
+                                                    <span className="strategy-config-tag">{formatRankingHours(strategy.rankingHours)}</span>
+                                                    <span className="strategy-config-tag">{strategy.topN}币</span>
+                                                    <span className="strategy-config-tag">{strategy.entryHour}:00</span>
+                                                    <span className="strategy-config-tag">{strategy.holdHours}h</span>
+                                                </td>
+                                                {allMonths.map(month => {
+                                                    const mRes = strategy.monthlyResults?.find(m => m.monthLabel === month);
+                                                    const mRank = monthlyRankings[month][key];
+                                                    return (
+                                                        <td key={month} className="monthly-profit-cell">
+                                                            <div className={getProfitClass(mRes?.totalProfit)}>
+                                                                {mRes ? formatProfit(mRes.totalProfit) : '--'}
+                                                            </div>
+                                                            <div className="monthly-rank">#{mRank}</div>
+                                                        </td>
+                                                    );
+                                                })}
                                                 <td className={strategy.winRate >= 50 ? 'positive' : 'negative'}>
                                                     {strategy.winRate}%
                                                 </td>
                                                 <td className={strategy.dailyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                    {strategy.dailyWinRate}% ({strategy.winDays}/{strategy.winDays + strategy.loseDays})
-                                                </td>
-                                                <td className={strategy.monthlyWinRate >= 50 ? 'positive' : 'negative'}>
-                                                    {strategy.monthlyWinRate}% ({strategy.winMonths}/{strategy.winMonths + strategy.loseMonths})
+                                                    {strategy.dailyWinRate}%
                                                 </td>
                                                 <td>{strategy.totalTrades}</td>
                                                 <td className={getProfitClass(strategy.totalProfit)}>
-                                                    {formatProfit(strategy.totalProfit)} U
+                                                    <strong>{formatProfit(strategy.totalProfit)} U</strong>
                                                 </td>
                                             </tr>
                                             {isExpanded && strategy.monthlyResults && (
                                                 <tr className="expanded-details-row">
-                                                    <td colSpan="10">
+                                                    <td colSpan={6 + allMonths.length}>
                                                         <div className="monthly-details-wrapper">
                                                             {strategy.monthlyResults.map((m, mIdx) => (
                                                                 <div key={mIdx} className="monthly-detail-card">
