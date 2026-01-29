@@ -208,7 +208,7 @@ public class KlineService {
                     log.info("API拉取进度: {}/{} - {} 完成", processed, totalToFetch, symbol);
                 }
 
-                Thread.sleep(90); // 防限流保护
+                Thread.sleep(120); // 防限流保护
             } catch (Exception e) {
                 log.warn("进度: {}/{} - {} 拉取失败: {}", processed, totalToFetch, symbol, e.getMessage());
             }
