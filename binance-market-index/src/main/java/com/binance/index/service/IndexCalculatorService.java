@@ -19,29 +19,14 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * 指数计算服务
@@ -2919,114 +2904,112 @@ public class IndexCalculatorService {
         int loseDays = 0; // 亏损天数（当日总盈亏<=0）
         double totalProfit = 0;
 
-        long startLoopTime = System.currentTimeMillis();
-        for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            long startDayTime = System.currentTimeMillis();
-            java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
-            java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
+        // 使用并行流执行每日回测
+        long startParallelTime = System.currentTimeMillis();
+        List<com.binance.index.dto.BacktestDailyResult> parallelDailyResults = java.util.stream.IntStream
+                .range(0, (int) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1)
+                .parallel()
+                .mapToObj(i -> {
+                    java.time.LocalDate date = startDate.plusDays(i);
+                    java.time.LocalDateTime entryTimeLocal = date.atTime(entryHour, entryMinute);
+                    java.time.LocalDateTime exitTimeLocal = entryTimeLocal.plusHours(holdHours);
 
-            // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
-            java.time.LocalDateTime entryTimeUtcLookup = entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
-            java.time.LocalDateTime exitTimeUtcLookup = exitTimeLocal.atZone(userZone).withZoneSameInstant(utcZone)
-                    .toLocalDateTime();
-            java.time.LocalDateTime changeBaseTimeUtcLookup = entryTimeLocal.minusHours(rankingHours)
-                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                    // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格
+                    java.time.LocalDateTime entryTimeUtcLookup = entryTimeLocal.atZone(userZone)
+                            .withZoneSameInstant(utcZone).toLocalDateTime();
+                    java.time.LocalDateTime exitTimeUtcLookup = exitTimeLocal.atZone(userZone)
+                            .withZoneSameInstant(utcZone).toLocalDateTime();
+                    java.time.LocalDateTime changeBaseTimeUtcLookup = entryTimeLocal.minusHours(rankingHours)
+                            .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
-            // 从批量映射中获取价格，不再触发数据库查询
-            Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtcLookup, new HashMap<>());
-            Map<String, Double> entryMap = bulkPriceMap.getOrDefault(entryTimeUtcLookup, new HashMap<>());
-            Map<String, Double> exitMap = bulkPriceMap.getOrDefault(exitTimeUtcLookup, new HashMap<>());
+                    Map<String, Double> changeBaseMap = bulkPriceMap.getOrDefault(changeBaseTimeUtcLookup,
+                            Collections.emptyMap());
+                    Map<String, Double> entryMap = bulkPriceMap.getOrDefault(entryTimeUtcLookup,
+                            Collections.emptyMap());
+                    Map<String, Double> exitMap = bulkPriceMap.getOrDefault(exitTimeUtcLookup, Collections.emptyMap());
 
-            if (changeBaseMap.isEmpty() || entryMap.isEmpty() || exitMap.isEmpty()) {
-                log.warn("日期 {} 数据不完整 (BaseLookup:{}, EntryLookup:{}, ExitLookup:{})，跳过",
-                        date, changeBaseMap.size(), entryMap.size(), exitMap.size());
-                skippedDays.add(date.toString());
-                continue;
-            }
+                    if (changeBaseMap.isEmpty() || entryMap.isEmpty() || exitMap.isEmpty()) {
+                        return null; // 数据不完整
+                    }
 
-            // 计算涨幅并排序
-            long startRankTime = System.currentTimeMillis();
-            List<Map.Entry<String, Double>> changeList = new ArrayList<>();
-            for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
-                String symbol = entry.getKey();
-                Double entryPrice = entry.getValue();
-                Double basePrice = changeBaseMap.get(symbol);
-                if (basePrice != null && basePrice > 0 && entryPrice != null && entryPrice > 0) {
-                    double changePercent = (entryPrice - basePrice) / basePrice * 100;
-                    changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, changePercent));
-                }
-            }
+                    List<Map.Entry<String, Double>> changeList = new ArrayList<>();
+                    for (Map.Entry<String, Double> entry : entryMap.entrySet()) {
+                        String symbol = entry.getKey();
+                        Double entryP = entry.getValue();
+                        Double baseP = changeBaseMap.get(symbol);
+                        if (baseP != null && baseP > 0 && entryP != null && entryP > 0) {
+                            double changePercent = (entryP - baseP) / baseP * 100;
+                            changeList.add(new java.util.AbstractMap.SimpleEntry<>(symbol, changePercent));
+                        }
+                    }
 
-            changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
-            List<Map.Entry<String, Double>> topCoins = changeList.stream().limit(topN).collect(Collectors.toList());
-            long rankElapsed = System.currentTimeMillis() - startRankTime;
+                    changeList.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+                    List<Map.Entry<String, Double>> topCoins = changeList.stream().limit(topN)
+                            .collect(java.util.stream.Collectors.toList());
 
-            if (topCoins.isEmpty()) {
-                skippedDays.add(date.toString());
-                continue;
-            }
+                    if (topCoins.isEmpty())
+                        return null;
 
-            List<com.binance.index.dto.BacktestTrade> trades = new ArrayList<>();
-            double dailyProfit = 0;
-            int dailyWin = 0;
-            int dailyLose = 0;
+                    List<com.binance.index.dto.BacktestTrade> trades = new ArrayList<>();
+                    double dProfit = 0;
+                    int dWin = 0;
+                    int dLose = 0;
 
-            for (Map.Entry<String, Double> entry : topCoins) {
-                String symbol = entry.getKey();
-                Double change24h = entry.getValue();
-                Double entryPrice = entryMap.get(symbol);
-                Double exitPrice = exitMap.get(symbol);
+                    for (Map.Entry<String, Double> entry : topCoins) {
+                        String symbol = entry.getKey();
+                        Double change24h = entry.getValue();
+                        Double entryP = entryMap.get(symbol);
+                        Double exitP = exitMap.get(symbol);
 
-                if (entryPrice == null || exitPrice == null || entryPrice <= 0)
-                    continue;
+                        if (entryP == null || exitP == null || entryP <= 0)
+                            continue;
 
-                double profitPercent = (entryPrice - exitPrice) / entryPrice * 100;
-                double profit = amountPerCoin * profitPercent / 100;
+                        double pPercent = (entryP - exitP) / entryP * 100;
+                        double pAmount = amountPerCoin * pPercent / 100;
 
-                trades.add(new com.binance.index.dto.BacktestTrade(
-                        symbol, entryPrice, exitPrice, change24h,
-                        Math.round(profit * 100) / 100.0,
-                        Math.round(profitPercent * 100) / 100.0));
+                        trades.add(new com.binance.index.dto.BacktestTrade(
+                                symbol, entryP, exitP, change24h,
+                                Math.round(pAmount * 100) / 100.0,
+                                Math.round(pPercent * 100) / 100.0));
 
-                dailyProfit += profit;
-                if (profit > 0) {
-                    dailyWin++;
-                    winTrades++;
-                } else {
-                    dailyLose++;
-                    loseTrades++;
-                }
-                totalTrades++;
-            }
+                        dProfit += pAmount;
+                        if (pAmount > 0)
+                            dWin++;
+                        else
+                            dLose++;
+                    }
 
-            totalProfit += dailyProfit;
+                    com.binance.index.dto.BacktestDailyResult dr = new com.binance.index.dto.BacktestDailyResult();
+                    dr.setDate(date.toString());
+                    dr.setEntryTime(entryTimeLocal.toString());
+                    dr.setExitTime(exitTimeLocal.toString());
+                    dr.setTotalProfit(Math.round(dProfit * 100) / 100.0);
+                    dr.setWinCount(dWin);
+                    dr.setLoseCount(dLose);
+                    dr.setTrades(trades);
+                    return dr;
+                })
+                .filter(java.util.Objects::nonNull)
+                .sorted(java.util.Comparator.comparing(com.binance.index.dto.BacktestDailyResult::getDate))
+                .collect(java.util.stream.Collectors.toList());
 
-            // 统计每日胜率
-            if (dailyProfit > 0) {
-                winDays++;
-            } else {
-                loseDays++;
-            }
-
-            // 使用setter创建每日结果
-            com.binance.index.dto.BacktestDailyResult dailyResult = new com.binance.index.dto.BacktestDailyResult();
-            dailyResult.setDate(date.toString());
-            dailyResult.setEntryTime(entryTimeLocal.toString());
-            dailyResult.setExitTime(exitTimeLocal.toString());
-            dailyResult.setTotalProfit(Math.round(dailyProfit * 100) / 100.0);
-            dailyResult.setWinCount(dailyWin);
-            dailyResult.setLoseCount(dailyLose);
-            dailyResult.setTrades(trades);
-            dailyResults.add(dailyResult);
-
-            if (days <= 7) {
-                log.debug("📅 日期 {} 计算完成，耗时: {}ms (排名耗时: {}ms)", date, (System.currentTimeMillis() - startDayTime),
-                        rankElapsed);
-            }
+        long endParallelTime = System.currentTimeMillis();
+        if (!skipPreload) {
+            log.info("⏱️ API回测并行计算完成，耗时: {}ms", (endParallelTime - startParallelTime));
         }
-        log.info("⏱️ 回测循环执行完成，总耗时: {}ms", (System.currentTimeMillis() - startLoopTime));
 
+        // 汇总统计
+        for (com.binance.index.dto.BacktestDailyResult dr : parallelDailyResults) {
+            dailyResults.add(dr);
+            totalProfit += dr.getTotalProfit();
+            totalTrades += dr.getTrades().size();
+            winTrades += dr.getWinCount();
+            loseTrades += dr.getLoseCount();
+            if (dr.getTotalProfit() > 0)
+                winDays++;
+            else
+                loseDays++;
+        }
         // 使用setter创建总结果
         com.binance.index.dto.BacktestResult result = new com.binance.index.dto.BacktestResult();
         result.setTotalDays(days);
