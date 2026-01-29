@@ -1,25 +1,62 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 
 /**
  * 做空涨幅榜前10回测模块
  */
 function BacktestModule() {
-    // 输入参数
-    const [entryHour, setEntryHour] = useState(12)
-    const [entryMinute, setEntryMinute] = useState(0)
-    const [totalAmount, setTotalAmount] = useState(1000)  // 每日总金额
-    const [days, setDays] = useState(30)
-    const [rankingHours, setRankingHours] = useState(24)  // 涨幅排行榜时间范围
-    const [holdHours, setHoldHours] = useState(24)  // 持仓时间（小时）
-    const [topN, setTopN] = useState(10)  // 做空前 N 名
-    const [useApi, setUseApi] = useState(false)  // 是否使用币安API获取数据
+    // 输入参数 - 从 localStorage 加载缓存
+    const [entryHour, setEntryHour] = useState(() => {
+        const value = localStorage.getItem('bt_entryHour');
+        return value !== null ? parseInt(value) : 12;
+    })
+    const [entryMinute, setEntryMinute] = useState(() => {
+        const value = localStorage.getItem('bt_entryMinute');
+        return value !== null ? parseInt(value) : 0;
+    })
+    const [totalAmount, setTotalAmount] = useState(() => {
+        const value = localStorage.getItem('bt_totalAmount');
+        return value !== null ? parseFloat(value) : 1000;
+    })
+    const [days, setDays] = useState(() => {
+        const value = localStorage.getItem('bt_days');
+        return value !== null ? parseInt(value) : 30;
+    })
+    const [rankingHours, setRankingHours] = useState(() => {
+        const value = localStorage.getItem('bt_rankingHours');
+        return value !== null ? parseInt(value) : 24;
+    })
+    const [holdHours, setHoldHours] = useState(() => {
+        const value = localStorage.getItem('bt_holdHours');
+        return value !== null ? parseInt(value) : 24;
+    })
+    const [topN, setTopN] = useState(() => {
+        const value = localStorage.getItem('bt_topN');
+        return value !== null ? parseInt(value) : 10;
+    })
+    const [useApi, setUseApi] = useState(() => {
+        return localStorage.getItem('bt_useApi') === 'true';
+    })
+
+    // 参数自动保存到 localStorage
+    useEffect(() => {
+        localStorage.setItem('bt_entryHour', entryHour)
+        localStorage.setItem('bt_entryMinute', entryMinute)
+        localStorage.setItem('bt_totalAmount', totalAmount)
+        localStorage.setItem('bt_days', days)
+        localStorage.setItem('bt_rankingHours', rankingHours)
+        localStorage.setItem('bt_holdHours', holdHours)
+        localStorage.setItem('bt_topN', topN)
+        localStorage.setItem('bt_useApi', useApi)
+    }, [entryHour, entryMinute, totalAmount, days, rankingHours, holdHours, topN, useApi])
 
     // 状态
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [expandedDay, setExpandedDay] = useState(null)
+    const [currentPage, setCurrentPage] = useState(1)
+    const pageSize = 30
 
     const runBacktest = async () => {
         setLoading(true)
@@ -67,8 +104,8 @@ function BacktestModule() {
     return (
         <div className="backtest-module">
             <div className="backtest-header">
-                <div className="backtest-title">📊 做空涨幅榜前10回测</div>
-                <div className="backtest-subtitle">每天固定时间做空涨幅榜前10的币种，24小时后平仓</div>
+                <div className="backtest-title">📊 做空涨幅榜回测</div>
+                <div className="backtest-subtitle">每天固定时间做空涨幅榜的币种，按选定时间平仓</div>
             </div>
 
             {/* 参数输入区 */}
@@ -246,51 +283,81 @@ function BacktestModule() {
                     {/* 每日明细 */}
                     <div className="daily-results">
                         <div className="daily-header">📋 每日明细（点击展开）</div>
-                        {result.dailyResults.slice().reverse().map((day, idx) => (
-                            <div key={day.date} className="daily-item">
-                                <div
-                                    className={`daily-summary ${expandedDay === idx ? 'expanded' : ''}`}
-                                    onClick={() => setExpandedDay(expandedDay === idx ? null : idx)}
-                                >
-                                    <span className="daily-date">{day.date}</span>
-                                    <span className="daily-stats">
-                                        盈利 <strong className="positive">{day.winCount}</strong> /
-                                        亏损 <strong className="negative">{day.loseCount}</strong>
-                                    </span>
-                                    <span className={`daily-profit ${getProfitClass(day.totalProfit)}`}>
-                                        {formatProfit(day.totalProfit)} U
-                                    </span>
-                                    <span className="expand-icon">{expandedDay === idx ? '▼' : '▶'}</span>
-                                </div>
-
-                                {expandedDay === idx && (
-                                    <div className="daily-trades">
-                                        <div className="trade-header">
-                                            <span>币种</span>
-                                            <span>入场涨幅</span>
-                                            <span>开仓价</span>
-                                            <span>平仓价</span>
-                                            <span>盈亏%</span>
-                                            <span>盈亏U</span>
-                                        </div>
-                                        {day.trades.map((trade, tIdx) => (
-                                            <div key={tIdx} className="trade-row">
-                                                <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
-                                                <span className="trade-change positive">+{trade.change24h?.toFixed(2)}%</span>
-                                                <span>{trade.entryPrice?.toFixed(4)}</span>
-                                                <span>{trade.exitPrice?.toFixed(4)}</span>
-                                                <span className={getProfitClass(trade.profitPercent)}>
-                                                    {formatProfit(trade.profitPercent)}%
-                                                </span>
-                                                <span className={getProfitClass(trade.profit)}>
-                                                    {formatProfit(trade.profit)}
-                                                </span>
-                                            </div>
-                                        ))}
+                        {result.dailyResults.slice().reverse().slice((currentPage - 1) * pageSize, currentPage * pageSize).map((day, idx) => {
+                            const globalIdx = (currentPage - 1) * pageSize + idx;
+                            return (
+                                <div key={day.date} className="daily-item">
+                                    <div
+                                        className={`daily-summary ${expandedDay === globalIdx ? 'expanded' : ''}`}
+                                        onClick={() => setExpandedDay(expandedDay === globalIdx ? null : globalIdx)}
+                                    >
+                                        <span className="daily-date">{day.date}</span>
+                                        <span className="daily-stats">
+                                            盈利 <strong className="positive">{day.winCount}</strong> /
+                                            亏损 <strong className="negative">{day.loseCount}</strong>
+                                        </span>
+                                        <span className={`daily-profit ${getProfitClass(day.totalProfit)}`}>
+                                            {formatProfit(day.totalProfit)} U
+                                        </span>
+                                        <span className="expand-icon">{expandedDay === globalIdx ? '▼' : '▶'}</span>
                                     </div>
-                                )}
+
+                                    {expandedDay === globalIdx && (
+                                        <div className="daily-trades">
+                                            <div className="trade-header">
+                                                <span>币种</span>
+                                                <span>入场涨幅</span>
+                                                <span>开仓价</span>
+                                                <span>平仓价</span>
+                                                <span>盈亏%</span>
+                                                <span>盈亏U</span>
+                                            </div>
+                                            {day.trades.map((trade, tIdx) => (
+                                                <div key={tIdx} className="trade-row">
+                                                    <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                    <span className="trade-change positive">+{trade.change24h?.toFixed(2)}%</span>
+                                                    <span>{trade.entryPrice?.toFixed(4)}</span>
+                                                    <span>{trade.exitPrice?.toFixed(4)}</span>
+                                                    <span className={getProfitClass(trade.profitPercent)}>
+                                                        {formatProfit(trade.profitPercent)}%
+                                                    </span>
+                                                    <span className={getProfitClass(trade.profit)}>
+                                                        {formatProfit(trade.profit)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {/* 分页控制 */}
+                        {result.dailyResults.length > pageSize && (
+                            <div className="standard-pagination">
+                                <button
+                                    disabled={currentPage === 1}
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.max(1, prev - 1));
+                                        setExpandedDay(null);
+                                    }}
+                                >
+                                    上一页
+                                </button>
+                                <div className="page-info">
+                                    <strong>{currentPage}</strong> / {Math.ceil(result.dailyResults.length / pageSize)}
+                                </div>
+                                <button
+                                    disabled={currentPage === Math.ceil(result.dailyResults.length / pageSize)}
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.min(Math.ceil(result.dailyResults.length / pageSize), prev + 1));
+                                        setExpandedDay(null);
+                                    }}
+                                >
+                                    下一页
+                                </button>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
             )}

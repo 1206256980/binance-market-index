@@ -1,22 +1,36 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 
 /**
  * 策略优化器模块 - 遍历所有参数组合找出最优策略
  */
 function OptimizerModule() {
-    // 输入参数
-    const [totalAmount, setTotalAmount] = useState(1000)
-    const [days, setDays] = useState(30)
-    const [selectedHours, setSelectedHours] = useState([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
-    const [selectedHoldHours, setSelectedHoldHours] = useState([24, 48, 72])
+    // 输入参数 - 从 localStorage 加载缓存
+    const [totalAmount, setTotalAmount] = useState(() => {
+        const value = localStorage.getItem('opt_totalAmount');
+        return value !== null ? parseFloat(value) : 1000;
+    })
+    const [days, setDays] = useState(() => {
+        const value = localStorage.getItem('opt_days');
+        return value !== null ? parseInt(value) : 30;
+    })
+    const [selectedHours, setSelectedHours] = useState(() => {
+        const saved = localStorage.getItem('opt_selectedHours')
+        return saved ? JSON.parse(saved) : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+    })
+    const [selectedHoldHours, setSelectedHoldHours] = useState(() => {
+        const saved = localStorage.getItem('opt_selectedHoldHours')
+        return saved ? JSON.parse(saved) : [24, 48, 72]
+    })
 
     // 配置项
     const holdHourOptions = [1, 2, 4, 8, 12, 24, 48, 72, 96, 120, 168]
 
     // 状态
     const [loading, setLoading] = useState(false)
-    const [useApi, setUseApi] = useState(false)
+    const [useApi, setUseApi] = useState(() => {
+        return localStorage.getItem('opt_useApi') === 'true';
+    })
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
@@ -336,7 +350,7 @@ function OptimizerModule() {
 
                         {/* 分页控制 */}
                         {totalPages > 1 && (
-                            <div className="optimizer-pagination">
+                            <div className="standard-pagination">
                                 <button
                                     disabled={currentPage === 1}
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
