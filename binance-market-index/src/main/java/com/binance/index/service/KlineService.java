@@ -209,8 +209,6 @@ public class KlineService {
                 }
 
                 Thread.sleep(500); // 防限流保护
-
-                log.info("API拉取延迟500ms");
             } catch (Exception e) {
                 log.warn("进度: {}/{} - {} 拉取失败: {}", processed, totalToFetch, symbol, e.getMessage());
             }
