@@ -151,8 +151,10 @@ public class KlineService {
                 .collect(Collectors.toMap(c -> (String) c[0], c -> (Long) c[1]));
         log.info("⏱️ 缓存状态检查完成, 耗时: {}ms", (System.currentTimeMillis() - startCheck));
 
+        // 阈值优化：如果记录数少于期望值的 100%（允许 2 小时的误差以处理边界），则视为需要同步
+        // 原有的 0.9 比例在天数较多时会导致漏掉最近几小时的数据
         List<String> symbolsToFetch = symbols.stream()
-                .filter(s -> symbolCountMap.getOrDefault(s, 0L) < expectedHours * 0.9)
+                .filter(s -> symbolCountMap.getOrDefault(s, 0L) < expectedHours - 2)
                 .collect(Collectors.toList());
 
         if (symbolsToFetch.isEmpty()) {
