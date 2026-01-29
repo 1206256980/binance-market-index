@@ -34,9 +34,6 @@ function BacktestModule() {
         const value = localStorage.getItem('bt_topN');
         return value !== null ? parseInt(value) : 10;
     })
-    const [useApi, setUseApi] = useState(() => {
-        return localStorage.getItem('bt_useApi') === 'true';
-    })
 
     // 参数自动保存到 localStorage
     useEffect(() => {
@@ -47,8 +44,7 @@ function BacktestModule() {
         localStorage.setItem('bt_rankingHours', rankingHours)
         localStorage.setItem('bt_holdHours', holdHours)
         localStorage.setItem('bt_topN', topN)
-        localStorage.setItem('bt_useApi', useApi)
-    }, [entryHour, entryMinute, totalAmount, days, rankingHours, holdHours, topN, useApi])
+    }, [entryHour, entryMinute, totalAmount, days, rankingHours, holdHours, topN])
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -73,7 +69,7 @@ function BacktestModule() {
                     rankingHours,
                     holdHours,
                     topN,
-                    useApi,
+                    useApi: true,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -197,18 +193,6 @@ function BacktestModule() {
                         <option value={48}>48小时</option>
                         <option value={72}>72小时</option>
                     </select>
-                </div>
-
-                <div className="param-group use-api-toggle">
-                    <label className="checkbox-label">
-                        <input
-                            type="checkbox"
-                            checked={useApi}
-                            onChange={(e) => setUseApi(e.target.checked)}
-                        />
-                        <span>使用币安API</span>
-                        <span className="api-hint">(支持90天+回测，首次较慢)</span>
-                    </label>
                 </div>
 
                 <button

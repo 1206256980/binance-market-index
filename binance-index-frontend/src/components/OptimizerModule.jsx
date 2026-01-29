@@ -28,9 +28,6 @@ function OptimizerModule() {
 
     // 状态
     const [loading, setLoading] = useState(false)
-    const [useApi, setUseApi] = useState(() => {
-        return localStorage.getItem('opt_useApi') === 'true';
-    })
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
@@ -45,8 +42,7 @@ function OptimizerModule() {
         localStorage.setItem('opt_days', days.toString());
         localStorage.setItem('opt_selectedHours', JSON.stringify(selectedHours));
         localStorage.setItem('opt_selectedHoldHours', JSON.stringify(selectedHoldHours));
-        localStorage.setItem('opt_useApi', useApi.toString());
-    }, [totalAmount, days, selectedHours, selectedHoldHours, useApi])
+    }, [totalAmount, days, selectedHours, selectedHoldHours])
 
     const toggleHour = (hour) => {
         if (selectedHours.includes(hour)) {
@@ -93,7 +89,7 @@ function OptimizerModule() {
                     days,
                     entryHours: selectedHours.join(','),
                     holdHours: selectedHoldHours.join(','),
-                    useApi,
+                    useApi: true,
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -272,19 +268,6 @@ function OptimizerModule() {
                                 </span>
                             ))}
                         </div>
-                    </div>
-
-                    <div className="divider-v"></div>
-
-                    <div className="api-toggle-compact">
-                        <label className="checkbox-label">
-                            <input
-                                type="checkbox"
-                                checked={useApi}
-                                onChange={(e) => setUseApi(e.target.checked)}
-                            />
-                            <span>使用API</span>
-                        </label>
                     </div>
 
                     <button
