@@ -5,6 +5,7 @@ import DistributionModule from './components/DistributionModule'
 import UptrendModule from './components/UptrendModule'
 import BacktestModule from './components/BacktestModule'
 import OptimizerModule from './components/OptimizerModule'
+import DataSyncModule from './components/DataSyncModule'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
 
@@ -18,7 +19,7 @@ function App() {
     const [selectedTimeRange, setSelectedTimeRange] = useState(null) // 刷选的时间区间
     const [missingData, setMissingData] = useState(null) // 数据缺漏信息
     const [showMissingBanner, setShowMissingBanner] = useState(true) // 是否显示缺漏提示
-    const [view, setView] = useState('dashboard') // 'dashboard' or 'backtest'
+    const [view, setView] = useState('dashboard') // 'dashboard', 'backtest', 'optimizer', 'tools'
 
     // 处理 Hash 路由
     useEffect(() => {
@@ -26,7 +27,10 @@ function App() {
             const hash = window.location.hash.replace('#', '')
             if (hash === 'backtest') {
                 setView('backtest')
-            } else {
+            } else if (hash === 'tools') {
+                setView('tools')
+            }
+            else {
                 setView('dashboard')
             }
         }
@@ -141,11 +145,14 @@ function App() {
                 <div className="nav-container">
                     <div className="nav-logo">📊 Binance Market Index</div>
                     <div className="nav-links">
-                        <a href="#" className={`nav-link ${view === 'dashboard' ? 'active' : ''}`}>
+                        <a href="#" className={`nav-link ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}>
                             🏠 市场看板
                         </a>
-                        <a href="#backtest" className={`nav-link ${view === 'backtest' ? 'active' : ''}`}>
+                        <a href="#backtest" className={`nav-link ${view === 'backtest' ? 'active' : ''}`} onClick={() => setView('backtest')}>
                             🧪 策略回测
+                        </a>
+                        <a href="#tools" className={`nav-link ${view === 'tools' ? 'active' : ''}`} onClick={() => setView('tools')}>
+                            🛠️ 数据工具
                         </a>
                     </div>
                 </div>
@@ -282,6 +289,13 @@ function App() {
 
                     {/* 策略优化器模块 */}
                     <OptimizerModule />
+                </div>
+            )}
+
+            {/* 数据工具视图 */}
+            {view === 'tools' && (
+                <div className="view-container">
+                    <DataSyncModule />
                 </div>
             )}
 

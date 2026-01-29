@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -836,7 +835,8 @@ public class IndexController {
             if (useApi) {
                 // 使用币安API获取历史数据（支持更长时间范围）
                 result = indexCalculatorService.runShortTopNBacktestApi(
-                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
+                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone, false,
+                        null);
             } else {
                 // 使用本地数据库（更快但数据有限）
                 result = indexCalculatorService.runShortTop10Backtest(
@@ -977,20 +977,16 @@ public class IndexController {
             long startTime = System.currentTimeMillis();
 
             // --- 性能极致优化：预加载外提 ---
-            List<String> finalSymbols = null;
             Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = null;
             if (useApi) {
                 log.info("🚀 优化器检测到使用 API，开始执行全局预加载与价格预取...");
                 long startGlobalPreload = System.currentTimeMillis();
 
-                // 1. 获取所有币种
-                finalSymbols = indexCalculatorService.getBinanceApiService().getAllUsdtSymbols();
-
                 // 2. 找到所有组合中的参数极值
                 int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(24);
                 int maxHoldHours = java.util.Arrays.stream(holdHoursOptions).max().orElse(24);
 
-                // 3. 计算全局预加载范围 (用于拉取 API 数据并缓存到本地)
+                // 3. 计算全局预加载范围 (用于从数据库批量抓取到内存)
                 java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
                 java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
                 java.time.LocalDate today = java.time.LocalDate.now(userZone);
@@ -1004,9 +1000,7 @@ public class IndexController {
                         .minusHours(maxRankingHours + 1);
                 java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxEntryHour, 0).plusHours(maxHoldHours);
 
-                log.info("📦 执行全局 K 线同步: {} 至 {}", globalPreloadStart, globalPreloadEnd);
-                indexCalculatorService.getKlineService().preloadKlines(globalPreloadStart, globalPreloadEnd,
-                        finalSymbols);
+                log.info("📦 启动全局优化器（基于本地缓存数据，预期范围: {} 至 {}）", globalPreloadStart, globalPreloadEnd);
 
                 // 4. 汇总所有组合需要的精确时间点 (用于从本地批量抓取到内存)
                 // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
@@ -1041,7 +1035,6 @@ public class IndexController {
             // --- 优化结束 ---
 
             // 使用并行流执行回测
-            final List<String> symbolsForTask = finalSymbols; // effectively final
             final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
             List<Map<String, Object>> allResults = combinations.parallelStream()
                     .map(combo -> {
@@ -1055,7 +1048,7 @@ public class IndexController {
                         if (useApi) {
                             // 使用极致优化版，传入预先抓取的全局价格图，实现 0 DB 竞态
                             backtestResult = indexCalculatorService.runShortTopNBacktestApi(
-                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, symbolsForTask, true,
+                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, true,
                                     pricesForTask);
                         } else {
                             backtestResult = indexCalculatorService.runShortTop10Backtest(
@@ -1107,6 +1100,36 @@ public class IndexController {
             response.put("success", false);
             response.put("message", "策略优化失败: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 手动同步K线数据
+     * 
+     * @param days 同步最近多少天的数据
+     */
+    @PostMapping("/backtest/sync-data")
+    public ResponseEntity<Map<String, Object>> syncBacktestData(@RequestParam(defaultValue = "30") int days) {
+        log.info("收到手动同步数据请求: days={}", days);
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 在后台线程执行，避免接口超时
+            new Thread(() -> {
+                try {
+                    indexCalculatorService.syncKlineData(days);
+                } catch (Exception e) {
+                    log.error("后台数据同步失败", e);
+                }
+            }, "manual-sync-thread").start();
+
+            result.put("success", true);
+            result.put("message", "数据同步任务已在后台启动，请查看日志关注进度");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("启动数据同步失败", e);
+            result.put("success", false);
+            result.put("message", "启动同步失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(result);
         }
     }
 

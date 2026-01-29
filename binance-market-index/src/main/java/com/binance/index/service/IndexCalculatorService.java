@@ -2782,27 +2782,7 @@ public class IndexCalculatorService {
 
     public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
-            int topN, String timezone) {
-        return runShortTopNBacktestApi(entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN,
-                timezone, null, false);
-    }
-
-    /**
-     * 做空涨幅榜前N名回测（API版本）- 性能优化版
-     */
-    public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
-            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
-            int topN, String timezone, List<String> symbols, boolean skipPreload) {
-        return runShortTopNBacktestApi(entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN,
-                timezone, symbols, skipPreload, null);
-    }
-
-    /**
-     * 做空涨幅榜前N名回测（API版本）- 极致性能版 (支持外部共享价格图)
-     */
-    public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
-            int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
-            int topN, String timezone, List<String> symbols, boolean skipPreload,
+            int topN, String timezone, boolean skipPreload,
             Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap) {
 
         if (klineService == null) {
@@ -2827,36 +2807,6 @@ public class IndexCalculatorService {
         java.time.LocalDate startDate = endDate.minusDays(days - 1);
 
         log.info("回测日期范围: {} 至 {}", startDate, endDate);
-
-        // --- 优化：预加载所有需要的K线数据 ---
-        // 1. 获取所有交易对
-        List<String> finalSymbols;
-        if (skipPreload && symbols != null) {
-            finalSymbols = symbols;
-        } else {
-            long startSymbolsTime = System.currentTimeMillis();
-            finalSymbols = binanceApiService.getAllUsdtSymbols();
-            log.info("📊 获取 {} 个交易对耗时: {}ms", finalSymbols.size(), (System.currentTimeMillis() - startSymbolsTime));
-        }
-
-        if (finalSymbols.isEmpty()) {
-            log.warn("无法获取交易对列表，回测终止");
-            com.binance.index.dto.BacktestResult errorResult = new com.binance.index.dto.BacktestResult();
-            errorResult.setSkippedDays(java.util.List.of("无法获取交易对列表"));
-            return errorResult;
-        }
-
-        // 2. 预加载时间范围（基准时间到结束时间）
-        java.time.LocalDateTime preloadStart = startDate.atTime(entryHour, entryMinute).minusHours(rankingHours + 1);
-        java.time.LocalDateTime preloadEnd = endDate.atTime(entryHour, entryMinute).plusHours(holdHours);
-
-        if (!skipPreload) {
-            log.info("🚀 启动数据预拉取器: {} 至 {}", preloadStart, preloadEnd);
-            long startPreloadTime = System.currentTimeMillis();
-            klineService.preloadKlines(preloadStart, preloadEnd, finalSymbols);
-            log.info("⏱️ 数据预拉取完成，总耗时: {}ms", (System.currentTimeMillis() - startPreloadTime));
-        }
-        // --- 优化结束 ---
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
         // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
@@ -3059,5 +3009,30 @@ public class IndexCalculatorService {
                 result.getTotalProfit());
 
         return result;
+    }
+
+    public void syncKlineData(int days) {
+        log.info("开始手动同步K线数据: {} 天", days);
+
+        java.time.ZoneId userZone = java.time.ZoneId.of("Asia/Shanghai");
+        java.time.LocalDate today = java.time.LocalDate.now(userZone);
+        java.time.LocalDate endDate = today; // 同步到今天
+        java.time.LocalDate startDate = endDate.minusDays(days);
+
+        // 获取所有交易对
+        List<String> symbols = binanceApiService.getAllUsdtSymbols();
+        if (symbols.isEmpty()) {
+            log.warn("同步数据失败：无法获取交易对列表");
+            return;
+        }
+
+        // 预加载时间范围（从入场前24小时到持仓结束）
+        // 这里取一个宽泛的范围：早于开始日期1天，晚于结束日期1天
+        java.time.LocalDateTime preloadStart = startDate.atStartOfDay().minusDays(1);
+        java.time.LocalDateTime preloadEnd = endDate.atTime(23, 59, 59).plusDays(1);
+
+        log.info("🚀 启动数据同步: {} 至 {}", preloadStart, preloadEnd);
+        klineService.preloadKlines(preloadStart, preloadEnd, symbols);
+        log.info("✅ 数据同步完成");
     }
 }
