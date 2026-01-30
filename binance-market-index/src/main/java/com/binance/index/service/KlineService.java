@@ -237,40 +237,44 @@ public class KlineService {
             return new HashMap<>();
         }
 
-        LocalDateTime minTime = java.util.Collections.min(times);
-        LocalDateTime maxTime = java.util.Collections.max(times);
+        LocalDateTime minReq = java.util.Collections.min(times);
+        LocalDateTime maxReq = java.util.Collections.max(times);
 
         // 检查缓存逻辑：如果请求范围被现有缓存全覆盖，直接从内存取
         if (priceCache != null && cachedStart != null && cachedEnd != null &&
-                !minTime.isBefore(cachedStart) && !maxTime.isAfter(cachedEnd)) {
+                !minReq.isBefore(cachedStart) && !maxReq.isAfter(cachedEnd)) {
 
-            log.info("🎯 命中内存缓存! 范围: {} 至 {}. 正在从内存提取 {} 个点...",
+            log.info("🎯 命中全局缓存! 现有范围: {} 至 {}. 正在提取 {} 个点...",
                     cachedStart, cachedEnd, times.size());
 
             Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
+            int hitCount = 0;
             for (LocalDateTime t : times) {
                 if (priceCache.containsKey(t)) {
                     result.put(t, priceCache.get(t));
+                    hitCount++;
                 }
             }
-            log.info("⚡ 内存提取完成，耗时: 0ms");
+            log.info("⚡ 内存提取成功 (命中率: {}/{}). 耗时: 0ms", hitCount, times.size());
             return result;
         }
 
         int totalSize = times.size();
-        log.info("🚀 启动高性能批量查询: 处理 {} 个时间点...", totalSize);
+        log.info("🚀 缓存未命中或超界，启动高性能批量查询 ({} 个点)...", totalSize);
         long startTotal = System.currentTimeMillis();
 
-        // 执行范围查询
-        log.info("🔍 执行范围投影查询: {} 至 {}", minTime, maxTime);
-        List<Object[]> rows = hourlyKlineRepository.findAllPartialByOpenTimeBetween(minTime, maxTime);
+        // 优化：对于大批量查询，自动将范围对齐到自然日的开始和结束 (00:00:00)
+        // 这样可以确保优化器和每日战报在同一天范围内能获得完全一样的边界，极大提高互命率
+        LocalDateTime alignedStart = minReq.withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime alignedEnd = maxReq.withHour(23).withMinute(59).withSecond(59);
+
+        log.info("🔍 执行[自然日对齐]投影查询: {} 至 {}", alignedStart, alignedEnd);
+        List<Object[]> rows = hourlyKlineRepository.findAllPartialByOpenTimeBetween(alignedStart, alignedEnd);
         long queryElapsed = System.currentTimeMillis() - startTotal;
 
         log.info("✅ DB投影查询完成: 获得 {} 条记录, 耗时: {}ms", rows.size(), queryElapsed);
 
-        // 按时间点分组处理 (更新全局缓存)
-        long startProcess = System.currentTimeMillis();
-
+        // 更新全局缓存
         Map<LocalDateTime, Map<String, Double>> newCache = new HashMap<>();
         for (Object[] row : rows) {
             String symbol = (String) row[0];
@@ -279,12 +283,11 @@ public class KlineService {
             newCache.computeIfAbsent(time, k -> new HashMap<>()).put(symbol, price);
         }
 
-        // 更新缓存元数据
         this.priceCache = newCache;
-        this.cachedStart = minTime;
-        this.cachedEnd = maxTime;
+        this.cachedStart = alignedStart;
+        this.cachedEnd = alignedEnd;
 
-        // 过滤出本次查询需要的点返回
+        // 过滤出请求需要的点返回
         Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
         for (LocalDateTime t : times) {
             if (newCache.containsKey(t)) {
@@ -292,8 +295,8 @@ public class KlineService {
             }
         }
 
-        log.info("📊 批量查询总计性能: DB扫描 {} 条 -> 内存处理 {} 条。总耗时: {}ms",
-                rows.size(), result.size(), (System.currentTimeMillis() - startTotal));
+        log.info("📊 批量查询总计性能: DB扫描 {} 条 -> 缓存构建完毕。总耗时: {}ms",
+                rows.size(), (System.currentTimeMillis() - startTotal));
 
         return result;
     }
