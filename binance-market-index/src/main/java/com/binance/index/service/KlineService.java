@@ -232,7 +232,7 @@ public class KlineService {
 
         List<LocalDateTime> timeList = new ArrayList<>(times);
         int totalSize = timeList.size();
-        int batchSize = 20; // 每批查询20个时间点，防止IN子句过大
+        int batchSize = 50; // 每批查询50个时间点，防止IN子句过大
 
         log.info("开始批量从本地查询 {} 个时间点的价格数据 (分批大小: {})...", totalSize, batchSize);
         long startTotal = System.currentTimeMillis();
