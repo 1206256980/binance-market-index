@@ -5,6 +5,7 @@ import DistributionModule from './components/DistributionModule'
 import UptrendModule from './components/UptrendModule'
 import BacktestModule from './components/BacktestModule'
 import OptimizerModule from './components/OptimizerModule'
+import DailyOptimizerModule from './components/DailyOptimizerModule'
 import DataSyncModule from './components/DataSyncModule'
 import StatsCard from './components/StatsCard'
 import TimeRangeSelector from './components/TimeRangeSelector'
@@ -27,6 +28,8 @@ function App() {
             const hash = window.location.hash.replace('#', '')
             if (hash === 'backtest') {
                 setView('backtest')
+            } else if (hash === 'daily-report') {
+                setView('daily-report')
             } else if (hash === 'tools') {
                 setView('tools')
             }
@@ -150,6 +153,9 @@ function App() {
                         </a>
                         <a href="#backtest" className={`nav-link ${view === 'backtest' ? 'active' : ''}`} onClick={() => setView('backtest')}>
                             🧪 策略回测
+                        </a>
+                        <a href="#daily-report" className={`nav-link ${view === 'daily-report' ? 'active' : ''}`} onClick={() => setView('daily-report')}>
+                            📅 每日战报
                         </a>
                         <a href="#tools" className={`nav-link ${view === 'tools' ? 'active' : ''}`} onClick={() => setView('tools')}>
                             🛠️ 数据工具
@@ -289,6 +295,13 @@ function App() {
 
                     {/* 策略优化器模块 */}
                     <OptimizerModule />
+                </div>
+            )}
+
+            {/* 每日策略战报视图 */}
+            {view === 'daily-report' && (
+                <div style={{ animation: 'slideUp 0.4s ease-out' }}>
+                    <DailyOptimizerModule />
                 </div>
             )}
 

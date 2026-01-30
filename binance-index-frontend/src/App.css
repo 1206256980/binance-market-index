@@ -2878,3 +2878,233 @@ body {
   font-style: italic;
   text-align: center;
 }
+/* ===== 每日策略战报 (Daily Optimizer) ===== */
+.daily-optimizer-module {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  animation: slideUp 0.4s ease-out;
+}
+
+.daily-optimizer-module .config-card {
+  background: var(--bg-card);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+}
+
+.config-header h3 {
+  font-size: 1.4rem;
+  margin-bottom: 4px;
+}
+
+.config-header p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-md);
+  align-items: flex-end;
+}
+
+.param-item label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+
+.input-field, .select-field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.run-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 42px;
+}
+
+.run-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.run-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* 战报网格 */
+.rankings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+}
+
+.day-report-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.day-report-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.day-report-header {
+  padding: var(--spacing-md);
+  background: var(--bg-card-hover);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.date-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.date-tag {
+  background: var(--text-primary);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.champion-label {
+  font-weight: 800;
+  color: #b8860b; 
+  font-size: 0.85rem;
+}
+
+.best-profit {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.best-profit .value {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* 排行列表 */
+.rank-list {
+  padding: var(--spacing-xs) 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--bg-primary);
+  transition: background 0.2s;
+}
+
+.rank-row:hover {
+  background: var(--bg-primary);
+}
+
+.rank-row.is-winner {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.rank-pos {
+  width: 24px;
+  font-weight: 800;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.rank-row:nth-child(1) .rank-pos { color: #ffd700; }
+.rank-row:nth-child(2) .rank-pos { color: #c0c0c0; }
+.rank-row:nth-child(3) .rank-pos { color: #cd7f32; }
+
+.strategy-meta {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+}
+
+.tag-h, .tag-n {
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tag-h { background: #e0f2fe; color: #0369a1; }
+.tag-n { background: #fef3c7; color: #b45309; }
+
+.rank-stats {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+}
+
+.p-val {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.p-up { color: var(--success); }
+.p-down { color: var(--danger); }
+
+.w-l {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.empty-state {
+  padding: 100px 20px;
+  text-align: center;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border-color);
+  margin-top: var(--spacing-lg);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: var(--spacing-md);
+  opacity: 0.5;
+}
+
+.error-banner {
+  margin-top: var(--spacing-md);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
