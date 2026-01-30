@@ -15,9 +15,9 @@ const DailyOptimizerModule = () => {
         const val = localStorage.getItem('daily_opt_days');
         return val ? parseInt(val) : 30;
     })
-    const [entryHour, setEntryHour] = useState(() => {
-        const val = localStorage.getItem('daily_opt_entryHour');
-        return val ? parseInt(val) : 0;
+    const [selectedEntryHours, setSelectedEntryHours] = useState(() => {
+        const val = localStorage.getItem('daily_opt_entryHours');
+        return val ? JSON.parse(val) : [0, 12, 18, 22]; // 默认选几个
     })
     const [holdHours, setHoldHours] = useState(() => {
         const val = localStorage.getItem('daily_opt_holdHours');
@@ -33,9 +33,17 @@ const DailyOptimizerModule = () => {
     useEffect(() => {
         localStorage.setItem('daily_opt_amount', totalAmount)
         localStorage.setItem('daily_opt_days', days)
-        localStorage.setItem('daily_opt_entryHour', entryHour)
+        localStorage.setItem('daily_opt_entryHours', JSON.stringify(selectedEntryHours))
         localStorage.setItem('daily_opt_holdHours', holdHours)
-    }, [totalAmount, days, entryHour, holdHours])
+    }, [totalAmount, days, selectedEntryHours, holdHours])
+
+    const toggleHour = (hour) => {
+        if (selectedEntryHours.includes(hour)) {
+            setSelectedEntryHours(selectedEntryHours.filter(h => h !== hour));
+        } else {
+            setSelectedEntryHours([...selectedEntryHours, hour].sort((a, b) => a - b));
+        }
+    }
 
     // 执行优化计算
     const runOptimize = async () => {
@@ -46,7 +54,7 @@ const DailyOptimizerModule = () => {
                 params: {
                     totalAmount,
                     days,
-                    entryHour,
+                    entryHours: selectedEntryHours.join(','),
                     holdHours,
                     timezone: 'Asia/Shanghai'
                 }
@@ -69,13 +77,14 @@ const DailyOptimizerModule = () => {
 
         const dateMap = {};
         rawData.forEach(combo => {
-            const label = `${combo.rankingHours}h / Top ${combo.topN}`;
+            const label = `${combo.entryHour}:00 | ${combo.rankingHours}h | Top ${combo.topN}`;
             combo.dailyResults.forEach(dr => {
                 if (!dateMap[dr.date]) {
                     dateMap[dr.date] = [];
                 }
                 dateMap[dr.date].push({
                     label,
+                    entryHour: combo.entryHour,
                     rankingHours: combo.rankingHours,
                     topN: combo.topN,
                     profit: dr.totalProfit,
@@ -126,17 +135,19 @@ const DailyOptimizerModule = () => {
                             onChange={e => setDays(e.target.value)}
                         />
                     </div>
-                    <div className="param-item">
-                        <label>入场时间</label>
-                        <select
-                            className="select-field"
-                            value={entryHour}
-                            onChange={e => setEntryHour(parseInt(e.target.value))}
-                        >
-                            {Array.from({ length: 24 }).map((_, i) => (
-                                <option key={i} value={i}>{i < 10 ? `0${i}` : i}:00</option>
+                    <div className="param-item wide">
+                        <label>入场时间 (可多选)</label>
+                        <div className="hour-selector">
+                            {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22].map(hour => (
+                                <button
+                                    key={hour}
+                                    className={`hour-tag ${selectedEntryHours.includes(hour) ? 'active' : ''}`}
+                                    onClick={() => toggleHour(hour)}
+                                >
+                                    {hour < 10 ? `0${hour}` : hour}:00
+                                </button>
                             ))}
-                        </select>
+                        </div>
                     </div>
                     <div className="param-item">
                         <label>持仓时长 (h)</label>
@@ -181,6 +192,7 @@ const DailyOptimizerModule = () => {
                                     <div key={idx} className={`rank-row ${idx === 0 ? 'is-winner' : ''}`}>
                                         <div className="rank-pos">{idx + 1}</div>
                                         <div className="strategy-meta">
+                                            <span className="tag-e">{rank.entryHour}:00</span>
                                             <span className="tag-h">{rank.rankingHours}h</span>
                                             <span className="tag-n">Top {rank.topN}</span>
                                         </div>

@@ -1116,57 +1116,69 @@ public class IndexController {
     public ResponseEntity<Map<String, Object>> optimizeStrategyDaily(
             @RequestParam(defaultValue = "1000") double totalAmount,
             @RequestParam(defaultValue = "30") int days,
-            @RequestParam int entryHour,
+            @RequestParam String entryHours, // 改为 String 以支持多选 "0,2,4..."
             @RequestParam int holdHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
         log.info(
-                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entry={} h, hold={} h) -------------------------",
-                entryHour, holdHours);
+                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entries={}, hold={} h) -------------------------",
+                entryHours, holdHours);
         Map<String, Object> response = new HashMap<>();
 
         try {
+            // 解析入场时间
+            int[] entryHourOptions = java.util.Arrays.stream(entryHours.split(","))
+                    .map(String::trim)
+                    .mapToInt(Integer::parseInt)
+                    .toArray();
+
             // 定义参数范围 (固定对比涨幅榜和TopN)
             int[] rankingHoursOptions = { 24, 48, 72, 168 };
             int[] topNOptions = { 5, 10, 15, 20 };
 
-            // 生成组合
+            // 生成组合 (增加 entryHour 维度)
             List<int[]> combinations = new java.util.ArrayList<>();
-            for (int rHours : rankingHoursOptions) {
-                for (int tN : topNOptions) {
-                    combinations.add(new int[] { rHours, tN });
+            for (int eHour : entryHourOptions) {
+                for (int rHours : rankingHoursOptions) {
+                    for (int tN : topNOptions) {
+                        combinations.add(new int[] { eHour, rHours, tN });
+                    }
                 }
             }
 
             long startTime = System.currentTimeMillis();
 
-            // 预加载外提 (类似优化器逻辑)
+            // 预加载外提
             Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = null;
 
-            // 计算全局范围
             int maxRankingHours = 168;
             java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
             java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
             java.time.LocalDate endDate = java.time.LocalDate.now(userZone).minusDays(1);
             java.time.LocalDate startDate = endDate.minusDays(days - 1);
 
-            java.time.LocalDateTime globalPreloadStart = startDate.atTime(entryHour, 0).minusHours(maxRankingHours + 1);
-            java.time.LocalDateTime globalPreloadEnd = endDate.atTime(entryHour, 0).plusHours(holdHours);
+            // 汇总所有入场时间需要的全局范围
+            int minE = java.util.Arrays.stream(entryHourOptions).min().orElse(0);
+            int maxE = java.util.Arrays.stream(entryHourOptions).max().orElse(23);
+            java.time.LocalDateTime globalPreloadStart = startDate.atTime(minE, 0).minusHours(maxRankingHours + 1);
+            java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxE, 0).plusHours(holdHours);
 
-            log.info("📦 每日优化器执行全局价格预取: {} 至 {}", globalPreloadStart, globalPreloadEnd);
+            log.info("📦 每日优化器(多入场)执行全局价格预取: {} 至 {}", globalPreloadStart, globalPreloadEnd);
 
             java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.HashSet<>();
             for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-                java.time.LocalDateTime entryTimeUtc = date.atTime(entryHour, 0).atZone(userZone)
-                        .withZoneSameInstant(utcZone).toLocalDateTime();
-                java.time.LocalDateTime exitTimeUtc = date.atTime(entryHour, 0).plusHours(holdHours).atZone(userZone)
-                        .withZoneSameInstant(utcZone).toLocalDateTime();
-                allRequiredTimesUtc.add(entryTimeUtc);
-                allRequiredTimesUtc.add(exitTimeUtc);
-
-                for (int rHours : rankingHoursOptions) {
-                    java.time.LocalDateTime baseTimeUtc = date.atTime(entryHour, 0).minusHours(rHours).atZone(userZone)
+                for (int eHour : entryHourOptions) {
+                    java.time.LocalDateTime entryTimeUtc = date.atTime(eHour, 0).atZone(userZone)
                             .withZoneSameInstant(utcZone).toLocalDateTime();
-                    allRequiredTimesUtc.add(baseTimeUtc);
+                    java.time.LocalDateTime exitTimeUtc = date.atTime(eHour, 0).plusHours(holdHours).atZone(userZone)
+                            .withZoneSameInstant(utcZone).toLocalDateTime();
+                    allRequiredTimesUtc.add(entryTimeUtc);
+                    allRequiredTimesUtc.add(exitTimeUtc);
+
+                    for (int rHours : rankingHoursOptions) {
+                        java.time.LocalDateTime baseTimeUtc = date.atTime(eHour, 0).minusHours(rHours).atZone(userZone)
+                                .withZoneSameInstant(utcZone).toLocalDateTime();
+                        allRequiredTimesUtc.add(baseTimeUtc);
+                    }
                 }
             }
 
@@ -1176,20 +1188,22 @@ public class IndexController {
             final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
             List<Map<String, Object>> allResults = combinations.parallelStream()
                     .map(combo -> {
-                        int rHours = combo[0];
-                        int tN = combo[1];
+                        int eHour = combo[0];
+                        int rHours = combo[1];
+                        int tN = combo[2];
                         double amountPerCoin = totalAmount / tN;
 
                         com.binance.index.dto.BacktestResult backtestResult = indexCalculatorService
                                 .runShortTopNBacktestApi(
-                                        entryHour, 0, amountPerCoin, days, rHours, holdHours, tN, timezone, true,
+                                        eHour, 0, amountPerCoin, days, rHours, holdHours, tN, timezone, true,
                                         pricesForTask);
 
                         Map<String, Object> res = new HashMap<>();
+                        res.put("entryHour", eHour);
                         res.put("rankingHours", rHours);
                         res.put("topN", tN);
                         res.put("totalProfit", backtestResult.getTotalProfit());
-                        res.put("dailyResults", backtestResult.getDailyResults()); // 关键：返回每日明细
+                        res.put("dailyResults", backtestResult.getDailyResults());
                         return res;
                     })
                     .collect(java.util.stream.Collectors.toList());

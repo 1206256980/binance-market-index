@@ -3108,3 +3108,53 @@ body {
   text-align: center;
 }
 
+
+/* 澶氶€夊皬鏃堕€夋嫨鍣?*/
+.param-item.wide {
+  grid-column: span 2;
+}
+
+.hour-selector {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  background: var(--bg-primary);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.hour-tag {
+  padding: 6px 0;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.hour-tag:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.hour-tag.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+}
+
+.tag-e {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
