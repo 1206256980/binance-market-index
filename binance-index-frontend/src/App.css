@@ -1,4 +1,4 @@
-﻿/* ===== 鍏ㄥ眬鏍峰紡 - 鐧借壊涓婚 ===== */
+/* ===== 全局样式 - 白色主题 ===== */
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +6,7 @@
 }
 
 :root {
-  /* 鐧借壊涓婚棰滆壊鍙橀噺 */
+  /* 白色主题颜色变量 */
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
@@ -26,19 +26,19 @@
   --danger: #ef4444;
   --warning: #f59e0b;
 
-  /* 闂磋窛 */
+  /* 间距 */
   --spacing-xs: 0.5rem;
   --spacing-sm: 0.75rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
 
-  /* 鍦嗚 */
+  /* 圆角 */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  /* 闃村奖 */
+  /* 阴影 */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
@@ -52,18 +52,18 @@ body {
   line-height: 1.6;
 }
 
-/* ===== 涓诲鍣?===== */
+/* ===== 主容�?===== */
 .app {
   max-width: 1400px;
   margin: 0 auto;
   padding: 80px 20px 40px;
-  /* 涓洪《閮ㄥ浐瀹氬鑸暀鍑虹┖闂?*/
+  /* 为顶部固定导航留出空�?*/
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* 瀵艰埅鏍忔牱寮?*/
+/* 导航栏样�?*/
 .nav-bar {
   position: fixed;
   top: 0;
@@ -125,7 +125,7 @@ body {
   box-shadow: 0 0 0 1px var(--accent-primary);
 }
 
-/* 缂烘紡鎻愮ず鏍峰紡澧炲己 */
+/* 缺漏提示样式增强 */
 .missing-banner {
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1));
   border: 1px solid rgba(245, 158, 11, 0.3);
@@ -159,7 +159,7 @@ body {
   font-weight: 600;
 }
 
-/* ===== 缁熻鍗＄墖瀹瑰櫒 ===== */
+/* ===== 统计卡片容器 ===== */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -167,7 +167,7 @@ body {
   margin-bottom: var(--spacing-lg);
 }
 
-/* ===== 鍗曚釜缁熻鍗＄墖 ===== */
+/* ===== 单个统计卡片 ===== */
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -212,7 +212,7 @@ body {
   margin-top: 2px;
 }
 
-/* ===== 鎺у埗鏍?===== */
+/* ===== 控制�?===== */
 .controls {
   display: flex;
   justify-content: space-between;
@@ -293,7 +293,7 @@ body {
   pointer-events: none;
 }
 
-/* ===== 鍥捐〃瀹瑰櫒 ===== */
+/* ===== 图表容器 ===== */
 .chart-container {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -313,7 +313,7 @@ body {
   gap: var(--spacing-xs);
 }
 
-/* ===== 鍔犺浇鐘舵€?===== */
+/* ===== 加载状�?===== */
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -339,7 +339,7 @@ body {
   }
 }
 
-/* ===== 閿欒鐘舵€?===== */
+/* ===== 错误状�?===== */
 .error-container {
   display: flex;
   flex-direction: column;
@@ -372,7 +372,7 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* ===== 鏃犳暟鎹姸鎬?===== */
+/* ===== 无数据状�?===== */
 .no-data {
   display: flex;
   flex-direction: column;
@@ -388,7 +388,7 @@ body {
   opacity: 0.5;
 }
 
-/* ===== 椤佃剼 ===== */
+/* ===== 页脚 ===== */
 .footer {
   text-align: center;
   margin-top: var(--spacing-lg);
@@ -398,7 +398,7 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
-/* ===== 娑ㄥ箙鍒嗗竷妯″潡 ===== */
+/* ===== 涨幅分布模块 ===== */
 .distribution-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -493,7 +493,7 @@ body {
   margin-left: var(--spacing-sm);
 }
 
-/* 鏃堕棿妯″紡鍒囨崲鎸夐挳 */
+/* 时间模式切换按钮 */
 .time-mode-toggle {
   display: flex;
   gap: 2px;
@@ -525,7 +525,7 @@ body {
   color: white;
 }
 
-/* 鑱斿姩寰界珷鏍峰紡 */
+/* 联动徽章样式 */
 .linked-badge {
   display: inline-flex;
   align-items: center;
@@ -553,7 +553,7 @@ body {
   }
 }
 
-/* 鏃堕棿杈撳叆妗?*/
+/* 时间输入�?*/
 .time-base-selector .time-input {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
@@ -582,7 +582,7 @@ body {
   font-weight: 400;
 }
 
-/* 鍒嗗竷缁熻 */
+/* 分布统计 */
 .distribution-stats {
   display: flex;
   gap: var(--spacing-lg);
@@ -630,7 +630,7 @@ body {
   color: var(--accent-primary);
 }
 
-/* 鍥捐〃鍖哄煙 - 姘村钩甯冨眬浠ュ绾虫帓琛屾闈㈡澘 */
+/* 图表区域 - 水平布局以容纳排行榜面板 */
 .distribution-charts {
   display: flex;
   gap: var(--spacing-md);
@@ -661,7 +661,7 @@ body {
   gap: var(--spacing-sm);
 }
 
-/* 鏌ョ湅鍏ㄩ儴鎺掕鎸夐挳 */
+/* 查看全部排行按钮 */
 .all-ranking-btn {
   margin-left: auto;
   padding: 6px 14px;
@@ -693,7 +693,7 @@ body {
   color: var(--text-muted);
 }
 
-/* 閬僵灞?- 鐐瑰嚮鍏抽棴渚ц竟鏍?*/
+/* 遮罩�?- 点击关闭侧边�?*/
 .ranking-overlay {
   position: fixed;
   top: 0;
@@ -716,7 +716,7 @@ body {
   }
 }
 
-/* ===== 鎺掕姒滄粦鍑洪潰鏉?===== */
+/* ===== 排行榜滑出面�?===== */
 .ranking-panel {
   position: fixed;
   top: 0;
@@ -795,7 +795,7 @@ body {
   color: white;
 }
 
-/* 鎺掑簭鎺у埗鏍?*/
+/* 排序控制�?*/
 .sort-controls {
   display: flex;
   align-items: center;
@@ -854,7 +854,7 @@ body {
   border-color: var(--accent-primary);
 }
 
-/* 鎺掑簭绫诲瀷鍒囨崲 */
+/* 排序类型切换 */
 .sort-type-toggle {
   display: flex;
   gap: 2px;
@@ -1017,7 +1017,7 @@ body {
   font-size: 0.85rem;
 }
 
-/* ===== 鍝嶅簲寮?===== */
+/* ===== 响应�?===== */
 @media (max-width: 768px) {
   .app {
     padding: var(--spacing-sm);
@@ -1058,7 +1058,7 @@ body {
     flex-wrap: wrap;
   }
 
-  /* 绉诲姩绔帓琛屾闈㈡澘 - 渚ц竟鏍忓崰婊″睆骞?*/
+  /* 移动端排行榜面板 - 侧边栏占满屏�?*/
   .ranking-panel.open {
     width: 100%;
   }
@@ -1091,12 +1091,12 @@ body {
   }
 }
 
-/* ===== 鍗曡竟涓婅娑ㄥ箙妯″潡涓撳睘鏍峰紡 ===== */
+/* ===== 单边上行涨幅模块专属样式 ===== */
 .uptrend-module .distribution-title {
   color: var(--danger);
 }
 
-/* 闃堝€艰緭鍏ユ */
+/* 阈值输入框 */
 .threshold-input {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
@@ -1119,7 +1119,7 @@ body {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
-/* 鍙湅杩涜涓瓫閫?*/
+/* 只看进行中筛�?*/
 .filter-ongoing {
   display: flex;
   align-items: center;
@@ -1136,7 +1136,7 @@ body {
   cursor: pointer;
 }
 
-/* 甯佺鎼滅储妗?*/
+/* 币种搜索�?*/
 .symbol-search {
   display: flex;
   align-items: center;
@@ -1189,7 +1189,7 @@ body {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
-/* 鍗曡竟娑ㄥ箙鎺掕椤圭洰鏍峰紡 */
+/* 单边涨幅排行项目样式 */
 .uptrend-item {
   display: grid;
   grid-template-columns: 32px 1fr auto 32px;
@@ -1278,7 +1278,7 @@ body {
   margin-top: 2px;
 }
 
-/* 璇︽儏鎸夐挳 */
+/* 详情按钮 */
 .detail-btn {
   width: 28px;
   height: 28px;
@@ -1299,7 +1299,7 @@ body {
   transform: scale(1.05);
 }
 
-/* 杩斿洖鎸夐挳 */
+/* 返回按钮 */
 .back-btn {
   display: flex;
   align-items: center;
@@ -1324,7 +1324,7 @@ body {
   transform: translateX(-2px);
 }
 
-/* 鏃堕棿杈撳叆妗?*/
+/* 时间输入�?*/
 .time-input {
   background: var(--bg-card-hover);
   border: 1px solid var(--border-color);
@@ -1345,7 +1345,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* ===== 甯佺缁熻鍗＄墖 ===== */
+/* ===== 币种统计卡片 ===== */
 .symbol-stats-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1397,7 +1397,7 @@ body {
   text-overflow: ellipsis;
 }
 
-/* ===== 鑳滅巼鍒嗘瀽鍗＄墖 ===== */
+/* ===== 胜率分析卡片 ===== */
 .win-rate-card {
   min-width: 180px;
 }
@@ -1443,7 +1443,7 @@ body {
   white-space: nowrap;
 }
 
-/* ===== 鎼滅储鍗＄墖 ===== */
+/* ===== 搜索卡片 ===== */
 .search-card {
   min-width: 160px;
 }
@@ -1509,7 +1509,7 @@ body {
   color: white;
 }
 
-/* ===== 閲嶇疆鎸夐挳 ===== */
+/* ===== 重置按钮 ===== */
 .reset-btn {
   width: 32px;
   height: 32px;
@@ -1532,7 +1532,7 @@ body {
   color: white;
 }
 
-/* ===== 鎺у埗鏍忔悳绱㈡ ===== */
+/* ===== 控制栏搜索框 ===== */
 .header-search {
   display: flex;
   align-items: center;
@@ -1589,7 +1589,7 @@ body {
   color: white;
 }
 
-/* ===== 鍔犺浇鏇村鎻愮ず ===== */
+/* ===== 加载更多提示 ===== */
 .load-more-hint {
   text-align: center;
   padding: 16px;
@@ -1611,7 +1611,7 @@ body {
   }
 }
 
-/* ===== 鍥炴祴妯″潡鏍峰紡 ===== */
+/* ===== 回测模块样式 ===== */
 .backtest-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -1766,7 +1766,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 
-/* 缁撴灉姹囨€诲崱鐗?*/
+/* 结果汇总卡�?*/
 .result-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1822,7 +1822,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 
-/* 姣忔棩鏄庣粏 */
+/* 每日明细 */
 .daily-results {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1895,7 +1895,7 @@ body {
   width: 20px;
 }
 
-/* 浜ゆ槗鏄庣粏琛ㄦ牸 */
+/* 交易明细表格 */
 .daily-trades {
   padding: var(--spacing-md);
   background: var(--bg-primary);
@@ -1954,7 +1954,7 @@ body {
   }
 }
 
-/* ========== 绛栫暐浼樺寲鍣ㄦā鍧?========== */
+/* ========== 策略优化器模�?========== */
 .optimizer-module {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
@@ -2103,7 +2103,7 @@ body {
   font-weight: 700;
 }
 
-/* ===== 绛栫暐浼樺寲鍣ㄦā鍧楁牱寮?===== */
+/* ===== 策略优化器模块样�?===== */
 .optimizer-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -2173,7 +2173,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* 鍏ュ満鏃堕棿閫夋嫨鏍峰紡 */
+/* 入场时间选择样式 */
 .hour-selection-wrapper {
   margin-top: var(--spacing-sm);
   background: var(--bg-primary);
@@ -2278,7 +2278,7 @@ body {
   filter: grayscale(0.5);
 }
 
-/* 缁撴灉琛ㄦ牸澧炲己 */
+/* 结果表格增强 */
 .optimizer-result {
   margin-top: var(--spacing-xl);
   animation: slideUp 0.3s ease-out;
@@ -2383,7 +2383,7 @@ body {
   font-size: 0.9rem;
 }
 
-/* 绱у噾鍨嬪弬鏁板竷灞€ */
+/* 紧凑型参数布局 */
 .optimizer-params-compact {
   background: var(--bg-secondary);
   border-radius: 12px;
@@ -2397,7 +2397,7 @@ body {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  /* 鍏佽鍦ㄧ獎灞忎笅鎹㈣ */
+  /* 允许在窄屏下换行 */
 }
 
 .param-item {
@@ -2521,7 +2521,7 @@ body {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* 缁撴灉鍖烘牱寮忎紭鍖?*/
+/* 结果区样式优�?*/
 .optimizer-result-header {
   display: flex;
   justify-content: space-between;
@@ -2564,7 +2564,7 @@ body {
   color: var(--accent-primary) !important;
 }
 
-/* 分页控制样式 - 通用版 */
+/* ��ҳ������ʽ - ͨ�ð� */
 .standard-pagination {
   display: flex;
   justify-content: center;
@@ -2621,7 +2621,7 @@ body {
   font-size: 16px;
 }
 
-/* API 鏁版嵁婧愬垏鎹㈡牱寮?*/
+/* API 数据源切换样�?*/
 .api-toggle-compact {
   display: flex;
   align-items: center;
@@ -2651,7 +2651,7 @@ body {
   height: 14px;
 }
 
-/* 策略优化器表格可展开样式 */
+/* �����Ż��������չ����ʽ */
 .optimizer-table tbody tr.clickable-row {
   cursor: pointer;
   transition: background-color 0.2s;
@@ -2878,7 +2878,7 @@ body {
   font-style: italic;
   text-align: center;
 }
-/* ===== 每日策略战报 (Daily Optimizer) ===== */
+/* ===== ÿ�ղ���ս�� (Daily Optimizer) ===== */
 .daily-optimizer-module {
   display: flex;
   flex-direction: column;
@@ -2953,7 +2953,7 @@ body {
   cursor: wait;
 }
 
-/* 战报网格 */
+/* ս������ */
 .rankings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -3014,7 +3014,7 @@ body {
   font-size: 1rem;
 }
 
-/* 排行列表 */
+/* �����б� */
 .rank-list {
   padding: var(--spacing-xs) 0;
   max-height: 400px;
@@ -3109,52 +3109,103 @@ body {
 }
 
 
-/* 澶氶€夊皬鏃堕€夋嫨鍣?*/
-.param-item.wide {
-  grid-column: span 2;
+
+/* ÿ��ս����ǿ��ʽ */
+.label-with-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-.hour-selector {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+.label-with-actions label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.quick-btns {
+  display: flex;
   gap: 6px;
+}
+
+.quick-btns button {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.quick-btns button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--bg-card-hover);
+}
+
+.hour-tags-container {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
   background: var(--bg-primary);
   padding: 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
 }
 
+@media (max-width: 1200px) {
+  .hour-tags-container {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .hour-tags-container {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
 .hour-tag {
-  padding: 6px 0;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-secondary);
+  padding: 4px 0;
+  text-align: center;
   font-size: 0.75rem;
-  font-weight: 600;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
+  user-select: none;
+  transition: all 0.15s;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .hour-tag:hover {
   border-color: var(--accent-primary);
-  color: var(--accent-primary);
+  background: var(--bg-card-hover);
 }
 
 .hour-tag.active {
   background: var(--accent-gradient);
   color: white;
   border-color: transparent;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+.param-item.wide {
+  grid-column: span 2;
 }
 
 .tag-e {
   background: #f1f5f9;
   color: #475569;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 600;
+  border: 1px solid #e2e8f0;
 }
 

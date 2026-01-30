@@ -30,6 +30,10 @@ const DailyOptimizerModule = () => {
     const [rawData, setRawData] = useState(null) // 后端返回的组合原始数据
 
     // 自动保存参数到 localStorage
+    const selectDefaultHours = () => setSelectedEntryHours([0, 12, 18, 22]);
+    const selectAllHours = () => setSelectedEntryHours(Array.from({ length: 24 }, (_, i) => i));
+    const selectNoneHours = () => setSelectedEntryHours([]);
+
     useEffect(() => {
         localStorage.setItem('daily_opt_amount', totalAmount)
         localStorage.setItem('daily_opt_days', days)
@@ -135,17 +139,24 @@ const DailyOptimizerModule = () => {
                             onChange={e => setDays(e.target.value)}
                         />
                     </div>
-                    <div className="param-item wide">
-                        <label>入场时间 (可多选)</label>
-                        <div className="hour-selector">
-                            {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22].map(hour => (
-                                <button
-                                    key={hour}
-                                    className={`hour-tag ${selectedEntryHours.includes(hour) ? 'active' : ''}`}
-                                    onClick={() => toggleHour(hour)}
+                    <div className="param-item wide hour-selection-section">
+                        <div className="label-with-actions">
+                            <label>入场时间 ({selectedEntryHours.length})</label>
+                            <div className="quick-btns">
+                                <button type="button" onClick={selectDefaultHours}>默认</button>
+                                <button type="button" onClick={selectAllHours}>全选</button>
+                                <button type="button" onClick={selectNoneHours}>全清</button>
+                            </div>
+                        </div>
+                        <div className="hour-tags-container">
+                            {Array.from({ length: 24 }, (_, i) => (
+                                <span
+                                    key={i}
+                                    className={`hour-tag ${selectedEntryHours.includes(i) ? 'active' : ''}`}
+                                    onClick={() => toggleHour(i)}
                                 >
-                                    {hour < 10 ? `0${hour}` : hour}:00
-                                </button>
+                                    {i < 10 ? `0${i}` : i}
+                                </span>
                             ))}
                         </div>
                     </div>
