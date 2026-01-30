@@ -50,13 +50,17 @@ public interface HourlyKlineRepository extends JpaRepository<HourlyKline, Long> 
         @Query("SELECT k FROM HourlyKline k WHERE k.openTime IN :times")
         List<HourlyKline> findAllByOpenTimeIn(@Param("times") java.util.Collection<LocalDateTime> times);
 
-        /**
-         * 聚合查询：一次性统计多个币种在指定范围内的记录数
-         * 用于优化 preloadKlines 的性能，避免循环单条 count
-         * 返回结果为 Object[]，0位是symbol, 1位是count
-         */
         @Query("SELECT k.symbol, COUNT(k) FROM HourlyKline k WHERE k.openTime BETWEEN :startTime AND :endTime GROUP BY k.symbol")
         List<Object[]> countBySymbolInRange(
+                        @Param("startTime") LocalDateTime startTime,
+                        @Param("endTime") LocalDateTime endTime);
+
+        /**
+         * 高性能查询：仅查询回测所需的关键字段 (symbol, time, price)
+         * 使用范围查询代替 IN 子句，并只读取需要的列以减少内存占用和IO
+         */
+        @Query("SELECT k.symbol, k.openTime, k.openPrice FROM HourlyKline k WHERE k.openTime BETWEEN :startTime AND :endTime")
+        List<Object[]> findAllPartialByOpenTimeBetween(
                         @Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime);
 

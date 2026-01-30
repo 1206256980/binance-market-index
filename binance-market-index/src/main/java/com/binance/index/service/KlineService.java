@@ -232,35 +232,44 @@ public class KlineService {
 
         List<LocalDateTime> timeList = new ArrayList<>(times);
         int totalSize = timeList.size();
-        int batchSize = 50; // 每批查询50个时间点，防止IN子句过大
 
-        log.info("开始批量从本地查询 {} 个时间点的价格数据 (分批大小: {})...", totalSize, batchSize);
+        log.info("🚀 启动高性能批量查询: 处理 {} 个时间点...", totalSize);
         long startTotal = System.currentTimeMillis();
 
-        List<HourlyKline> allKlines = new ArrayList<>();
-        long totalQueryMs = 0;
+        // 获取时间范围
+        LocalDateTime minTime = java.util.Collections.min(times);
+        LocalDateTime maxTime = java.util.Collections.max(times);
 
-        for (int i = 0; i < totalSize; i += batchSize) {
-            int end = Math.min(i + batchSize, totalSize);
-            List<LocalDateTime> batch = timeList.subList(i, end);
+        // 如果时间点非常多（优化器模式），使用 BETWEEN 范围查询配合投影 (Object[]) 极其快速
+        // 如果时间点较少（普通回测），使用 existing IN 逻辑也能接受，但投影依然更优
+        log.info("🔍 执行范围投影查询: {} 至 {}", minTime, maxTime);
 
-            long startQuery = System.currentTimeMillis();
-            allKlines.addAll(hourlyKlineRepository.findAllByOpenTimeIn(batch));
-            totalQueryMs += (System.currentTimeMillis() - startQuery);
+        List<Object[]> rows = hourlyKlineRepository.findAllPartialByOpenTimeBetween(minTime, maxTime);
+        long queryElapsed = System.currentTimeMillis() - startTotal;
+
+        log.info("✅ DB投影查询完成: 获得 {} 条记录, 耗时: {}ms", rows.size(), queryElapsed);
+
+        // 按时间点分组处理 (内存映射)
+        long startProcess = System.currentTimeMillis();
+
+        // 我们只保留调用方要求的具体时间点（防止范围查询包含了一些非核心点）
+        java.util.Set<LocalDateTime> timeSet = new java.util.HashSet<>(times);
+
+        Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
+        for (Object[] row : rows) {
+            String symbol = (String) row[0];
+            LocalDateTime time = (LocalDateTime) row[1];
+            Double price = (Double) row[2];
+
+            if (timeSet.contains(time)) {
+                result.computeIfAbsent(time, k -> new HashMap<>()).put(symbol, price);
+            }
         }
 
-        // 按时间点分组，再按币种分组存价格
-        // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格
-        long startProcess = System.currentTimeMillis();
-        Map<LocalDateTime, Map<String, Double>> result = allKlines.stream()
-                .collect(Collectors.groupingBy(
-                        HourlyKline::getOpenTime,
-                        Collectors.toMap(HourlyKline::getSymbol, HourlyKline::getOpenPrice, (v1, v2) -> v1)));
         long processElapsed = System.currentTimeMillis() - startProcess;
+        log.info("📊 批量查询总计性能: 处理 {} 条记录 -> {} 个时间点。总耗时: {}ms (Query: {}ms, Map: {}ms)",
+                rows.size(), result.size(), (System.currentTimeMillis() - startTotal), queryElapsed, processElapsed);
 
-        log.info("本地批量查询完成: 获取到 {} 条K线记录，映射为 {} 个时间点。耗时: 总 {}ms (DB分批查询 {}ms, 内存处理 {}ms)",
-                allKlines.size(), result.size(), (System.currentTimeMillis() - startTotal), totalQueryMs,
-                processElapsed);
         return result;
     }
 
