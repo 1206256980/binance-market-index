@@ -225,50 +225,75 @@ public class KlineService {
      * @param times 需要查询的时间点集合
      * @return Map<时间点, Map<币种, 价格>>
      */
-    public Map<LocalDateTime, Map<String, Double>> getBulkPricesAtTimes(java.util.Collection<LocalDateTime> times) {
+    // --- 内存缓存优化 ---
+    // 缓存最近一次大查询的数据范围和结果，避免同一天内重复复盘导致的 5s 等待
+    private LocalDateTime cachedStart;
+    private LocalDateTime cachedEnd;
+    private Map<LocalDateTime, Map<String, Double>> priceCache;
+
+    public synchronized Map<LocalDateTime, Map<String, Double>> getBulkPricesAtTimes(
+            java.util.Collection<LocalDateTime> times) {
         if (times == null || times.isEmpty()) {
             return new HashMap<>();
         }
 
-        List<LocalDateTime> timeList = new ArrayList<>(times);
-        int totalSize = timeList.size();
-
-        log.info("🚀 启动高性能批量查询: 处理 {} 个时间点...", totalSize);
-        long startTotal = System.currentTimeMillis();
-
-        // 获取时间范围
         LocalDateTime minTime = java.util.Collections.min(times);
         LocalDateTime maxTime = java.util.Collections.max(times);
 
-        // 如果时间点非常多（优化器模式），使用 BETWEEN 范围查询配合投影 (Object[]) 极其快速
-        // 如果时间点较少（普通回测），使用 existing IN 逻辑也能接受，但投影依然更优
-        log.info("🔍 执行范围投影查询: {} 至 {}", minTime, maxTime);
+        // 检查缓存逻辑：如果请求范围被现有缓存全覆盖，直接从内存取
+        if (priceCache != null && cachedStart != null && cachedEnd != null &&
+                !minTime.isBefore(cachedStart) && !maxTime.isAfter(cachedEnd)) {
 
+            log.info("🎯 命中内存缓存! 范围: {} 至 {}. 正在从内存提取 {} 个点...",
+                    cachedStart, cachedEnd, times.size());
+
+            Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
+            for (LocalDateTime t : times) {
+                if (priceCache.containsKey(t)) {
+                    result.put(t, priceCache.get(t));
+                }
+            }
+            log.info("⚡ 内存提取完成，耗时: 0ms");
+            return result;
+        }
+
+        int totalSize = times.size();
+        log.info("🚀 启动高性能批量查询: 处理 {} 个时间点...", totalSize);
+        long startTotal = System.currentTimeMillis();
+
+        // 执行范围查询
+        log.info("🔍 执行范围投影查询: {} 至 {}", minTime, maxTime);
         List<Object[]> rows = hourlyKlineRepository.findAllPartialByOpenTimeBetween(minTime, maxTime);
         long queryElapsed = System.currentTimeMillis() - startTotal;
 
         log.info("✅ DB投影查询完成: 获得 {} 条记录, 耗时: {}ms", rows.size(), queryElapsed);
 
-        // 按时间点分组处理 (内存映射)
+        // 按时间点分组处理 (更新全局缓存)
         long startProcess = System.currentTimeMillis();
 
-        // 我们只保留调用方要求的具体时间点（防止范围查询包含了一些非核心点）
-        java.util.Set<LocalDateTime> timeSet = new java.util.HashSet<>(times);
-
-        Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
+        Map<LocalDateTime, Map<String, Double>> newCache = new HashMap<>();
         for (Object[] row : rows) {
             String symbol = (String) row[0];
             LocalDateTime time = (LocalDateTime) row[1];
             Double price = (Double) row[2];
+            newCache.computeIfAbsent(time, k -> new HashMap<>()).put(symbol, price);
+        }
 
-            if (timeSet.contains(time)) {
-                result.computeIfAbsent(time, k -> new HashMap<>()).put(symbol, price);
+        // 更新缓存元数据
+        this.priceCache = newCache;
+        this.cachedStart = minTime;
+        this.cachedEnd = maxTime;
+
+        // 过滤出本次查询需要的点返回
+        Map<LocalDateTime, Map<String, Double>> result = new HashMap<>();
+        for (LocalDateTime t : times) {
+            if (newCache.containsKey(t)) {
+                result.put(t, newCache.get(t));
             }
         }
 
-        long processElapsed = System.currentTimeMillis() - startProcess;
-        log.info("📊 批量查询总计性能: 处理 {} 条记录 -> {} 个时间点。总耗时: {}ms (Query: {}ms, Map: {}ms)",
-                rows.size(), result.size(), (System.currentTimeMillis() - startTotal), queryElapsed, processElapsed);
+        log.info("📊 批量查询总计性能: DB扫描 {} 条 -> 内存处理 {} 条。总耗时: {}ms",
+                rows.size(), result.size(), (System.currentTimeMillis() - startTotal));
 
         return result;
     }
