@@ -1069,6 +1069,7 @@ public class IndexController {
                         res.put("winMonths", backtestResult.getWinMonths());
                         res.put("loseMonths", backtestResult.getLoseMonths());
                         res.put("monthlyResults", backtestResult.getMonthlyResults());
+                        res.put("dailyResults", backtestResult.getDailyResults()); // 新增每日明细
                         res.put("totalTrades", backtestResult.getTotalTrades());
                         res.put("validDays", backtestResult.getValidDays());
                         return res;

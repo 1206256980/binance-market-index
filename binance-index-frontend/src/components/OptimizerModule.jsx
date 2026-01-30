@@ -34,6 +34,7 @@ function OptimizerModule() {
     const [sortField, setSortField] = useState('totalProfit') // 'totalProfit' or 'winRate'
     const [sortOrder, setSortOrder] = useState('desc')
     const [expandedRows, setExpandedRows] = useState([])
+    const [activeDetail, setActiveDetail] = useState(null) // { strategyKey, monthLabel }
     const pageSize = 20
 
     // 持久化输入参数
@@ -116,13 +117,24 @@ function OptimizerModule() {
         }
         setCurrentPage(1) // 排序后重置页码
         setExpandedRows([]) // 排序后收起所有行
+        setActiveDetail(null)
     }
 
     const handleRowClick = (key) => {
         if (expandedRows.includes(key)) {
             setExpandedRows(expandedRows.filter(k => k !== key))
+            if (activeDetail?.strategyKey === key) setActiveDetail(null)
         } else {
             setExpandedRows([...expandedRows, key])
+        }
+    }
+
+    const toggleDailyDetail = (strategyKey, monthLabel, e) => {
+        e.stopPropagation(); // 防止触发行展开/收起
+        if (activeDetail?.strategyKey === strategyKey && activeDetail?.monthLabel === monthLabel) {
+            setActiveDetail(null);
+        } else {
+            setActiveDetail({ strategyKey, monthLabel });
         }
     }
 
@@ -371,21 +383,53 @@ function OptimizerModule() {
                                                 <tr className="expanded-details-row">
                                                     <td colSpan={6 + allMonths.length}>
                                                         <div className="monthly-details-wrapper">
-                                                            {strategy.monthlyResults.map((m, mIdx) => (
-                                                                <div key={mIdx} className="monthly-detail-card">
-                                                                    <div className="monthly-detail-header">
-                                                                        <span>{m.monthLabel}</span>
-                                                                        {m.totalProfit > 0 ? '🟢 盈利' : '🔴 亏损'}
+                                                            {strategy.monthlyResults.map((m, mIdx) => {
+                                                                const isActive = activeDetail?.strategyKey === key && activeDetail?.monthLabel === m.monthLabel;
+                                                                return (
+                                                                    <div
+                                                                        key={mIdx}
+                                                                        className={`monthly-detail-card clickable ${isActive ? 'active' : ''}`}
+                                                                        onClick={(e) => toggleDailyDetail(key, m.monthLabel, e)}
+                                                                    >
+                                                                        <div className="monthly-detail-header">
+                                                                            <span>{m.monthLabel}</span>
+                                                                            {m.totalProfit > 0 ? '🟢 盈利' : '🔴 亏损'}
+                                                                        </div>
+                                                                        <div className={`monthly-detail-profit ${m.totalProfit >= 0 ? 'positive' : 'negative'}`}>
+                                                                            {m.totalProfit > 0 ? '+' : ''}{m.totalProfit} U
+                                                                        </div>
+                                                                        <div className="monthly-detail-days">
+                                                                            📅 盈利 {m.winDays} 天 / 亏损 {m.loseDays} 天
+                                                                        </div>
                                                                     </div>
-                                                                    <div className={`monthly-detail-profit ${m.totalProfit >= 0 ? 'positive' : 'negative'}`}>
-                                                                        {m.totalProfit > 0 ? '+' : ''}{m.totalProfit} U
-                                                                    </div>
-                                                                    <div className="monthly-detail-days">
-                                                                        📅 盈利 {m.winDays} 天 / 亏损 {m.loseDays} 天
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
+
+                                                        {/* 每日明细展示区域 */}
+                                                        {activeDetail?.strategyKey === key && (
+                                                            <div className="optimizer-daily-detail-panel">
+                                                                <div className="panel-header">
+                                                                    📊 {activeDetail.monthLabel} 每日流水详情
+                                                                </div>
+                                                                <div className="panel-content">
+                                                                    {strategy.dailyResults
+                                                                        ?.filter(d => d.date.startsWith(activeDetail.monthLabel))
+                                                                        .slice().reverse()
+                                                                        .map(day => (
+                                                                            <div key={day.date} className="opt-daily-row">
+                                                                                <span className="d-date">{day.date}</span>
+                                                                                <span className="d-counts">
+                                                                                    盈利 <strong className="positive">{day.winCount}</strong> / 亏损 <strong className="negative">{day.loseCount}</strong>
+                                                                                </span>
+                                                                                <span className={`d-profit ${getProfitClass(day.totalProfit)}`}>
+                                                                                    {formatProfit(day.totalProfit)} U
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             )}
@@ -400,7 +444,11 @@ function OptimizerModule() {
                             <div className="standard-pagination">
                                 <button
                                     disabled={currentPage === 1}
-                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.max(1, prev - 1));
+                                        setExpandedRows([]);
+                                        setActiveDetail(null);
+                                    }}
                                 >
                                     上一页
                                 </button>
@@ -409,7 +457,11 @@ function OptimizerModule() {
                                 </div>
                                 <button
                                     disabled={currentPage === totalPages}
-                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    onClick={() => {
+                                        setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                        setExpandedRows([]);
+                                        setActiveDetail(null);
+                                    }}
                                 >
                                     下一页
                                 </button>
