@@ -2903,8 +2903,11 @@ public class IndexCalculatorService {
                         Double entryP = entryMap.get(symbol);
                         Double exitP = exitMap.get(symbol);
 
-                        if (entryP == null || exitP == null || entryP <= 0)
+                        if (entryP == null || exitP == null || entryP <= 0) {
+                            log.warn("⚠️ {} 币种 {} 被跳过: entryPrice={}, exitPrice={}",
+                                    date, symbol, entryP, exitP);
                             continue;
+                        }
 
                         double pPercent = (entryP - exitP) / entryP * 100;
                         double pAmount = amountPerCoin * pPercent / 100;

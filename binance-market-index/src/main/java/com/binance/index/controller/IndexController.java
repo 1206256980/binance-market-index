@@ -1280,39 +1280,96 @@ public class IndexController {
     }
 
     /**
-     * 查询指定币种的历史小时K线价格
-     * 用于验证数据库数据是否正确完整
+     * 查询K线历史数据
      * 
-     * @param symbol 币种名称（如 BTCUSDT）
-     * @param hours  限制返回最近多少小时的数据（可选，不传则返回全部）
+     * 支持两种模式：
+     * 1. 传入 symbol：查询指定币种的历史K线（可选 hours 限制条数）
+     * 2. 传入 startTime + endTime：查询时间范围内所有币种的K线（用于数据检查）
+     * 
+     * @param symbol    币种名称（如 BTCUSDT），模式1必填
+     * @param hours     限制返回最近多少小时的数据（模式1可选）
+     * @param startTime 开始时间（UTC，格式：yyyy-MM-dd'T'HH:mm:ss），模式2必填
+     * @param endTime   结束时间（UTC，格式同上），模式2必填
      */
     @GetMapping("/kline/history")
     public ResponseEntity<Map<String, Object>> getKlineHistory(
-            @RequestParam String symbol,
-            @RequestParam(required = false) Integer hours) {
+            @RequestParam(required = false) String symbol,
+            @RequestParam(required = false) Integer hours,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime) {
 
-        log.info("查询K线历史: symbol={}, hours={}", symbol, hours);
         Map<String, Object> response = new HashMap<>();
 
         try {
-            // 确保 symbol 格式正确（大写）
+            // 模式2: 时间范围查询所有币种
+            if (startTime != null && endTime != null) {
+                log.info("查询时间范围K线: startTime={}, endTime={}", startTime, endTime);
+
+                java.time.LocalDateTime start = java.time.LocalDateTime.parse(startTime);
+                java.time.LocalDateTime end = java.time.LocalDateTime.parse(endTime);
+
+                List<com.binance.index.entity.HourlyKline> klines = klineService.getHourlyKlineRepository()
+                        .findBySymbolAndOpenTimeBetweenOrderByOpenTime(null, start, end);
+
+                // 使用原生查询获取时间范围内的所有数据
+                List<Object[]> partialData = klineService.getHourlyKlineRepository()
+                        .findAllPartialByOpenTimeBetween(start, end);
+
+                // 按时间点分组
+                Map<String, Map<String, Double>> groupedData = new java.util.LinkedHashMap<>();
+                for (Object[] row : partialData) {
+                    String sym = (String) row[0];
+                    java.time.LocalDateTime time = (java.time.LocalDateTime) row[1];
+                    Double price = (Double) row[2];
+                    String timeKey = time.toString();
+                    groupedData.computeIfAbsent(timeKey, t -> new java.util.TreeMap<>()).put(sym, price);
+                }
+
+                // 统计每个时间点的币种数量
+                List<Map<String, Object>> timeSlots = new java.util.ArrayList<>();
+                for (Map.Entry<String, Map<String, Double>> entry : groupedData.entrySet()) {
+                    Map<String, Object> slot = new java.util.HashMap<>();
+                    slot.put("time", entry.getKey());
+                    slot.put("symbolCount", entry.getValue().size());
+                    slot.put("prices", entry.getValue());
+                    timeSlots.add(slot);
+                }
+
+                response.put("success", true);
+                response.put("mode", "timeRange");
+                response.put("startTime", startTime);
+                response.put("endTime", endTime);
+                response.put("totalRecords", partialData.size());
+                response.put("timeSlotCount", timeSlots.size());
+                response.put("data", timeSlots);
+
+                log.info("时间范围K线查询完成: {} 到 {}, {} 条记录, {} 个时间点",
+                        startTime, endTime, partialData.size(), timeSlots.size());
+                return ResponseEntity.ok(response);
+            }
+
+            // 模式1: 单币种查询
+            if (symbol == null || symbol.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "请传入 symbol 参数，或同时传入 startTime 和 endTime 参数");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            log.info("查询K线历史: symbol={}, hours={}", symbol, hours);
             String normalizedSymbol = symbol.toUpperCase();
 
             List<com.binance.index.entity.HourlyKline> klines;
 
             if (hours != null && hours > 0) {
-                // 返回最近 N 小时的数据
                 org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0,
                         hours);
                 klines = klineService.getHourlyKlineRepository()
                         .findBySymbolOrderByOpenTimeDesc(normalizedSymbol, pageable);
             } else {
-                // 返回全部数据
                 klines = klineService.getHourlyKlineRepository()
                         .findBySymbolOrderByOpenTimeDesc(normalizedSymbol);
             }
 
-            // 转换为简洁的响应格式
             List<Map<String, Object>> data = klines.stream().map(k -> {
                 Map<String, Object> item = new HashMap<>();
                 item.put("openTime", k.getOpenTime().toString());
@@ -1325,11 +1382,11 @@ public class IndexController {
             }).collect(Collectors.toList());
 
             response.put("success", true);
+            response.put("mode", "symbol");
             response.put("symbol", normalizedSymbol);
             response.put("count", data.size());
             response.put("data", data);
 
-            // 添加数据完整性信息
             if (!klines.isEmpty()) {
                 response.put("latestTime", klines.get(0).getOpenTime().toString());
                 response.put("earliestTime", klines.get(klines.size() - 1).getOpenTime().toString());
@@ -1338,8 +1395,13 @@ public class IndexController {
             log.info("K线历史查询完成: symbol={}, 返回 {} 条记录", normalizedSymbol, data.size());
             return ResponseEntity.ok(response);
 
+        } catch (java.time.format.DateTimeParseException e) {
+            log.error("时间格式错误", e);
+            response.put("success", false);
+            response.put("message", "时间格式错误，请使用 yyyy-MM-dd'T'HH:mm:ss 格式，如 2026-01-30T05:00:00");
+            return ResponseEntity.badRequest().body(response);
         } catch (Exception e) {
-            log.error("查询K线历史失败: symbol={}", symbol, e);
+            log.error("查询K线历史失败", e);
             response.put("success", false);
             response.put("message", "查询失败: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
