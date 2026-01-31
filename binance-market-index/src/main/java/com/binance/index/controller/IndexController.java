@@ -1303,13 +1303,19 @@ public class IndexController {
         try {
             // 模式2: 时间范围查询所有币种
             if (startTime != null && endTime != null) {
-                log.info("查询时间范围K线: startTime={}, endTime={}", startTime, endTime);
+                log.info("查询时间范围K线(北京时间): startTime={}, endTime={}", startTime, endTime);
 
-                java.time.LocalDateTime start = java.time.LocalDateTime.parse(startTime);
-                java.time.LocalDateTime end = java.time.LocalDateTime.parse(endTime);
-
-                List<com.binance.index.entity.HourlyKline> klines = klineService.getHourlyKlineRepository()
-                        .findBySymbolAndOpenTimeBetweenOrderByOpenTime(null, start, end);
+                // 入参为北京时间，转换为 UTC
+                java.time.ZoneId shanghaiZone = java.time.ZoneId.of("Asia/Shanghai");
+                java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+                
+                java.time.LocalDateTime startLocal = java.time.LocalDateTime.parse(startTime);
+                java.time.LocalDateTime endLocal = java.time.LocalDateTime.parse(endTime);
+                
+                java.time.LocalDateTime start = startLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                java.time.LocalDateTime end = endLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                
+                log.info("转换为UTC时间: start={}, end={}", start, end);
 
                 // 使用原生查询获取时间范围内的所有数据
                 List<Object[]> partialData = klineService.getHourlyKlineRepository()
