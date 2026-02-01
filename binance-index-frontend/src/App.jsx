@@ -181,7 +181,7 @@ function App() {
             )}
 
             {/* 市场看板视图 */}
-            {view === 'dashboard' && (
+            <div style={{ display: view === 'dashboard' ? 'block' : 'none' }}>
                 <>
                     {/* 统计卡片 */}
                     <div className="stats-container">
@@ -285,32 +285,26 @@ function App() {
                     {/* 涨幅分布模块 */}
                     <DistributionModule externalTimeRange={selectedTimeRange} />
                 </>
-            )}
+            </div>
 
             {/* 策略回测视图 */}
-            {view === 'backtest' && (
-                <div style={{ animation: 'slideUp 0.4s ease-out' }}>
-                    {/* 做空涨幅榜前10回测模块 */}
-                    <BacktestModule />
+            <div style={{ display: view === 'backtest' ? 'block' : 'none', animation: view === 'backtest' ? 'slideUp 0.4s ease-out' : 'none' }}>
+                {/* 做空涨幅榜前10回测模块 */}
+                <BacktestModule />
 
-                    {/* 策略优化器模块 */}
-                    <OptimizerModule />
-                </div>
-            )}
+                {/* 策略优化器模块 */}
+                <OptimizerModule />
+            </div>
 
             {/* 每日策略战报视图 */}
-            {view === 'daily-report' && (
-                <div style={{ animation: 'slideUp 0.4s ease-out' }}>
-                    <DailyOptimizerModule />
-                </div>
-            )}
+            <div style={{ display: view === 'daily-report' ? 'block' : 'none', animation: view === 'daily-report' ? 'slideUp 0.4s ease-out' : 'none' }}>
+                <DailyOptimizerModule />
+            </div>
 
             {/* 数据工具视图 */}
-            {view === 'tools' && (
-                <div className="view-container">
-                    <DataSyncModule />
-                </div>
-            )}
+            <div className="view-container" style={{ display: view === 'tools' ? 'block' : 'none' }}>
+                <DataSyncModule />
+            </div>
 
             <footer className="footer">
                 <p>数据来源: 币安合约API | 每5分钟采集一次 | {stats?.coinCount || 0} 个币种参与计算</p>
