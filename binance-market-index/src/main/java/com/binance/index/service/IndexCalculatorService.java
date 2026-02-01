@@ -2609,13 +2609,14 @@ public class IndexCalculatorService {
 
         // 获取最新的一小时价格作为实时平仓价的备选
         LocalDateTime latestHourTime = klineService.getHourlyKlineRepository().findLatestTimestamp();
-        Map<String, Double> latestHourlyPriceMap = Collections.emptyMap();
+        Map<String, Double> tempLatestMap = Collections.emptyMap();
         if (latestHourTime != null) {
-            latestHourlyPriceMap = klineService.getHourlyKlineRepository().findAllByOpenTime(latestHourTime).stream()
+            tempLatestMap = klineService.getHourlyKlineRepository().findAllByOpenTime(latestHourTime).stream()
                     .collect(Collectors.toMap(com.binance.index.entity.HourlyKline::getSymbol,
                             com.binance.index.entity.HourlyKline::getOpenPrice, (a, b) -> a));
-            log.info("提取到最新小时价格时间点: {}, 币种数量: {}", latestHourTime, latestHourlyPriceMap.size());
+            log.info("提取到最新小时价格时间点: {}, 币种数量: {}", latestHourTime, tempLatestMap.size());
         }
+        final Map<String, Double> latestHourlyPriceMap = tempLatestMap;
 
         // --- 性能再次优化：一次性从数据库查出所有需要的时间点 ---
         // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
