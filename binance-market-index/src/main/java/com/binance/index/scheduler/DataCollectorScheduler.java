@@ -28,7 +28,7 @@ public class DataCollectorScheduler {
     private volatile boolean hasCollectionError = false; // 采集出错后暂停后续采集
 
     public DataCollectorScheduler(IndexCalculatorService indexCalculatorService,
-                                   EmailNotificationService emailNotificationService) {
+            EmailNotificationService emailNotificationService) {
         this.indexCalculatorService = indexCalculatorService;
         this.emailNotificationService = emailNotificationService;
     }
@@ -126,7 +126,7 @@ public class DataCollectorScheduler {
         } catch (Exception e) {
             log.error("数据采集失败，后续采集已暂停: {}", e.getMessage(), e);
             hasCollectionError = true; // 标记错误，暂停后续采集
-            
+
             // 发送邮件通知
             emailNotificationService.sendCollectionFailureNotification(e.getMessage(), e);
         }
@@ -134,4 +134,22 @@ public class DataCollectorScheduler {
 
     // 基准价格永不自动刷新，仅在首次启动时通过回补历史数据设定
     // 如需更改回补天数，修改配置 index.backfill.days (默认7天)
+
+    /**
+     * 每小时一分钟调用一次，同步K线数据
+     */
+    @Scheduled(cron = "0 1 * * * *")
+    public void hourlySyncKlineData() {
+        if (!isBackfillComplete) {
+            log.debug("历史数据回补尚未完成，跳过本次定时同步");
+            return;
+        }
+
+        log.info("------------------------- 开始定时同步K线数据 -------------------------");
+        try {
+            indexCalculatorService.syncKlineData(backfillDays);
+        } catch (Exception e) {
+            log.error("定时同步K线数据失败: {}", e.getMessage(), e);
+        }
+    }
 }
