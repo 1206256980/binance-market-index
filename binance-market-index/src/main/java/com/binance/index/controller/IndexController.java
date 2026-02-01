@@ -799,10 +799,8 @@ public class IndexController {
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "24") int holdHours,
             @RequestParam(defaultValue = "10") int topN,
-            @RequestParam(defaultValue = "false") boolean useApi,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
-        log.info("------------------------- 开始调用 /backtest/short-top10 接口 (useApi={}) -------------------------",
-                useApi);
+        log.info("------------------------- 开始调用 /backtest/short-top10 接口 -------------------------");
         Map<String, Object> response = new HashMap<>();
 
         // 参数校验
@@ -832,16 +830,11 @@ public class IndexController {
             double amountPerCoin = totalAmount / topN;
 
             com.binance.index.dto.BacktestResult result;
-            if (useApi) {
-                // 使用币安API获取历史数据（支持更长时间范围）
-                result = indexCalculatorService.runShortTopNBacktestApi(
-                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone, false,
-                        null);
-            } else {
-                // 使用本地数据库（更快但数据有限）
-                result = indexCalculatorService.runShortTop10Backtest(
-                        entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone);
-            }
+
+            // 使用币安API获取历史数据（支持更长时间范围）
+            result = indexCalculatorService.runShortTopNBacktestApi(
+                    entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone, false,
+                    null);
 
             response.put("success", true);
             response.put("params", Map.of(
@@ -893,9 +886,8 @@ public class IndexController {
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(required = false) String entryHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
-            @RequestParam(required = false) String holdHours,
-            @RequestParam(defaultValue = "false") boolean useApi) {
-        log.info("------------------------- 开始调用 /backtest/optimize 接口 (useApi={}) -------------------------", useApi);
+            @RequestParam(required = false) String holdHours) {
+        log.info("------------------------- 开始调用 /backtest/optimize 接口-------------------------");
         Map<String, Object> response = new HashMap<>();
 
         if (totalAmount <= 0) {
@@ -978,60 +970,60 @@ public class IndexController {
 
             // --- 性能极致优化：预加载外提 ---
             Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = null;
-            if (useApi) {
-                log.info("🚀 优化器检测到使用 API，开始执行全局预加载与价格预取...");
-                long startGlobalPreload = System.currentTimeMillis();
 
-                // 2. 找到所有组合中的参数极值
-                int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(24);
-                int maxHoldHours = java.util.Arrays.stream(holdHoursOptions).max().orElse(24);
+            log.info("🚀 优化器检测到使用 API，开始执行全局预加载与价格预取...");
+            long startGlobalPreload = System.currentTimeMillis();
 
-                // 3. 计算全局预加载范围 (用于从数据库批量抓取到内存)
-                java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
-                java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
-                java.time.LocalDate today = java.time.LocalDate.now(userZone);
-                java.time.LocalDate endDate = today.minusDays(1);
-                java.time.LocalDate startDate = endDate.minusDays(days - 1);
+            // 2. 找到所有组合中的参数极值
+            int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(24);
+            int maxHoldHours = java.util.Arrays.stream(holdHoursOptions).max().orElse(24);
 
-                int minEntryHour = java.util.Arrays.stream(entryHourOptions).min().orElse(0);
-                int maxEntryHour = java.util.Arrays.stream(entryHourOptions).max().orElse(23);
+            // 3. 计算全局预加载范围 (用于从数据库批量抓取到内存)
+            java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+            java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+            java.time.LocalDate today = java.time.LocalDate.now(userZone);
+            java.time.LocalDate endDate = today;
+            java.time.LocalDate startDate = endDate.minusDays(days - 1);
 
-                java.time.LocalDateTime globalPreloadStart = startDate.atTime(minEntryHour, 0)
-                        .minusHours(maxRankingHours + 1);
-                java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxEntryHour, 0).plusHours(maxHoldHours);
+            int minEntryHour = java.util.Arrays.stream(entryHourOptions).min().orElse(0);
+            int maxEntryHour = java.util.Arrays.stream(entryHourOptions).max().orElse(23);
 
-                log.info("📦 启动全局优化器（基于本地缓存数据，预期范围: {} 至 {}）", globalPreloadStart, globalPreloadEnd);
+            java.time.LocalDateTime globalPreloadStart = startDate.atTime(minEntryHour, 0)
+                    .minusHours(maxRankingHours + 1);
+            java.time.LocalDateTime globalPreloadEnd = endDate.atTime(maxEntryHour, 0).plusHours(maxHoldHours);
 
-                // 4. 汇总所有组合需要的精确时间点 (用于从本地批量抓取到内存)
-                // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
-                log.info("🔍 汇总所有参数组合所需的精确时间点...");
-                java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.HashSet<>();
-                for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-                    for (int eHour : entryHourOptions) {
-                        java.time.LocalDateTime entryTimeUtcLookup = date.atTime(eHour, 0).atZone(userZone)
-                                .withZoneSameInstant(utcZone).toLocalDateTime();
-                        allRequiredTimesUtc.add(entryTimeUtcLookup);
+            log.info("📦 启动全局优化器（基于本地缓存数据，预期范围: {} 至 {}）", globalPreloadStart, globalPreloadEnd);
 
-                        // 由于 holdHours 有多种可能，汇总所有可能
-                        for (int hHours : holdHoursOptions) {
-                            java.time.LocalDateTime exitTimeUtcLookup = date.atTime(eHour, 0).plusHours(hHours)
-                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
-                            allRequiredTimesUtc.add(exitTimeUtcLookup);
-                        }
+            // 4. 汇总所有组合需要的精确时间点 (用于从本地批量抓取到内存)
+            // 使用 openPrice：12:00的K线的openPrice就是12:00那一刻的价格，无需时间偏移
+            log.info("🔍 汇总所有参数组合所需的精确时间点...");
+            java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.HashSet<>();
+            for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                for (int eHour : entryHourOptions) {
+                    java.time.LocalDateTime entryTimeUtcLookup = date.atTime(eHour, 0).atZone(userZone)
+                            .withZoneSameInstant(utcZone).toLocalDateTime();
+                    allRequiredTimesUtc.add(entryTimeUtcLookup);
 
-                        // 由于 rankingHours 有多种可能，汇总所有可能
-                        for (int rHours : rankingHoursOptions) {
-                            java.time.LocalDateTime baseTimeUtcLookup = date.atTime(eHour, 0).minusHours(rHours)
-                                    .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
-                            allRequiredTimesUtc.add(baseTimeUtcLookup);
-                        }
+                    // 由于 holdHours 有多种可能，汇总所有可能
+                    for (int hHours : holdHoursOptions) {
+                        java.time.LocalDateTime exitTimeUtcLookup = date.atTime(eHour, 0).plusHours(hHours)
+                                .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                        allRequiredTimesUtc.add(exitTimeUtcLookup);
+                    }
+
+                    // 由于 rankingHours 有多种可能，汇总所有可能
+                    for (int rHours : rankingHoursOptions) {
+                        java.time.LocalDateTime baseTimeUtcLookup = date.atTime(eHour, 0).minusHours(rHours)
+                                .atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+                        allRequiredTimesUtc.add(baseTimeUtcLookup);
                     }
                 }
-
-                log.info("🔍 共汇总 {} 个全局时间点，开始执行分注批量抓取...", allRequiredTimesUtc.size());
-                sharedPriceMap = indexCalculatorService.getKlineService().getBulkPricesAtTimes(allRequiredTimesUtc);
-                log.info("⏱️ 全局预取完成，共耗时: {}ms", (System.currentTimeMillis() - startGlobalPreload));
             }
+
+            log.info("🔍 共汇总 {} 个全局时间点，开始执行分注批量抓取...", allRequiredTimesUtc.size());
+            sharedPriceMap = indexCalculatorService.getKlineService().getBulkPricesAtTimes(allRequiredTimesUtc);
+            log.info("⏱️ 全局预取完成，共耗时: {}ms", (System.currentTimeMillis() - startGlobalPreload));
+
             // --- 优化结束 ---
 
             // 使用并行流执行回测
@@ -1045,15 +1037,11 @@ public class IndexController {
                         double amountPerCoin = totalAmount / tN;
 
                         com.binance.index.dto.BacktestResult backtestResult;
-                        if (useApi) {
-                            // 使用极致优化版，传入预先抓取的全局价格图，实现 0 DB 竞态
-                            backtestResult = indexCalculatorService.runShortTopNBacktestApi(
-                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, true,
-                                    pricesForTask);
-                        } else {
-                            backtestResult = indexCalculatorService.runShortTop10Backtest(
-                                    eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone);
-                        }
+
+                        // 使用极致优化版，传入预先抓取的全局价格图，实现 0 DB 竞态
+                        backtestResult = indexCalculatorService.runShortTopNBacktestApi(
+                                eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, true,
+                                pricesForTask);
 
                         Map<String, Object> res = new HashMap<>();
                         res.put("rankingHours", rHours);
@@ -1154,7 +1142,8 @@ public class IndexController {
             int maxRankingHours = 168;
             java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
             java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
-            java.time.LocalDate endDate = java.time.LocalDate.now(userZone).minusDays(1);
+            java.time.LocalDate today = java.time.LocalDate.now(userZone);
+            java.time.LocalDate endDate = today;
             java.time.LocalDate startDate = endDate.minusDays(days - 1);
 
             // 汇总所有入场时间需要的全局范围
@@ -1308,13 +1297,15 @@ public class IndexController {
                 // 入参为北京时间，转换为 UTC
                 java.time.ZoneId shanghaiZone = java.time.ZoneId.of("Asia/Shanghai");
                 java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
-                
+
                 java.time.LocalDateTime startLocal = java.time.LocalDateTime.parse(startTime);
                 java.time.LocalDateTime endLocal = java.time.LocalDateTime.parse(endTime);
-                
-                java.time.LocalDateTime start = startLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone).toLocalDateTime();
-                java.time.LocalDateTime end = endLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone).toLocalDateTime();
-                
+
+                java.time.LocalDateTime start = startLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone)
+                        .toLocalDateTime();
+                java.time.LocalDateTime end = endLocal.atZone(shanghaiZone).withZoneSameInstant(utcZone)
+                        .toLocalDateTime();
+
                 log.info("转换为UTC时间: start={}, end={}", start, end);
 
                 // 使用原生查询获取时间范围内的所有数据

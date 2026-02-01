@@ -74,4 +74,10 @@ public interface HourlyKlineRepository extends JpaRepository<HourlyKline, Long> 
          */
         List<HourlyKline> findBySymbolOrderByOpenTimeDesc(String symbol,
                         org.springframework.data.domain.Pageable pageable);
+
+        /**
+         * 获取数据库中最晚的时间点
+         */
+        @Query("SELECT MAX(k.openTime) FROM HourlyKline k")
+        LocalDateTime findLatestTimestamp();
 }

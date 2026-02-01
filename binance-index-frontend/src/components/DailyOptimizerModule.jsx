@@ -93,7 +93,8 @@ const DailyOptimizerModule = () => {
                     topN: combo.topN,
                     profit: dr.totalProfit,
                     winCount: dr.winCount,
-                    loseCount: dr.loseCount
+                    loseCount: dr.loseCount,
+                    isLive: dr.isLive
                 });
             });
         });
@@ -189,7 +190,10 @@ const DailyOptimizerModule = () => {
                         <div key={dayData.date} className="day-report-card">
                             <div className="day-report-header">
                                 <div className="date-info">
-                                    <span className="date-tag">{dayData.date}</span>
+                                    <span className="date-tag">
+                                        {dayData.date}
+                                        {dayData.rankings.some(r => r.isLive) && <span className="live-badge" style={{ fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
+                                    </span>
                                     {/* 冠军标记 */}
                                     <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
                                 </div>

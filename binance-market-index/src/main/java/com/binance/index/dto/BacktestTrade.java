@@ -10,18 +10,25 @@ public class BacktestTrade {
     private Double change24h; // 入场时的24小时涨幅(%)
     private Double profit; // 盈亏金额(U)
     private Double profitPercent; // 盈亏百分比(%)
+    private Boolean isLive = false; // 是否为实时中的交易 (未平仓)
 
     public BacktestTrade() {
     }
 
     public BacktestTrade(String symbol, Double entryPrice, Double exitPrice,
             Double change24h, Double profit, Double profitPercent) {
+        this(symbol, entryPrice, exitPrice, change24h, profit, profitPercent, false);
+    }
+
+    public BacktestTrade(String symbol, Double entryPrice, Double exitPrice,
+            Double change24h, Double profit, Double profitPercent, Boolean isLive) {
         this.symbol = symbol;
         this.entryPrice = entryPrice;
         this.exitPrice = exitPrice;
         this.change24h = change24h;
         this.profit = profit;
         this.profitPercent = profitPercent;
+        this.isLive = isLive;
     }
 
     // Getters and Setters
@@ -71,5 +78,13 @@ public class BacktestTrade {
 
     public void setProfitPercent(Double profitPercent) {
         this.profitPercent = profitPercent;
+    }
+
+    public Boolean getIsLive() {
+        return isLive;
+    }
+
+    public void setIsLive(Boolean isLive) {
+        this.isLive = isLive;
     }
 }

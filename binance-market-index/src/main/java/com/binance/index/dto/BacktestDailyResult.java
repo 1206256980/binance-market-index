@@ -13,6 +13,7 @@ public class BacktestDailyResult {
     private Integer winCount; // 盈利笔数
     private Integer loseCount; // 亏损笔数
     private List<BacktestTrade> trades; // 交易明细
+    private Boolean isLive = false; // 是否包含进行中的实时交易
 
     public BacktestDailyResult() {
     }
@@ -72,5 +73,13 @@ public class BacktestDailyResult {
 
     public void setTrades(List<BacktestTrade> trades) {
         this.trades = trades;
+    }
+
+    public Boolean getIsLive() {
+        return isLive;
+    }
+
+    public void setIsLive(Boolean isLive) {
+        this.isLive = isLive;
     }
 }

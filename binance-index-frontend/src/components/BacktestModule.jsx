@@ -274,7 +274,7 @@ function BacktestModule() {
                             return (
                                 <div key={day.date} className="daily-item">
                                     <div
-                                        className={`daily-summary ${isExpanded ? 'expanded' : ''}`}
+                                        className={`daily-summary ${isExpanded ? 'expanded' : ''} ${day.isLive ? 'is-live' : ''}`}
                                         onClick={() => {
                                             if (isExpanded) {
                                                 setExpandedDays(expandedDays.filter(i => i !== globalIdx));
@@ -283,7 +283,10 @@ function BacktestModule() {
                                             }
                                         }}
                                     >
-                                        <span className="daily-date">{day.date}</span>
+                                        <span className="daily-date">
+                                            {day.date}
+                                            {day.isLive && <span className="live-badge">进行中 (实时)</span>}
+                                        </span>
                                         <span className="daily-stats">
                                             盈利 <strong className="positive">{day.winCount}</strong> /
                                             亏损 <strong className="negative">{day.loseCount}</strong>
@@ -305,8 +308,11 @@ function BacktestModule() {
                                                 <span>盈亏U</span>
                                             </div>
                                             {day.trades.map((trade, tIdx) => (
-                                                <div key={tIdx} className="trade-row">
-                                                    <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
+                                                    <span className="trade-symbol">
+                                                        {trade.symbol.replace('USDT', '')}
+                                                        {trade.isLive && <span className="live-badge">LIVE</span>}
+                                                    </span>
                                                     <span className="trade-change positive">+{trade.change24h?.toFixed(2)}%</span>
                                                     <span>{trade.entryPrice?.toFixed(4)}</span>
                                                     <span>{trade.exitPrice?.toFixed(4)}</span>
