@@ -34,7 +34,8 @@ const OptimizerModule = memo(function OptimizerModule() {
     const [sortField, setSortField] = useState('totalProfit') // 'totalProfit' or 'winRate'
     const [sortOrder, setSortOrder] = useState('desc')
     const [expandedRows, setExpandedRows] = useState([])
-    const [activeDetail, setActiveDetail] = useState(null) // { strategyKey, monthLabel }
+    const [selectedModal, setSelectedModal] = useState(null) // { strategy, monthLabel }
+    const [expandedDate, setExpandedDate] = useState(null)
     const pageSize = 20
 
     // 持久化输入参数
@@ -117,7 +118,7 @@ const OptimizerModule = memo(function OptimizerModule() {
         }
         setCurrentPage(1) // 排序后重置页码
         setExpandedRows([]) // 排序后收起所有行
-        setActiveDetail(null)
+        setSelectedModal(null)
     }
 
     const handleRowClick = (key) => {
@@ -129,13 +130,10 @@ const OptimizerModule = memo(function OptimizerModule() {
         }
     }
 
-    const toggleDailyDetail = (strategyKey, monthLabel, e) => {
+    const toggleDailyDetail = (strategy, monthLabel, e) => {
         e.stopPropagation(); // 防止触发行展开/收起
-        if (activeDetail?.strategyKey === strategyKey && activeDetail?.monthLabel === monthLabel) {
-            setActiveDetail(null);
-        } else {
-            setActiveDetail({ strategyKey, monthLabel });
-        }
+        setSelectedModal({ strategy, monthLabel });
+        setExpandedDate(null);
     }
 
     const getStrategyKey = (s) => `${s.rankingHours}-${s.topN}-${s.entryHour}-${s.holdHours}`
@@ -384,12 +382,12 @@ const OptimizerModule = memo(function OptimizerModule() {
                                                     <td colSpan={6 + allMonths.length}>
                                                         <div className="monthly-details-wrapper">
                                                             {strategy.monthlyResults.map((m, mIdx) => {
-                                                                const isActive = activeDetail?.strategyKey === key && activeDetail?.monthLabel === m.monthLabel;
+                                                                const isSelected = selectedModal?.strategy === strategy && selectedModal?.monthLabel === m.monthLabel;
                                                                 return (
                                                                     <div
                                                                         key={mIdx}
-                                                                        className={`monthly-detail-card clickable ${isActive ? 'active' : ''}`}
-                                                                        onClick={(e) => toggleDailyDetail(key, m.monthLabel, e)}
+                                                                        className={`monthly-detail-card clickable ${isSelected ? 'active' : ''}`}
+                                                                        onClick={(e) => toggleDailyDetail(strategy, m.monthLabel, e)}
                                                                     >
                                                                         <div className="monthly-detail-header">
                                                                             <span>{m.monthLabel}</span>
@@ -405,31 +403,6 @@ const OptimizerModule = memo(function OptimizerModule() {
                                                                 );
                                                             })}
                                                         </div>
-
-                                                        {/* 每日明细展示区域 */}
-                                                        {activeDetail?.strategyKey === key && (
-                                                            <div className="optimizer-daily-detail-panel">
-                                                                <div className="panel-header">
-                                                                    📊 {activeDetail.monthLabel} 每日流水详情
-                                                                </div>
-                                                                <div className="panel-content">
-                                                                    {strategy.dailyResults
-                                                                        ?.filter(d => d.date.startsWith(activeDetail.monthLabel))
-                                                                        .slice().reverse()
-                                                                        .map(day => (
-                                                                            <div key={day.date} className="opt-daily-row">
-                                                                                <span className="d-date">{day.date}</span>
-                                                                                <span className="d-counts">
-                                                                                    盈利 <strong className="positive">{day.winCount}</strong> / 亏损 <strong className="negative">{day.loseCount}</strong>
-                                                                                </span>
-                                                                                <span className={`d-profit ${getProfitClass(day.totalProfit)}`}>
-                                                                                    {formatProfit(day.totalProfit)} U
-                                                                                </span>
-                                                                            </div>
-                                                                        ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
                                                     </td>
                                                 </tr>
                                             )}
@@ -447,7 +420,7 @@ const OptimizerModule = memo(function OptimizerModule() {
                                     onClick={() => {
                                         setCurrentPage(prev => Math.max(1, prev - 1));
                                         setExpandedRows([]);
-                                        setActiveDetail(null);
+                                        setSelectedModal(null);
                                     }}
                                 >
                                     上一页
@@ -460,11 +433,85 @@ const OptimizerModule = memo(function OptimizerModule() {
                                     onClick={() => {
                                         setCurrentPage(prev => Math.min(totalPages, prev + 1));
                                         setExpandedRows([]);
-                                        setActiveDetail(null);
+                                        setSelectedModal(null);
                                     }}
                                 >
                                     下一页
                                 </button>
+                            </div>
+                        )}
+
+                        {/* 每日流水明细弹窗 */}
+                        {selectedModal && (
+                            <div className="modal-overlay" onClick={() => setSelectedModal(null)}>
+                                <div className="modal-container" onClick={e => e.stopPropagation()}>
+                                    <div className="modal-header">
+                                        <div className="modal-title">
+                                            📊 {selectedModal.monthLabel} 每日流水详情
+                                            <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#888', marginLeft: '10px' }}>
+                                                {selectedModal.strategy.rankingHours}h | {selectedModal.strategy.topN}币 | {selectedModal.strategy.entryHour}:00 | {selectedModal.strategy.holdHours}h
+                                            </span>
+                                        </div>
+                                        <button className="modal-close" onClick={() => setSelectedModal(null)}>✕</button>
+                                    </div>
+                                    <div className="modal-body">
+                                        <div className="modal-daily-list">
+                                            {selectedModal.strategy.dailyResults
+                                                ?.filter(d => d.date.startsWith(selectedModal.monthLabel))
+                                                .slice().reverse()
+                                                .map(day => {
+                                                    const isExpanded = expandedDate === day.date;
+                                                    return (
+                                                        <div key={day.date} className="modal-daily-row">
+                                                            <div
+                                                                className={`modal-daily-summary ${isExpanded ? 'active' : ''}`}
+                                                                onClick={() => setExpandedDate(isExpanded ? null : day.date)}
+                                                            >
+                                                                <span className="d-date">{day.date}</span>
+                                                                <span className="d-counts">
+                                                                    盈利 <strong className="positive">{day.winCount}</strong> / 亏损 <strong className="negative">{day.loseCount}</strong>
+                                                                </span>
+                                                                <span className={`d-profit ${getProfitClass(day.totalProfit)}`}>
+                                                                    {formatProfit(day.totalProfit)} U
+                                                                </span>
+                                                                <span className="expand-icon" style={{ marginLeft: '10px', fontSize: '12px', color: '#999' }}>
+                                                                    {isExpanded ? '▼' : '▶'}
+                                                                </span>
+                                                            </div>
+                                                            {isExpanded && day.trades && (
+                                                                <div className="daily-trades" style={{ background: 'var(--bg-primary)' }}>
+                                                                    <div className="trade-header">
+                                                                        <span>币种</span>
+                                                                        <span>入场涨幅</span>
+                                                                        <span>开仓价</span>
+                                                                        <span>平仓价</span>
+                                                                        <span>盈亏%</span>
+                                                                        <span>盈亏U</span>
+                                                                    </div>
+                                                                    {day.trades.map((trade, tIdx) => (
+                                                                        <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
+                                                                            <span className="trade-symbol">
+                                                                                {trade.symbol.replace('USDT', '')}
+                                                                            </span>
+                                                                            <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
+                                                                            <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                                            <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                            <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                                                {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                                            </span>
+                                                                            <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                                                {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
