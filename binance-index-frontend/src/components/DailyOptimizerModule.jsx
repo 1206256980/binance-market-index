@@ -28,6 +28,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [rawData, setRawData] = useState(null) // 后端返回的组合原始数据
+    const [currentPage, setCurrentPage] = useState(1) // 天数分页
+    const daysPerPage = 10
+    const topNLimit = 20 // 结合用户之前的需求，保持 Top 20
 
     // 自动保存参数到 localStorage
     const selectDefaultHours = () => setSelectedEntryHours([0, 12, 18, 22]);
@@ -53,6 +56,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const runOptimize = async () => {
         setLoading(true)
         setError(null)
+        setCurrentPage(1) // 运行新回测时重置到第一页
         try {
             const resp = await axios.get('/api/index/backtest/optimize-daily', {
                 params: {
@@ -111,6 +115,14 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
             };
         });
     }, [rawData]);
+
+    // 分页计算
+    const paginatedRankings = useMemo(() => {
+        if (!dailyRankings) return null;
+        return dailyRankings.slice((currentPage - 1) * daysPerPage, currentPage * daysPerPage);
+    }, [dailyRankings, currentPage]);
+
+    const totalPages = dailyRankings ? Math.ceil(dailyRankings.length / daysPerPage) : 0;
 
     return (
         <div className="daily-optimizer-module">
@@ -184,45 +196,102 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
             </div>
 
             {/* 战报内容 */}
-            {dailyRankings && (
-                <div className="rankings-grid">
-                    {dailyRankings.map(dayData => (
-                        <div key={dayData.date} className="day-report-card">
-                            <div className="day-report-header">
-                                <div className="date-info">
-                                    <span className="date-tag">
-                                        {dayData.date}
-                                        {dayData.rankings.some(r => r.isLive) && <span className="live-badge" style={{ fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
-                                    </span>
-                                    {/* 冠军标记 */}
-                                    <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
-                                </div>
-                                <div className="best-profit">
-                                    今日最高盈利: <span className="value">+{dayData.rankings[0].profit.toFixed(2)}U</span>
-                                </div>
-                            </div>
-
-                            <div className="rank-list">
-                                {dayData.rankings.map((rank, idx) => (
-                                    <div key={idx} className={`rank-row ${idx === 0 ? 'is-winner' : ''}`}>
-                                        <div className="rank-pos">{idx + 1}</div>
-                                        <div className="strategy-meta">
-                                            <span className="tag-e">{rank.entryHour}:00</span>
-                                            <span className="tag-h">{rank.rankingHours}h</span>
-                                            <span className="tag-n">Top {rank.topN}</span>
-                                        </div>
-                                        <div className="rank-stats">
-                                            <span className={`p-val ${rank.profit >= 0 ? 'p-up' : 'p-down'}`}>
-                                                {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(1)}U
-                                            </span>
-                                            <span className="w-l">胜{rank.winCount}/负{rank.loseCount}</span>
-                                        </div>
+            {paginatedRankings && (
+                <>
+                    <div className="rankings-grid">
+                        {paginatedRankings.map(dayData => (
+                            <div key={dayData.date} className="day-report-card">
+                                <div className="day-report-header">
+                                    <div className="date-info">
+                                        <span className="date-tag">
+                                            {dayData.date}
+                                            {dayData.rankings.some(r => r.isLive) && <span className="live-badge" style={{ fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
+                                        </span>
+                                        <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
                                     </div>
-                                ))}
+                                    <div className="best-profit">
+                                        最高盈利: <span className="value">+{dayData.rankings[0].profit.toFixed(2)}U</span>
+                                    </div>
+                                </div>
+
+                                <div className="rank-list">
+                                    {dayData.rankings.slice(0, topNLimit).map((rank, idx) => (
+                                        <div key={idx} className={`rank-row ${idx === 0 ? 'is-winner' : ''}`}>
+                                            <div className="rank-pos">{idx + 1}</div>
+                                            <div className="strategy-meta">
+                                                <span className="tag-e">{rank.entryHour}:00</span>
+                                                <span className="tag-h">{rank.rankingHours}h</span>
+                                                <span className="tag-n">Top {rank.topN}</span>
+                                            </div>
+                                            <div className="rank-stats">
+                                                <span className={`p-val ${rank.profit >= 0 ? 'p-up' : 'p-down'}`}>
+                                                    {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(1)}U
+                                                </span>
+                                                <span className="w-l">胜{rank.winCount}/负{rank.loseCount}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {dayData.rankings.length > topNLimit && (
+                                        <div className="more-hint" style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: '#888' }}>
+                                            ... 还有 {dayData.rankings.length - topNLimit} 个组合未列出
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                        ))}
+                    </div>
+
+                    {/* 分页控制 UI */}
+                    {totalPages > 1 && (
+                        <div className="standard-pagination" style={{
+                            marginTop: '25px',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: '15px',
+                            alignItems: 'center',
+                            padding: '20px'
+                        }}>
+                            <button
+                                disabled={currentPage === 1}
+                                onClick={() => {
+                                    setCurrentPage(prev => Math.max(1, prev - 1));
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                style={{
+                                    padding: '8px 20px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color, #ddd)',
+                                    background: 'var(--bg-card, #fff)',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    opacity: currentPage === 1 ? 0.5 : 1
+                                }}
+                            >
+                                ← 上一页
+                            </button>
+                            <div className="page-info" style={{ fontSize: '14px', fontWeight: '600' }}>
+                                第 <span style={{ color: 'var(--primary, #007bff)' }}>{currentPage}</span> / {totalPages} 页
+                                <span style={{ marginLeft: '10px', color: '#888', fontWeight: '400' }}>(共 {dailyRankings.length} 天)</span>
+                            </div>
+                            <button
+                                disabled={currentPage === totalPages}
+                                onClick={() => {
+                                    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                style={{
+                                    padding: '8px 20px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color, #ddd)',
+                                    background: 'var(--bg-card, #fff)',
+                                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                    opacity: currentPage === totalPages ? 0.5 : 1
+                                }}
+                            >
+                                下一页 →
+                            </button>
                         </div>
-                    ))}
-                </div>
+                    )}
+                </>
             )}
 
             {!dailyRankings && !loading && (
