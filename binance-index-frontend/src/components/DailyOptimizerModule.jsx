@@ -29,6 +29,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [error, setError] = useState(null)
     const [rawData, setRawData] = useState(null) // 后端返回的组合原始数据
     const [currentPage, setCurrentPage] = useState(1) // 天数分页
+    const [expandedRowKey, setExpandedRowKey] = useState(null) // 当前展开的行序号 {date}-{idx}
     const daysPerPage = 10
     const topNLimit = 20 // 结合用户之前的需求，保持 Top 20
 
@@ -98,7 +99,8 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                     profit: dr.totalProfit,
                     winCount: dr.winCount,
                     loseCount: dr.loseCount,
-                    isLive: dr.isLive
+                    isLive: dr.isLive,
+                    trades: dr.trades
                 });
             });
         });
@@ -215,22 +217,66 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                 </div>
 
                                 <div className="rank-list">
-                                    {dayData.rankings.slice(0, topNLimit).map((rank, idx) => (
-                                        <div key={idx} className={`rank-row ${idx === 0 ? 'is-winner' : ''}`}>
-                                            <div className="rank-pos">{idx + 1}</div>
-                                            <div className="strategy-meta">
-                                                <span className="tag-e">{rank.entryHour}:00</span>
-                                                <span className="tag-h">{rank.rankingHours}h</span>
-                                                <span className="tag-n">Top {rank.topN}</span>
-                                            </div>
-                                            <div className="rank-stats">
-                                                <span className={`p-val ${rank.profit >= 0 ? 'p-up' : 'p-down'}`}>
-                                                    {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(1)}U
-                                                </span>
-                                                <span className="w-l">胜{rank.winCount}/负{rank.loseCount}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                    {dayData.rankings.slice(0, topNLimit).map((rank, idx) => {
+                                        const rowKey = `${dayData.date}-${idx}`;
+                                        const isExpanded = expandedRowKey === rowKey;
+
+                                        return (
+                                            <React.Fragment key={idx}>
+                                                <div
+                                                    className={`rank-row ${idx === 0 ? 'is-winner' : ''} ${isExpanded ? 'active' : ''}`}
+                                                    onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="rank-pos">{idx + 1}</div>
+                                                    <div className="strategy-meta">
+                                                        <span className="tag-e">{rank.entryHour}:00</span>
+                                                        <span className="tag-h">{rank.rankingHours}h</span>
+                                                        <span className="tag-n">Top {rank.topN}</span>
+                                                    </div>
+                                                    <div className="rank-stats">
+                                                        <span className={`p-val ${rank.profit >= 0 ? 'p-up' : 'p-down'}`}>
+                                                            {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(1)}U
+                                                        </span>
+                                                        <span className="w-l">胜{rank.winCount}/负{rank.loseCount}</span>
+                                                        <span className="expand-icon" style={{ fontSize: '10px', marginLeft: '5px', color: '#999' }}>
+                                                            {isExpanded ? '▼' : '▶'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* 展开的交易明细 */}
+                                                {isExpanded && rank.trades && (
+                                                    <div className="daily-trades">
+                                                        <div className="trade-header">
+                                                            <span>币种</span>
+                                                            <span>入场涨幅</span>
+                                                            <span>开仓价</span>
+                                                            <span>平仓价</span>
+                                                            <span>盈亏%</span>
+                                                            <span>盈亏U</span>
+                                                        </div>
+                                                        {rank.trades.map((trade, tIdx) => (
+                                                            <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
+                                                                <span className="trade-symbol">
+                                                                    {trade.symbol.replace('USDT', '')}
+                                                                </span>
+                                                                <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
+                                                                <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                                <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                                    {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                                </span>
+                                                                <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                                    {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
                                     {dayData.rankings.length > topNLimit && (
                                         <div className="more-hint" style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: '#888' }}>
                                             ... 还有 {dayData.rankings.length - topNLimit} 个组合未列出
