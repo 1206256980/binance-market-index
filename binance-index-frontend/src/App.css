@@ -1,4 +1,4 @@
-/* ===== 鍏ㄥ眬鏍峰紡 - 鐧借壊涓婚� ===== */
+/* ===== 鍏ㄥ眬鏍峰紡 - 鐧借壊涓婚�?===== */
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +6,7 @@
 }
 
 :root {
-  /* 鐧借壊涓婚�棰滆壊鍙橀噺 */
+  /* 鐧借壊涓婚�棰滆壊鍙橀�?*/
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
@@ -26,19 +26,19 @@
   --danger: #ef4444;
   --warning: #f59e0b;
 
-  /* 闂磋窛 */
+  /* 闂磋�?*/
   --spacing-xs: 0.5rem;
   --spacing-sm: 0.75rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
 
-  /* 鍦嗚� */
+  /* 鍦嗚�?*/
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  /* 闃村奖 */
+  /* 闃村�?*/
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
@@ -63,7 +63,7 @@ body {
   flex-direction: column;
 }
 
-/* 瀵艰埅鏍忔牱寮?*/
+/* 瀵艰埅鏍忔牱�?*/
 .nav-bar {
   position: fixed;
   top: 0;
@@ -159,7 +159,7 @@ body {
   font-weight: 600;
 }
 
-/* ===== 缁熻�鍗＄墖瀹瑰櫒 ===== */
+/* ===== 缁熻�鍗＄墖瀹瑰�?===== */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -167,7 +167,7 @@ body {
   margin-bottom: var(--spacing-lg);
 }
 
-/* ===== 鍗曚釜缁熻�鍗＄墖 ===== */
+/* ===== 鍗曚釜缁熻�鍗＄�?===== */
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -212,7 +212,7 @@ body {
   margin-top: 2px;
 }
 
-/* ===== 鎺у埗鏍?===== */
+/* ===== 鎺у埗�?===== */
 .controls {
   display: flex;
   justify-content: space-between;
@@ -293,7 +293,7 @@ body {
   pointer-events: none;
 }
 
-/* ===== 鍥捐〃瀹瑰櫒 ===== */
+/* ===== 鍥捐〃瀹瑰�?===== */
 .chart-container {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -372,7 +372,7 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* ===== 鏃犳暟鎹�姸鎬?===== */
+/* ===== 鏃犳暟鎹�姸�?===== */
 .no-data {
   display: flex;
   flex-direction: column;
@@ -388,7 +388,7 @@ body {
   opacity: 0.5;
 }
 
-/* ===== 椤佃剼 ===== */
+/* ===== 椤佃�?===== */
 .footer {
   text-align: center;
   margin-top: var(--spacing-lg);
@@ -525,7 +525,7 @@ body {
   color: white;
 }
 
-/* 鑱斿姩寰界珷鏍峰紡 */
+/* 鑱斿姩寰界珷鏍峰�?*/
 .linked-badge {
   display: inline-flex;
   align-items: center;
@@ -553,7 +553,7 @@ body {
   }
 }
 
-/* 鏃堕棿杈撳叆妗?*/
+/* 鏃堕棿杈撳叆�?*/
 .time-base-selector .time-input {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
@@ -693,7 +693,7 @@ body {
   color: var(--text-muted);
 }
 
-/* 閬�僵灞?- 鐐瑰嚮鍏抽棴渚ц竟鏍?*/
+/* 閬�僵灞?- 鐐瑰嚮鍏抽棴渚ц竟�?*/
 .ranking-overlay {
   position: fixed;
   top: 0;
@@ -1058,7 +1058,7 @@ body {
     flex-wrap: wrap;
   }
 
-  /* 绉诲姩绔�帓琛屾�闈㈡澘 - 渚ц竟鏍忓崰婊″睆骞?*/
+  /* 绉诲姩绔�帓琛屾�闈㈡澘 - 渚ц竟鏍忓崰婊″睆�?*/
   .ranking-panel.open {
     width: 100%;
   }
@@ -1136,7 +1136,7 @@ body {
   cursor: pointer;
 }
 
-/* 甯佺�鎼滅储妗?*/
+/* 甯佺�鎼滅储�?*/
 .symbol-search {
   display: flex;
   align-items: center;
@@ -1189,7 +1189,7 @@ body {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
-/* 鍗曡竟娑ㄥ箙鎺掕�椤圭洰鏍峰紡 */
+/* 鍗曡竟娑ㄥ箙鎺掕�椤圭洰鏍峰�?*/
 .uptrend-item {
   display: grid;
   grid-template-columns: 32px 1fr auto 32px;
@@ -1324,7 +1324,7 @@ body {
   transform: translateX(-2px);
 }
 
-/* 鏃堕棿杈撳叆妗?*/
+/* 鏃堕棿杈撳叆�?*/
 .time-input {
   background: var(--bg-card-hover);
   border: 1px solid var(--border-color);
@@ -1345,7 +1345,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* ===== 甯佺�缁熻�鍗＄墖 ===== */
+/* ===== 甯佺�缁熻�鍗＄�?===== */
 .symbol-stats-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1589,7 +1589,7 @@ body {
   color: white;
 }
 
-/* ===== 鍔犺浇鏇村�鎻愮ず ===== */
+/* ===== 鍔犺浇鏇村�鎻愮�?===== */
 .load-more-hint {
   text-align: center;
   padding: 16px;
@@ -1611,7 +1611,7 @@ body {
   }
 }
 
-/* ===== 鍥炴祴妯″潡鏍峰紡 ===== */
+/* ===== 鍥炴祴妯″潡鏍峰�?===== */
 .backtest-module {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -1766,7 +1766,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 
-/* 缁撴灉姹囨€诲崱鐗?*/
+/* 缁撴灉姹囨€诲崱�?*/
 .result-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1895,7 +1895,7 @@ body {
   width: 20px;
 }
 
-/* 浜ゆ槗鏄庣粏琛ㄦ牸 */
+/* 浜ゆ槗鏄庣粏琛ㄦ�?*/
 .daily-trades {
   padding: var(--spacing-md);
   background: var(--bg-primary);
@@ -1954,7 +1954,7 @@ body {
   }
 }
 
-/* ========== 绛栫暐浼樺寲鍣ㄦā鍧?========== */
+/* ========== 绛栫暐浼樺寲鍣ㄦā�?========== */
 .optimizer-module {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
@@ -2173,7 +2173,7 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* 鍏ュ満鏃堕棿閫夋嫨鏍峰紡 */
+/* 鍏ュ満鏃堕棿閫夋嫨鏍峰�?*/
 .hour-selection-wrapper {
   margin-top: var(--spacing-sm);
   background: var(--bg-primary);
@@ -2278,7 +2278,7 @@ body {
   filter: grayscale(0.5);
 }
 
-/* 缁撴灉琛ㄦ牸澧炲己 */
+/* 缁撴灉琛ㄦ牸澧炲�?*/
 .optimizer-result {
   margin-top: var(--spacing-xl);
   animation: slideUp 0.3s ease-out;
@@ -2571,7 +2571,7 @@ body {
   color: var(--accent-primary) !important;
 }
 
-/* 分页控制样式 - 通用版 */
+/* 分页控制样式 - 通用�?*/
 .standard-pagination {
   display: flex;
   justify-content: center;
@@ -3217,7 +3217,7 @@ body {
 }
 
 
-/* 策略优化器每日明细增强 */
+/* 策略优化器每日明细增�?*/
 .monthly-detail-card.clickable {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -3322,7 +3322,7 @@ body {
 
 /* LIVE 标签样式 */
 .live-badge {
-    background: linear-gradient(135deg, #ff4d4f 0%%, #ff7875 100%%);
+    background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
     color: white;
     font-size: 10px;
     padding: 1px 4px;
@@ -3336,9 +3336,9 @@ body {
 }
 
 @keyframes pulse-red {
-    0%% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.7); }
-    70%% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 77, 79, 0); }
-    100%% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 79, 0); }
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 77, 79, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 79, 0); }
 }
 
 .daily-summary.is-live {
