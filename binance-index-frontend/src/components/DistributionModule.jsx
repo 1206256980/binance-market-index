@@ -12,6 +12,7 @@ const TIME_OPTIONS = [
     { label: '6小时', value: 6 },
     { label: '12小时', value: 12 },
     { label: '1天', value: 24 },
+    { label: '2天', value: 48 },
     { label: '3天', value: 72 },
     { label: '7天', value: 168 },
     { label: '10天', value: 240 },
