@@ -52,7 +52,7 @@ const BacktestModule = memo(function BacktestModule() {
     const [result, setResult] = useState(null)
     const [expandedDays, setExpandedDays] = useState([])
     const [currentPage, setCurrentPage] = useState(1)
-    const pageSize = 30
+    const pageSize = 20
 
     const runBacktest = async () => {
         setLoading(true)
@@ -314,8 +314,8 @@ const BacktestModule = memo(function BacktestModule() {
                                                         {trade.isLive && <span className="live-badge">LIVE</span>}
                                                     </span>
                                                     <span className="trade-change positive">+{trade.change24h?.toFixed(2)}%</span>
-                                                    <span>{trade.entryPrice?.toFixed(4)}</span>
-                                                    <span>{trade.exitPrice?.toFixed(4)}</span>
+                                                    <span>{trade.entryPrice}</span>
+                                                    <span>{trade.exitPrice}</span>
                                                     <span className={getProfitClass(trade.profitPercent)}>
                                                         {formatProfit(trade.profitPercent)}%
                                                     </span>
