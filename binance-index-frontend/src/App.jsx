@@ -278,12 +278,12 @@ function App() {
                             <CombinedChart data={historyData} onTimeRangeSelect={handleTimeRangeSelect} />
                         )}
                     </div>
+                    {/* 涨幅分布模块 */}
+                    <DistributionModule externalTimeRange={selectedTimeRange} />
 
                     {/* 单边上行涨幅模块 */}
                     <UptrendModule />
 
-                    {/* 涨幅分布模块 */}
-                    <DistributionModule externalTimeRange={selectedTimeRange} />
                 </>
             </div>
 

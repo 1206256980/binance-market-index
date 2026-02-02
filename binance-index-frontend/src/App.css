@@ -1904,7 +1904,7 @@ body {
 .trade-header,
 .trade-row {
   display: grid;
-  grid-template-columns: 70px 85px 1.2fr 1.2fr 80px 80px;
+  grid-template-columns: 140px 90px 1.2fr 1.2fr 80px 80px;
   gap: 8px;
   padding: 8px 0;
   font-size: 0.85rem;
