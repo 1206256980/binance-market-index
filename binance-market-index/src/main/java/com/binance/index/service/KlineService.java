@@ -216,6 +216,11 @@ public class KlineService {
 
         log.info("🎉 K线数据预加载成功！共计拉取 {} 个币种，新增保存 {} 条K线数据。总耗时: {}ms",
                 totalToFetch, newKlinesCount, (System.currentTimeMillis() - startPreload));
+
+        // 关键修复：数据更新后彻底失效内存缓存状态，确保下次查询时重新校准范围并抓取最新数据
+        this.priceCache = null;
+        this.cachedStart = null;
+        this.cachedEnd = null;
     }
 
     /**
@@ -336,6 +341,12 @@ public class KlineService {
         log.info("正在清空本地 K 线缓存数据...");
         long count = hourlyKlineRepository.count();
         hourlyKlineRepository.deleteAllInBatch();
+
+        // 关键修复：彻底清理内存中的缓存状态，防止残留数据影响下次查询
+        this.priceCache = null;
+        this.cachedStart = null;
+        this.cachedEnd = null;
+
         log.info("本地 K 线缓存已清空，共删除 {} 条记录", count);
     }
 }
