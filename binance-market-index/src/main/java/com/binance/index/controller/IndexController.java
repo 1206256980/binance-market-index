@@ -1327,6 +1327,11 @@ public class IndexController {
                 for (Map.Entry<String, Map<String, Double>> entry : groupedData.entrySet()) {
                     Map<String, Object> slot = new java.util.HashMap<>();
                     slot.put("time", entry.getKey());
+                    // 添加东八区时间字段
+                    java.time.LocalDateTime utcTime = java.time.LocalDateTime.parse(entry.getKey());
+                    java.time.ZonedDateTime cnTime = utcTime.atZone(java.time.ZoneId.of("UTC"))
+                            .withZoneSameInstant(java.time.ZoneId.of("Asia/Shanghai"));
+                    slot.put("timeCN", cnTime.toLocalDateTime().toString());
                     slot.put("symbolCount", entry.getValue().size());
                     slot.put("prices", entry.getValue());
                     timeSlots.add(slot);
@@ -1370,6 +1375,10 @@ public class IndexController {
             List<Map<String, Object>> data = klines.stream().map(k -> {
                 Map<String, Object> item = new HashMap<>();
                 item.put("openTime", k.getOpenTime().toString());
+                // 添加东八区时间字段
+                java.time.ZonedDateTime cnTime = k.getOpenTime().atZone(java.time.ZoneId.of("UTC"))
+                        .withZoneSameInstant(java.time.ZoneId.of("Asia/Shanghai"));
+                item.put("openTimeCN", cnTime.toLocalDateTime().toString());
                 item.put("openPrice", k.getOpenPrice());
                 item.put("highPrice", k.getHighPrice());
                 item.put("lowPrice", k.getLowPrice());
