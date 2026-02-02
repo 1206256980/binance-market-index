@@ -1,4 +1,6 @@
 import React, { useState, useEffect, memo } from 'react'
+import { createPortal } from 'react-dom'
+
 import axios from 'axios'
 
 /**
@@ -444,111 +446,119 @@ const OptimizerModule = memo(function OptimizerModule() {
                             </div>
                         )}
 
-                        {/* 每日流水明细侧边栏 */}
-                        {selectedModal && (
-                            <div className="sidebar-overlay" onClick={() => setSelectedModal(null)}>
-                                <div className="sidebar-container" onClick={e => e.stopPropagation()}>
-                                    <div className="sidebar-header">
-                                        <div className="sidebar-title">
-                                            <span>📊 {selectedModal.monthLabel} 每日流水详情</span>
-                                            <span className="sidebar-subtitle">
-                                                {formatRankingHours(selectedModal.strategy.rankingHours)} | {selectedModal.strategy.topN}币 | {selectedModal.strategy.entryHour}:00 | {selectedModal.strategy.holdHours}h
-                                            </span>
-                                        </div>
-                                        <button className="modal-close" onClick={() => setSelectedModal(null)}>✕</button>
-                                    </div>
-                                    <div className="sidebar-body">
-                                        <div className="sidebar-daily-list">
-                                            {(() => {
-                                                const filteredDays = selectedModal.strategy.dailyResults
-                                                    ?.filter(d => d.date.startsWith(selectedModal.monthLabel))
-                                                    .slice().reverse() || [];
+                        {/* 每日流水明细侧边栏 (Portal to Body) */}
+                        {createPortal(
+                            <>
+                                {selectedModal && (
+                                    <div className="sidebar-overlay" onClick={() => setSelectedModal(null)} />
+                                )}
+                                <div className={`sidebar-container ${selectedModal ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
+                                    {selectedModal && (
+                                        <div className="sidebar-content-wrapper">
+                                            <div className="sidebar-header">
+                                                <div className="sidebar-title">
+                                                    <span>📊 {selectedModal.monthLabel} 每日流水详情</span>
+                                                    <span className="sidebar-subtitle">
+                                                        {formatRankingHours(selectedModal.strategy.rankingHours)} | {selectedModal.strategy.topN}币 | {selectedModal.strategy.entryHour}:00 | {selectedModal.strategy.holdHours}h
+                                                    </span>
+                                                </div>
+                                                <button className="modal-close" onClick={() => setSelectedModal(null)}>✕</button>
+                                            </div>
+                                            <div className="sidebar-body">
+                                                <div className="sidebar-daily-list">
+                                                    {(() => {
+                                                        const filteredDays = selectedModal.strategy.dailyResults
+                                                            ?.filter(d => d.date.startsWith(selectedModal.monthLabel))
+                                                            .slice().reverse() || [];
 
-                                                const totalDetailPages = Math.ceil(filteredDays.length / detailPageSize);
-                                                const paginatedDays = filteredDays.slice(
-                                                    (detailPage - 1) * detailPageSize,
-                                                    detailPage * detailPageSize
-                                                );
+                                                        const totalDetailPages = Math.ceil(filteredDays.length / detailPageSize);
+                                                        const paginatedDays = filteredDays.slice(
+                                                            (detailPage - 1) * detailPageSize,
+                                                            detailPage * detailPageSize
+                                                        );
 
-                                                return (
-                                                    <>
-                                                        {paginatedDays.map(day => {
-                                                            const isExpanded = expandedDate === day.date;
-                                                            return (
-                                                                <div key={day.date} className="sidebar-daily-row">
-                                                                    <div
-                                                                        className={`sidebar-daily-summary ${isExpanded ? 'active' : ''}`}
-                                                                        onClick={() => setExpandedDate(isExpanded ? null : day.date)}
-                                                                    >
-                                                                        <span className="d-date">{day.date}</span>
-                                                                        <span className="d-counts">
-                                                                            盈利 <strong className="positive">{day.winCount}</strong> / 亏损 <strong className="negative">{day.loseCount}</strong>
-                                                                        </span>
-                                                                        <span className={`d-profit ${getProfitClass(day.totalProfit)}`}>
-                                                                            {formatProfit(day.totalProfit)} U
-                                                                        </span>
-                                                                        <span className="expand-icon" style={{ marginLeft: '10px', fontSize: '12px', color: '#999' }}>
-                                                                            {isExpanded ? '▼' : '▶'}
-                                                                        </span>
-                                                                    </div>
-                                                                    {isExpanded && day.trades && (
-                                                                        <div className="daily-trades" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border-color)' }}>
-                                                                            <div className="trade-header">
-                                                                                <span>币种</span>
-                                                                                <span>入场跌幅</span>
-                                                                                <span>开仓价</span>
-                                                                                <span>平仓价</span>
-                                                                                <span>盈亏%</span>
-                                                                                <span>盈亏U</span>
+                                                        return (
+                                                            <>
+                                                                {paginatedDays.map(day => {
+                                                                    const isExpanded = expandedDate === day.date;
+                                                                    return (
+                                                                        <div key={day.date} className="sidebar-daily-row">
+                                                                            <div
+                                                                                className={`sidebar-daily-summary ${isExpanded ? 'active' : ''}`}
+                                                                                onClick={() => setExpandedDate(isExpanded ? null : day.date)}
+                                                                            >
+                                                                                <span className="d-date">{day.date}</span>
+                                                                                <span className="d-counts">
+                                                                                    盈利 <strong className="positive">{day.winCount}</strong> / 亏损 <strong className="negative">{day.loseCount}</strong>
+                                                                                </span>
+                                                                                <span className={`d-profit ${getProfitClass(day.totalProfit)}`}>
+                                                                                    {formatProfit(day.totalProfit)} U
+                                                                                </span>
+                                                                                <span className="expand-icon" style={{ marginLeft: '10px', fontSize: '12px', color: '#999' }}>
+                                                                                    {isExpanded ? '▼' : '▶'}
+                                                                                </span>
                                                                             </div>
-                                                                            {day.trades.map((trade, tIdx) => (
-                                                                                <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
-                                                                                    <span className="trade-symbol">
-                                                                                        {trade.symbol.replace('USDT', '')}
-                                                                                    </span>
-                                                                                    <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
-                                                                                    <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
-                                                                                    <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
-                                                                                    <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
-                                                                                        {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
-                                                                                    </span>
-                                                                                    <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
-                                                                                        {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
-                                                                                    </span>
+                                                                            {isExpanded && day.trades && (
+                                                                                <div className="daily-trades" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border-color)' }}>
+                                                                                    <div className="trade-header">
+                                                                                        <span>币种</span>
+                                                                                        <span>入场涨幅</span>
+                                                                                        <span>开仓价</span>
+                                                                                        <span>平仓价</span>
+                                                                                        <span>盈亏%</span>
+                                                                                        <span>盈亏U</span>
+                                                                                    </div>
+                                                                                    {day.trades.map((trade, tIdx) => (
+                                                                                        <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
+                                                                                            <span className="trade-symbol">
+                                                                                                {trade.symbol.replace('USDT', '')}
+                                                                                            </span>
+                                                                                            <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
+                                                                                            <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                                                            <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                                            <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                                                                {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                                                            </span>
+                                                                                            <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                                                                {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    ))}
                                                                                 </div>
-                                                                            ))}
+                                                                            )}
                                                                         </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                    );
+                                                                })}
 
-                                                        {totalDetailPages > 1 && (
-                                                            <div className="standard-pagination" style={{ margin: '20px' }}>
-                                                                <button
-                                                                    disabled={detailPage === 1}
-                                                                    onClick={() => setDetailPage(prev => Math.max(1, prev - 1))}
-                                                                >
-                                                                    上一页
-                                                                </button>
-                                                                <div className="page-info">
-                                                                    <strong>{detailPage}</strong> / {totalDetailPages}
-                                                                </div>
-                                                                <button
-                                                                    disabled={detailPage === totalDetailPages}
-                                                                    onClick={() => setDetailPage(prev => Math.min(totalDetailPages, prev + 1))}
-                                                                >
-                                                                    下一页
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
+                                                                {totalDetailPages > 1 && (
+                                                                    <div className="standard-pagination" style={{ margin: '20px' }}>
+                                                                        <button
+                                                                            disabled={detailPage === 1}
+                                                                            onClick={() => setDetailPage(prev => Math.max(1, prev - 1))}
+                                                                        >
+                                                                            上一页
+                                                                        </button>
+                                                                        <div className="page-info">
+                                                                            <strong>{detailPage}</strong> / {totalDetailPages}
+                                                                        </div>
+                                                                        <button
+                                                                            disabled={detailPage === totalDetailPages}
+                                                                            onClick={() => setDetailPage(prev => Math.min(totalDetailPages, prev + 1))}
+                                                                        >
+                                                                            下一页
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
-                            </div>
+                            </>,
+                            document.body
                         )}
                     </div>
                 </div>

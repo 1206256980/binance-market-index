@@ -3633,41 +3633,49 @@ body {
   background: transparent;
 }
 
-/* ===== Optimizer Sidebar Styles (Fixed Position) ===== */
+
+/* ===== Optimizer Sidebar Styles (Fixed Position - Reference DistributionModule) ===== */
 .sidebar-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 2000;
-  display: flex;
-  justify-content: flex-end;
+  background-color: rgba(0, 0, 0, 0.3);
+  /* Match ranking-overlay opacity */
+  z-index: 1999;
+  cursor: pointer;
   animation: fadeIn 0.2s ease;
 }
 
 .sidebar-container {
-  width: 500px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 0;
+  /* Initial width 0 */
   height: 100vh;
   background-color: var(--bg-card);
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.3s ease;
+  /* Animate width like ranking-panel */
+  z-index: 2000;
+  overflow: hidden;
   border-left: 1px solid var(--border-color);
 }
 
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
+.sidebar-container.open {
+  width: 580px;
+}
 
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* Ensure content doesn't break during width transition */
+.sidebar-content-wrapper {
+  width: 580px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-header {
@@ -3725,4 +3733,107 @@ body {
   background: var(--danger);
   color: white;
   transform: rotate(90deg);
+}
+
+/* Sidebar Daily List Styles */
+.sidebar-daily-row {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1px;
+}
+
+.sidebar-daily-summary {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-card);
+}
+
+.sidebar-daily-summary:hover {
+  background: var(--bg-card-hover);
+}
+
+.sidebar-daily-summary.active {
+  background: var(--bg-card-hover);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-daily-summary .d-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 1rem;
+  width: 130px;
+}
+
+.d-counts {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 12px;
+}
+
+.d-profit {
+  font-weight: 700;
+  margin-left: 16px;
+  min-width: 90px;
+  text-align: right;
+  font-family: monospace;
+}
+
+.expand-icon {
+  margin-left: 16px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+}
+
+.sidebar-daily-summary.active .expand-icon {
+  transform: rotate(180deg);
+}
+
+.daily-trades {
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+  padding: 0;
+  animation: fadeIn 0.2s ease;
+}
+
+.daily-trades .trade-header,
+.daily-trades .trade-row {
+  padding: 10px 24px;
+  grid-template-columns: 80px 80px 1fr 1fr 80px 90px;
+}
+
+.daily-trades .trade-header {
+  background: var(--bg-primary);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.daily-trades .trade-row {
+  background: var(--bg-card);
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 0.85rem;
+}
+
+.daily-trades .trade-row:last-child {
+  border-bottom: none;
+}
+
+.sidebar-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.sidebar-body::-webkit-scrollbar-track {
+  background: transparent;
 }
