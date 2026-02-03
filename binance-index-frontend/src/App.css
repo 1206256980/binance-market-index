@@ -3804,10 +3804,13 @@ body {
   animation: fadeIn 0.2s ease;
 }
 
+/* 优化回测每日明细表格的列宽 */
 .daily-trades .trade-header,
 .daily-trades .trade-row {
   padding: 10px 24px;
-  grid-template-columns: 80px 80px 1fr 1fr 80px 90px;
+  /* 优化列宽：币种(100px) 入场涨幅(90px) 开仓价(110px) 平仓价(110px) 盈亏%(90px) 盈亏U(100px) */
+  grid-template-columns: 100px 90px 110px 110px 90px 100px;
+  gap: 12px;
 }
 
 .daily-trades .trade-header {
@@ -3815,6 +3818,7 @@ body {
   font-size: 0.8rem;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
 }
 
 .daily-trades .trade-row {
@@ -3825,6 +3829,36 @@ body {
 
 .daily-trades .trade-row:last-child {
   border-bottom: none;
+}
+
+/* 列对齐方式 */
+.daily-trades .trade-header > span,
+.daily-trades .trade-row > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 币种列左对齐，其他列右对齐 */
+.daily-trades .trade-header > span:nth-child(1),
+.daily-trades .trade-row > span:nth-child(1) {
+  text-align: left;
+}
+
+.daily-trades .trade-header > span:nth-child(n+2),
+.daily-trades .trade-row > span:nth-child(n+2) {
+  text-align: right;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .daily-trades .trade-header,
+  .daily-trades .trade-row {
+    grid-template-columns: 70px 70px 85px 85px 70px 80px;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: 0.75rem;
+  }
 }
 
 .sidebar-body::-webkit-scrollbar {
