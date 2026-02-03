@@ -6,9 +6,7 @@ import axios from 'axios'
  * 每日策略优化器模块
  * 用于展示过去 N 天中，每一天表现最好的策略排行
  */
-const DailyOptimizer
-
-Module = memo(function DailyOptimizerModule() {
+const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     // 参数状态 - 从 localStorage 初始化
     const [totalAmount, setTotalAmount] = useState(() => {
         const val = localStorage.getItem('daily_opt_amount');
