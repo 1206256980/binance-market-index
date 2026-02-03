@@ -2865,4 +2865,197 @@ public class IndexCalculatorService {
         klineService.preloadKlines(preloadStart, preloadEnd, symbols);
         log.info("✅ 数据同步完成");
     }
+
+    /**
+     * 实时持仓监控
+     * 监控每个整点小时做空涨幅榜的盈亏情况
+     */
+    public Map<String, Object> liveMonitor(int rankingHours, int topN, double hourlyAmount,
+            int monitorHours, String timezone) {
+        log.info("========== 实时持仓监控 ==========");
+        log.info("涨幅榜周期: {}小时, 做空前null名, 每小时金额: {}U, 监控小时: {}",
+                 rankingHours, topN, hourlyAmount, monitorHours);
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of(timezone));
+        LocalDateTime exitTime = alignTo5Minutes(now);
+        log.info("当前时间: {}, 出场时间(对齐5分钟): {}", now, exitTime);
+
+        LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime startHour = currentHour.minusHours(monitorHours - 1);
+        log.info("监控区间: {} 至 {} (共{}个小时)", startHour, currentHour, monitorHours);
+
+        List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
+        log.info("获取到 {} 个交易对", allSymbols.size());
+
+        Map<String, Double> exitPrices = getExitPrices(exitTime, allSymbols);
+        log.info("获取到 {} 个币种的出场价格", exitPrices.size());
+
+        List<Map<String, Object>> hourlyResults = new ArrayList<>();
+        int totalTrades = 0;
+        int totalWins = 0;
+        int totalLosses = 0;
+        double totalProfit = 0.0;
+
+        for (int i = 0; i < monitorHours; i++) {
+            LocalDateTime entryHour = startHour.plusHours(i);
+            
+            try {
+                List<Map<String, Object>> ranking = calculateRankingAtHour(entryHour, rankingHours, allSymbols);
+                
+                if (ranking.isEmpty()) {
+                    log.warn("小时 {} 无法计算涨幅榜，跳过", entryHour);
+                    continue;
+                }
+
+                List<Map<String, Object>> topCoins = ranking.stream()
+                        .limit(topN)
+                        .collect(Collectors.toList());
+
+                double amountPerCoin = hourlyAmount / topN;
+
+                List<Map<String, Object>> trades = new ArrayList<>();
+                int hourWins = 0;
+                int hourLosses = 0;
+                double hourProfit = 0.0;
+
+                for (Map<String, Object> coin : topCoins) {
+                    String symbol = (String) coin.get("symbol");
+                    double entryPrice = (double) coin.get("price");
+                    double change24h = (double) coin.get("change");
+
+                    Double exitPrice = exitPrices.get(symbol);
+                    if (exitPrice == null || exitPrice <= 0) {
+                        log.warn("币种 {} 无出场价格，跳过", symbol);
+                        continue;
+                    }
+
+                    double profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
+                    double profit = (profitPercent / 100.0) * amountPerCoin;
+
+                    if (profit > 0) {
+                        hourWins++;
+                    } else {
+                        hourLosses++;
+                    }
+                    hourProfit += profit;
+
+                    Map<String, Object> trade = new HashMap<>();
+                    trade.put("symbol", symbol);
+                    trade.put("change24h", change24h);
+                    trade.put("entryPrice", entryPrice);
+                    trade.put("exitPrice", exitPrice);
+                    trade.put("profitPercent", profitPercent);
+                    trade.put("profit", profit);
+                    trades.add(trade);
+                }
+
+                Map<String, Object> hourResult = new HashMap<>();
+                hourResult.put("hour", entryHour.toString());
+                hourResult.put("winCount", hourWins);
+                hourResult.put("loseCount", hourLosses);
+                hourResult.put("totalProfit", hourProfit);
+                hourResult.put("trades", trades);
+                hourlyResults.add(hourResult);
+
+                totalTrades += trades.size();
+                totalWins += hourWins;
+                totalLosses += hourLosses;
+                totalProfit += hourProfit;
+
+                log.info("小时 {}: 盈利{} 亏损{} 总盈亏{}", entryHour, hourWins, hourLosses, hourProfit);
+
+            } catch (Exception e) {
+                log.error("处理小时 {} 时出错: {}", entryHour, e.getMessage(), e);
+            }
+        }
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalHours", hourlyResults.size());
+        summary.put("totalTrades", totalTrades);
+        summary.put("winTrades", totalWins);
+        summary.put("loseTrades", totalLosses);
+        summary.put("winRate", totalTrades > 0 ? (double) totalWins / totalTrades * 100.0 : 0.0);
+        summary.put("totalProfit", totalProfit);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("summary", summary);
+        result.put("hourlyResults", hourlyResults);
+        result.put("exitTime", exitTime.toString());
+
+        log.info("========== 监控完成 ==========");
+        log.info("总小时: {}, 总交易: {}, 胜率: {:.2f}%, 总盈亏: {:.2f}U",
+                 hourlyResults.size(), totalTrades, summary.get("winRate"), totalProfit);
+
+        return result;
+    }
+
+    private LocalDateTime alignTo5Minutes(LocalDateTime time) {
+        int minute = time.getMinute();
+        int alignedMinute = (minute / 5) * 5;
+        return time.withMinute(alignedMinute).withSecond(0).withNano(0);
+    }
+
+    private Map<String, Double> getExitPrices(LocalDateTime exitTime, List<String> symbols) {
+        Map<String, Double> prices = new HashMap<>();
+        
+        for (String symbol : symbols) {
+            try {
+                List<CoinPrice> priceList = coinPriceRepository
+                        .findBySymbolAndTimestamp(symbol, exitTime);
+                
+                if (!priceList.isEmpty()) {
+                    prices.put(symbol, priceList.get(0).getPrice());
+                }
+            } catch (Exception e) {
+                log.debug("获取币种 {} 在 {} 的价格失败", symbol, exitTime);
+            }
+        }
+        
+        return prices;
+    }
+
+    private List<Map<String, Object>> calculateRankingAtHour(LocalDateTime hour,
+            int rankingHours, List<String> symbols) {
+        
+        LocalDateTime rankingStart = hour.minusHours(rankingHours);
+        
+        List<Map<String, Object>> ranking = new ArrayList<>();
+        
+        for (String symbol : symbols) {
+            try {
+                List<CoinPrice> startPrices = coinPriceRepository
+                        .findBySymbolAndTimestamp(symbol, rankingStart);
+                
+                List<CoinPrice> currentPrices = coinPriceRepository
+                        .findBySymbolAndTimestamp(symbol, hour);
+                
+                if (startPrices.isEmpty() || currentPrices.isEmpty()) {
+                    continue;
+                }
+                
+                double startPrice = startPrices.get(0).getPrice();
+                double currentPrice = currentPrices.get(0).getPrice();
+                
+                if (startPrice <= 0) {
+                    continue;
+                }
+                
+                double change = ((currentPrice - startPrice) / startPrice) * 100.0;
+                
+                Map<String, Object> coin = new HashMap<>();
+                coin.put("symbol", symbol);
+                coin.put("price", currentPrice);
+                coin.put("change", change);
+                ranking.add(coin);
+                
+            } catch (Exception e) {
+                log.debug("计算币种 {} 涨幅失败", symbol);
+            }
+        }
+        
+        ranking.sort((a, b) -> Double.compare((double) b.get("change"), (double) a.get("change")));
+        
+        return ranking;
+    }
 }

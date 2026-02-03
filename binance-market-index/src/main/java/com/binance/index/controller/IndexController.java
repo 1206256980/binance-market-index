@@ -1397,7 +1397,6 @@ public class IndexController {
                 response.put("latestTime", klines.get(0).getOpenTime().toString());
                 response.put("earliestTime", klines.get(klines.size() - 1).getOpenTime().toString());
             }
-
             log.info("K线历史查询完成: symbol={}, 返回 {} 条记录", normalizedSymbol, data.size());
             return ResponseEntity.ok(response);
 
@@ -1410,6 +1409,42 @@ public class IndexController {
             log.error("查询K线历史失败", e);
             response.put("success", false);
             response.put("message", "查询失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 实时持仓监控
+     * 监控每个整点小时做空涨幅榜的盈亏情况
+     *
+     * @param rankingHours 涨幅榜周期（默认24小时）
+     * @param topN         做空前N名（默认10）
+     * @param hourlyAmount 每小时总金额（默认1000U）
+     * @param monitorHours 监控小时数（默认24）
+     * @param timezone     时区（默认 Asia/Shanghai）
+     * @return 监控结果
+     */
+    @GetMapping("/live-monitor")
+    public ResponseEntity<Map<String, Object>> liveMonitor(
+            @RequestParam(defaultValue = "24") int rankingHours,
+            @RequestParam(defaultValue = "10") int topN,
+            @RequestParam(defaultValue = "1000") double hourlyAmount,
+            @RequestParam(defaultValue = "24") int monitorHours,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+
+        log.info("========== 开始调用 /live-monitor 接口 ==========");
+        log.info("参数: rankingHours={}, topN={}, hourlyAmount={}, monitorHours={}, timezone={}",
+                rankingHours, topN, hourlyAmount, monitorHours, timezone);
+
+        try {
+            Map<String, Object> result = indexCalculatorService.liveMonitor(
+                    rankingHours, topN, hourlyAmount, monitorHours, timezone);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("实时监控失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "监控失败: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

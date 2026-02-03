@@ -154,6 +154,9 @@ function App() {
                         <a href="#backtest" className={`nav-link ${view === 'backtest' ? 'active' : ''}`} onClick={() => setView('backtest')}>
                             🧪 策略回测
                         </a>
+                        <a href="#live-monitor" className={`nav-link ${view === 'live-monitor' ? 'active' : ''}`} onClick={() => setView('live-monitor')}>
+                            📡 实时监控
+                        </a>
                         <a href="#daily-report" className={`nav-link ${view === 'daily-report' ? 'active' : ''}`} onClick={() => setView('daily-report')}>
                             📅 每日战报
                         </a>
@@ -294,6 +297,11 @@ function App() {
 
                 {/* 策略优化器模块 */}
                 <OptimizerModule />
+            </div>
+
+            {/* 实时持仓监控视图 */}
+            <div style={{ display: view === 'live-monitor' ? 'block' : 'none', animation: view === 'live-monitor' ? 'slideUp 0.4s ease-out' : 'none' }}>
+                <LiveMonitorModule />
             </div>
 
             {/* 每日策略战报视图 */}
