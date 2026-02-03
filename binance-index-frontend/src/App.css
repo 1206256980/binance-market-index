@@ -4090,12 +4090,12 @@ body {
 }
 
 .sidebar-container.open {
-  width: 580px;
+  width: 750px;
 }
 
 /* Ensure content doesn't break during width transition */
 .sidebar-content-wrapper {
-  width: 580px;
+  width: 750px;
   height: 100%;
   display: flex;
   flex-direction: column;
