@@ -2989,7 +2989,7 @@ body {
 /* 鎴樻姤缃戞牸 */
 .rankings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: var(--spacing-lg);
   margin-top: var(--spacing-lg);
 }
