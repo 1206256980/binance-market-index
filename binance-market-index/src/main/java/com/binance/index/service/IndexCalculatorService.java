@@ -3069,29 +3069,38 @@ public class IndexCalculatorService {
                     continue;
                 }
 
-                // 使用起始时间的开盘价（而不是收盘价）
-                Double openPriceObj = startPrices.get(0).getOpenPrice();
+                // 使用起始时间的开盘价
+                Double startOpenPriceObj = startPrices.get(0).getOpenPrice();
                 double startPrice;
 
                 // 如果开盘价为空或为0，回退使用收盘价
-                if (openPriceObj == null || openPriceObj <= 0) {
+                if (startOpenPriceObj == null || startOpenPriceObj <= 0) {
                     startPrice = startPrices.get(0).getPrice();
                 } else {
-                    startPrice = openPriceObj;
+                    startPrice = startOpenPriceObj;
                 }
 
-                // 使用当前时间的收盘价
-                double currentPrice = currentPrices.get(0).getPrice();
+                // 使用当前时间的开盘价（而不是收盘价）
+                Double currentOpenPriceObj = currentPrices.get(0).getOpenPrice();
+                double currentPrice;
+
+                // 如果开盘价为空或为0，回退使用收盘价
+                if (currentOpenPriceObj == null || currentOpenPriceObj <= 0) {
+                    currentPrice = currentPrices.get(0).getPrice();
+                } else {
+                    currentPrice = currentOpenPriceObj;
+                }
 
                 if (startPrice <= 0) {
                     continue;
                 }
 
+                // 计算涨幅：从起始小时开盘价到当前小时开盘价
                 double change = ((currentPrice - startPrice) / startPrice) * 100.0;
 
                 Map<String, Object> coin = new HashMap<>();
                 coin.put("symbol", symbol);
-                coin.put("price", currentPrice);
+                coin.put("price", currentPrice); // 入场价 = 当前小时开盘价
                 coin.put("change", change);
                 ranking.add(coin);
 
