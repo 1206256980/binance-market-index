@@ -125,7 +125,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
 
     // 使用后端分页，不再前端切片
     const paginatedRankings = dailyRankings;
-    const totalPages = pagination?.totalPages || 0;
+    const totalPages = pagination?.totalPages || (dailyRankings ? Math.ceil(dailyRankings.length / daysPerPage) : 0);
 
     return (
         <div className="daily-optimizer-module">
@@ -188,7 +188,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                     <div className="action-item">
                         <button
                             className={`run-btn ${loading ? 'loading' : ''}`}
-                            onClick={runOptimize}
+                            onClick={() => runOptimize(1)}
                             disabled={loading}
                         >
                             {loading ? '正在复盘...' : '开始挖掘'}
