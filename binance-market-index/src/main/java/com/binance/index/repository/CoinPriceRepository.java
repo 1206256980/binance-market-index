@@ -175,4 +175,9 @@ public interface CoinPriceRepository extends JpaRepository<CoinPrice, Long> {
                         "WHERE cp.timestamp >= :startTime AND cp.timestamp <= :endTime")
         List<Object[]> findSymbolTimestampsInRange(@Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime);
+
+        /**
+         * 查询指定币种在指定时间点的价格（用于实时监控）
+         */
+        List<CoinPrice> findBySymbolAndTimestamp(String symbol, LocalDateTime timestamp);
 }
