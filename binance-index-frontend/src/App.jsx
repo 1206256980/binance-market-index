@@ -25,28 +25,28 @@ function App() {
 
     // 处理 Hash 路由
     useEffect(() => {
-        useEffect(() => {
-            const handleHashChange = () => {
-                const hash = window.location.hash.replace('#', '')
-                if (hash === 'backtest') {
-                    setView('backtest')
-                } else if (hash === 'daily-report') {
-                    setView('daily-report')
-                } else if (hash === 'live-monitor') {
-                    setView('live-monitor')
-                } else if (hash === 'tools') {
-                    setView('tools')
-                }
-                else {
-                    setView('dashboard')
-                }
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace('#', '')
+            if (hash === 'backtest') {
+                setView('backtest')
+            } else if (hash === 'daily-report') {
+                setView('daily-report')
+            } else if (hash === 'live-monitor') {
+                setView('live-monitor')
+            } else if (hash === 'tools') {
+                setView('tools')
             }
-    
-            window.addEventListener('hashchange', handleHashChange)
-            handleHashChange() // 初始化
-    
-            return () => window.removeEventListener('hashchange', handleHashChange)
-        }, [])
+            else {
+                setView('dashboard')
+            }
+        }
+
+        window.addEventListener('hashchange', handleHashChange)
+        handleHashChange() // 初始化
+
+        return () => window.removeEventListener('hashchange', handleHashChange)
+    }, [])
+
     // 处理图表时间区间选择
     const handleTimeRangeSelect = (range) => {
         console.log('图表时间联动:', range)
