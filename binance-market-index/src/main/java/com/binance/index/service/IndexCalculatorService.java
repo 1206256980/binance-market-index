@@ -2869,25 +2869,35 @@ public class IndexCalculatorService {
     /**
      * 实时持仓监控
      * 监控每个整点小时做空涨幅榜的盈亏情况
+     * 
+     * 修复时区问题：用户时区时间转换为UTC后查询数据库
      */
     public Map<String, Object> liveMonitor(int rankingHours, int topN, double hourlyAmount,
             int monitorHours, String timezone) {
         log.info("========== 实时持仓监控 ==========");
-        log.info("涨幅榜周期: {}小时, 做空前null名, 每小时金额: {}U, 监控小时: {}",
-                 rankingHours, topN, hourlyAmount, monitorHours);
+        log.info("涨幅榜周期: {}小时, 做空前{}名, 每小时金额: {}U, 监控小时: {}, 时区: {}",
+                rankingHours, topN, hourlyAmount, monitorHours, timezone);
 
-        LocalDateTime now = LocalDateTime.now(ZoneId.of(timezone));
-        LocalDateTime exitTime = alignTo5Minutes(now);
-        log.info("当前时间: {}, 出场时间(对齐5分钟): {}", now, exitTime);
+        // 时区定义
+        ZoneId userZone = ZoneId.of(timezone);
+        ZoneId utcZone = ZoneId.of("UTC");
 
+        // 当前时间（用户时区）
+        LocalDateTime now = LocalDateTime.now(userZone);
         LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
         LocalDateTime startHour = currentHour.minusHours(monitorHours - 1);
-        log.info("监控区间: {} 至 {} (共{}个小时)", startHour, currentHour, monitorHours);
+        log.info("监控区间({}): {} 至 {} (共{}个小时)", timezone, startHour, currentHour, monitorHours);
+
+        // 转换为UTC时间查询数据库
+        LocalDateTime nowUtc = now.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime exitTimeUtc = alignTo5Minutes(nowUtc);
+        log.info("当前时间: {} ({}), UTC: {}, 出场时间(UTC): {}", now, timezone, nowUtc, exitTimeUtc);
 
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
         log.info("获取到 {} 个交易对", allSymbols.size());
 
-        Map<String, Double> exitPrices = getExitPrices(exitTime, allSymbols);
+        // 获取出场价格（使用UTC时间）
+        Map<String, Double> exitPrices = getExitPrices(exitTimeUtc, allSymbols);
         log.info("获取到 {} 个币种的出场价格", exitPrices.size());
 
         List<Map<String, Object>> hourlyResults = new ArrayList<>();
@@ -2898,10 +2908,15 @@ public class IndexCalculatorService {
 
         for (int i = 0; i < monitorHours; i++) {
             LocalDateTime entryHour = startHour.plusHours(i);
-            
+
+            // 转换为UTC时间查询数据库
+            LocalDateTime entryHourUtc = entryHour.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+            LocalDateTime rankingStartUtc = entryHourUtc.minusHours(rankingHours);
+
             try {
-                List<Map<String, Object>> ranking = calculateRankingAtHour(entryHour, rankingHours, allSymbols);
-                
+                // 使用UTC时间计算涨幅榜
+                List<Map<String, Object>> ranking = calculateRankingAtHour(entryHourUtc, rankingStartUtc, allSymbols);
+
                 if (ranking.isEmpty()) {
                     log.warn("小时 {} 无法计算涨幅榜，跳过", entryHour);
                     continue;
@@ -2962,7 +2977,7 @@ public class IndexCalculatorService {
                 totalLosses += hourLosses;
                 totalProfit += hourProfit;
 
-                log.info("小时 {}: 盈利{} 亏损{} 总盈亏{}", entryHour, hourWins, hourLosses, hourProfit);
+                log.info("小时 {} ({}): 盈利{} 亏损{} 总盈亏{}", entryHour, timezone, hourWins, hourLosses, hourProfit);
 
             } catch (Exception e) {
                 log.error("处理小时 {} 时出错: {}", entryHour, e.getMessage(), e);
@@ -2981,11 +2996,11 @@ public class IndexCalculatorService {
         result.put("success", true);
         result.put("summary", summary);
         result.put("hourlyResults", hourlyResults);
-        result.put("exitTime", exitTime.toString());
+        result.put("exitTime", exitTimeUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime().toString());
 
         log.info("========== 监控完成 ==========");
         log.info("总小时: {}, 总交易: {}, 胜率: {:.2f}%, 总盈亏: {:.2f}U",
-                 hourlyResults.size(), totalTrades, summary.get("winRate"), totalProfit);
+                hourlyResults.size(), totalTrades, summary.get("winRate"), totalProfit);
 
         return result;
     }
@@ -2996,66 +3011,79 @@ public class IndexCalculatorService {
         return time.withMinute(alignedMinute).withSecond(0).withNano(0);
     }
 
-    private Map<String, Double> getExitPrices(LocalDateTime exitTime, List<String> symbols) {
+    /**
+     * 获取出场价格
+     * 
+     * @param exitTimeUtc 出场时间（UTC时间）
+     * @param symbols     币种列表
+     * @return 币种价格映射
+     */
+    private Map<String, Double> getExitPrices(LocalDateTime exitTimeUtc, List<String> symbols) {
         Map<String, Double> prices = new HashMap<>();
-        
+
         for (String symbol : symbols) {
             try {
                 List<CoinPrice> priceList = coinPriceRepository
-                        .findBySymbolAndTimestamp(symbol, exitTime);
-                
+                        .findBySymbolAndTimestamp(symbol, exitTimeUtc);
+
                 if (!priceList.isEmpty()) {
                     prices.put(symbol, priceList.get(0).getPrice());
                 }
             } catch (Exception e) {
-                log.debug("获取币种 {} 在 {} 的价格失败", symbol, exitTime);
+                log.debug("获取币种 {} 在 {} (UTC) 的价格失败", symbol, exitTimeUtc);
             }
         }
-        
+
         return prices;
     }
 
-    private List<Map<String, Object>> calculateRankingAtHour(LocalDateTime hour,
-            int rankingHours, List<String> symbols) {
-        
-        LocalDateTime rankingStart = hour.minusHours(rankingHours);
-        
+    /**
+     * 计算指定小时的涨幅榜
+     * 
+     * @param hourUtc         当前小时（UTC时间）
+     * @param rankingStartUtc 涨幅榜起始时间（UTC时间）
+     * @param symbols         币种列表
+     * @return 涨幅榜列表
+     */
+    private List<Map<String, Object>> calculateRankingAtHour(LocalDateTime hourUtc,
+            LocalDateTime rankingStartUtc, List<String> symbols) {
+
         List<Map<String, Object>> ranking = new ArrayList<>();
-        
+
         for (String symbol : symbols) {
             try {
                 List<CoinPrice> startPrices = coinPriceRepository
-                        .findBySymbolAndTimestamp(symbol, rankingStart);
-                
+                        .findBySymbolAndTimestamp(symbol, rankingStartUtc);
+
                 List<CoinPrice> currentPrices = coinPriceRepository
-                        .findBySymbolAndTimestamp(symbol, hour);
-                
+                        .findBySymbolAndTimestamp(symbol, hourUtc);
+
                 if (startPrices.isEmpty() || currentPrices.isEmpty()) {
                     continue;
                 }
-                
+
                 double startPrice = startPrices.get(0).getPrice();
                 double currentPrice = currentPrices.get(0).getPrice();
-                
+
                 if (startPrice <= 0) {
                     continue;
                 }
-                
+
                 double change = ((currentPrice - startPrice) / startPrice) * 100.0;
-                
+
                 Map<String, Object> coin = new HashMap<>();
                 coin.put("symbol", symbol);
                 coin.put("price", currentPrice);
                 coin.put("change", change);
                 ranking.add(coin);
-                
+
             } catch (Exception e) {
-                log.debug("计算币种 {} 涨幅失败", symbol);
+                log.debug("计算币种 {} 涨幅失败: {}", symbol, e.getMessage());
             }
         }
-        
+
         ranking.sort((a, b) -> Double.compare((double) b.get("change"), (double) a.get("change")));
-        
+
         return ranking;
     }
 }
