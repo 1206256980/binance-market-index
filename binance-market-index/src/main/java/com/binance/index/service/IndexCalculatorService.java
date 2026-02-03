@@ -3012,25 +3012,32 @@ public class IndexCalculatorService {
     }
 
     /**
-     * 获取出场价格
+     * 获取出场价格（使用最新可用价格）
      * 
-     * @param exitTimeUtc 出场时间（UTC时间）
+     * @param exitTimeUtc 出场时间参考（UTC时间），实际会查询最新可用价格
      * @param symbols     币种列表
      * @return 币种价格映射
      */
     private Map<String, Double> getExitPrices(LocalDateTime exitTimeUtc, List<String> symbols) {
         Map<String, Double> prices = new HashMap<>();
 
-        for (String symbol : symbols) {
-            try {
-                List<CoinPrice> priceList = coinPriceRepository
-                        .findBySymbolAndTimestamp(symbol, exitTimeUtc);
+        // 查询数据库中最新时间点的所有币种价格（而不是精确匹配exitTimeUtc）
+        List<CoinPrice> latestPrices = coinPriceRepository.findLatestPrices();
 
-                if (!priceList.isEmpty()) {
-                    prices.put(symbol, priceList.get(0).getPrice());
-                }
-            } catch (Exception e) {
-                log.debug("获取币种 {} 在 {} (UTC) 的价格失败", symbol, exitTimeUtc);
+        if (latestPrices.isEmpty()) {
+            log.warn("数据库中没有找到任何最新价格数据");
+            return prices;
+        }
+
+        // 记录实际使用的价格时间
+        LocalDateTime actualTime = latestPrices.get(0).getTimestamp();
+        log.info("出场价格：期望时间 {} (UTC)，实际使用 {} (UTC)，共 {} 个币种",
+                exitTimeUtc, actualTime, latestPrices.size());
+
+        // 转换为Map
+        for (CoinPrice price : latestPrices) {
+            if (price.getPrice() != null && price.getPrice() > 0) {
+                prices.put(price.getSymbol(), price.getPrice());
             }
         }
 
