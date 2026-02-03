@@ -1904,8 +1904,9 @@ body {
 .trade-header,
 .trade-row {
   display: grid;
-  grid-template-columns: 140px 90px 1.2fr 1.2fr 80px 80px;
-  gap: 8px;
+  /* 币种(150px固定) 入场涨幅(弹性宽度flex) 开仓价(100px) 平仓价(100px) 盈亏%(85px) 盈亏U(95px) */
+  grid-template-columns: 150px 1fr 100px 100px 85px 95px;
+  gap: 12px;
   padding: 8px 0;
   font-size: 0.85rem;
   align-items: center;
@@ -1918,6 +1919,15 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 币种和入场涨幅左对齐 */
+.trade-header>span:nth-child(1),
+.trade-row>span:nth-child(1),
+.trade-header>span:nth-child(2),
+.trade-row>span:nth-child(2) {
+  text-align: left;
+}
+
+/* 其他列右对齐 */
 .trade-header>span:nth-child(n+3),
 .trade-row>span:nth-child(n+3) {
   text-align: right;
@@ -1962,7 +1972,8 @@ body {
 
   .trade-header,
   .trade-row {
-    grid-template-columns: 60px 60px 1fr 1fr 60px 60px;
+    grid-template-columns: 70px 70px 85px 85px 70px 80px;
+    gap: 8px;
     font-size: 0.75rem;
   }
 }
@@ -4236,8 +4247,9 @@ body {
 .daily-trades .trade-header,
 .daily-trades .trade-row {
   padding: 10px 24px;
-  /* 币种占弹性宽度，其他列固定宽度靠右：币种(flex) 入场涨幅(85px) 开仓价(100px) 平仓价(100px) 盈亏%(85px) 盈亏U(95px) */
-  grid-template-columns: 1fr 85px 100px 100px 85px 95px;
+  /* 币种(150px固定) 入场涨幅(弹性宽度flex) 开仓价(100px) 平仓价(100px) 盈亏%(85px) 盈亏U(95px) */
+  display: grid;
+  grid-template-columns: 150px 1fr 100px 100px 85px 95px;
   gap: 12px;
 }
 
@@ -4260,26 +4272,30 @@ body {
 }
 
 /* 列对齐方式 */
-.daily-trades .trade-header > span,
-.daily-trades .trade-row > span {
+.daily-trades .trade-header>span,
+.daily-trades .trade-row>span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 币种列左对齐，其他列右对齐 */
-.daily-trades .trade-header > span:nth-child(1),
-.daily-trades .trade-row > span:nth-child(1) {
+/* 币种和入场涨幅左对齐 */
+.daily-trades .trade-header>span:nth-child(1),
+.daily-trades .trade-row>span:nth-child(1),
+.daily-trades .trade-header>span:nth-child(2),
+.daily-trades .trade-row>span:nth-child(2) {
   text-align: left;
 }
 
-.daily-trades .trade-header > span:nth-child(n+2),
-.daily-trades .trade-row > span:nth-child(n+2) {
+/* 其他列右对齐 */
+.daily-trades .trade-header>span:nth-child(n+3),
+.daily-trades .trade-row>span:nth-child(n+3) {
   text-align: right;
 }
 
 /* 移动端优化 */
 @media (max-width: 768px) {
+
   .daily-trades .trade-header,
   .daily-trades .trade-row {
     grid-template-columns: 70px 70px 85px 85px 70px 80px;
