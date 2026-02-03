@@ -1100,6 +1100,8 @@ public class IndexController {
      * @param entryHour   入场时间（单选）
      * @param holdHours   持仓时间（单选）
      * @param timezone    时区
+     * @param page        页码（从1开始），默认1
+     * @param pageSize    每页天数，默认10
      */
     @GetMapping("/backtest/optimize-daily")
     public ResponseEntity<Map<String, Object>> optimizeStrategyDaily(
@@ -1107,10 +1109,12 @@ public class IndexController {
             @RequestParam(defaultValue = "30") int days,
             @RequestParam String entryHours, // 改为 String 以支持多选 "0,2,4..."
             @RequestParam int holdHours,
-            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int pageSize) {
         log.info(
-                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entries={}, hold={} h) -------------------------",
-                entryHours, holdHours);
+                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entries={}, hold={} h, page={}, pageSize={}) -------------------------",
+                entryHours, holdHours, page, pageSize);
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -1200,9 +1204,52 @@ public class IndexController {
 
             long endTime = System.currentTimeMillis();
 
+            // ===== 分页处理：对每个组合的 dailyResults 进行分页 =====
+            // 先收集所有日期并排序（倒序，最新日期在前）
+            java.util.Set<String> allDates = new java.util.TreeSet<>(java.util.Collections.reverseOrder());
+            for (Map<String, Object> combo : allResults) {
+                @SuppressWarnings("unchecked")
+                List<com.binance.index.dto.BacktestDailyResult> dailyResults = (List<com.binance.index.dto.BacktestDailyResult>) combo
+                        .get("dailyResults");
+                if (dailyResults != null) {
+                    for (com.binance.index.dto.BacktestDailyResult dr : dailyResults) {
+                        allDates.add(dr.getDate());
+                    }
+                }
+            }
+
+            List<String> sortedDates = new java.util.ArrayList<>(allDates);
+            int totalDays = sortedDates.size();
+            int totalPages = (int) Math.ceil((double) totalDays / pageSize);
+
+            // 计算当前页的日期范围
+            int startIdx = (page - 1) * pageSize;
+            int endIdx = Math.min(startIdx + pageSize, totalDays);
+            java.util.Set<String> currentPageDates = new java.util.HashSet<>(
+                    sortedDates.subList(startIdx, endIdx));
+
+            // 过滤每个组合的 dailyResults，只保留当前页的日期
+            for (Map<String, Object> combo : allResults) {
+                @SuppressWarnings("unchecked")
+                List<com.binance.index.dto.BacktestDailyResult> dailyResults = (List<com.binance.index.dto.BacktestDailyResult>) combo
+                        .get("dailyResults");
+                if (dailyResults != null) {
+                    List<com.binance.index.dto.BacktestDailyResult> pagedResults = dailyResults.stream()
+                            .filter(dr -> currentPageDates.contains(dr.getDate()))
+                            .collect(java.util.stream.Collectors.toList());
+                    combo.put("dailyResults", pagedResults);
+                }
+            }
+
             response.put("success", true);
             response.put("combinations", allResults);
             response.put("timeTakenMs", endTime - startTime);
+            // 分页元数据
+            response.put("pagination", Map.of(
+                    "page", page,
+                    "pageSize", pageSize,
+                    "totalDays", totalDays,
+                    "totalPages", totalPages));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("每日策略优化失败", e);

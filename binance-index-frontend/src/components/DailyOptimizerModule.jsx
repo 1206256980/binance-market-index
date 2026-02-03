@@ -30,6 +30,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [error, setError] = useState(null)
     const [rawData, setRawData] = useState(null) // 后端返回的组合原始数据
     const [currentPage, setCurrentPage] = useState(1) // 天数分页
+    const [pagination, setPagination] = useState(null) // 后端分页元数据
     const [selectedStrategy, setSelectedStrategy] = useState(null) // 当前选中的策略详情 { date, strategy }
     const daysPerPage = 10
     const topNLimit = 20 // 结合用户之前的需求，保持 Top 20
@@ -54,11 +55,10 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         }
     }
 
-    // 执行优化计算
-    const runOptimize = async () => {
+    // 执行优化计算（支持分页）
+    const runOptimize = async (page = 1) => {
         setLoading(true)
         setError(null)
-        setCurrentPage(1) // 运行新回测时重置到第一页
         try {
             const resp = await axios.get('/api/index/backtest/optimize-daily', {
                 params: {
@@ -66,11 +66,15 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                     days,
                     entryHours: selectedEntryHours.join(','),
                     holdHours,
-                    timezone: 'Asia/Shanghai'
+                    timezone: 'Asia/Shanghai',
+                    page,
+                    pageSize: daysPerPage
                 }
             })
             if (resp.data.success) {
                 setRawData(resp.data.combinations)
+                setPagination(resp.data.pagination)
+                setCurrentPage(page)
             } else {
                 setError(resp.data.message)
             }
@@ -119,13 +123,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         });
     }, [rawData]);
 
-    // 分页计算
-    const paginatedRankings = useMemo(() => {
-        if (!dailyRankings) return null;
-        return dailyRankings.slice((currentPage - 1) * daysPerPage, currentPage * daysPerPage);
-    }, [dailyRankings, currentPage]);
-
-    const totalPages = dailyRankings ? Math.ceil(dailyRankings.length / daysPerPage) : 0;
+    // 使用后端分页，不再前端切片
+    const paginatedRankings = dailyRankings;
+    const totalPages = pagination?.totalPages || 0;
 
     return (
         <div className="daily-optimizer-module">
@@ -264,9 +264,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                             padding: '20px'
                         }}>
                             <button
-                                disabled={currentPage === 1}
+                                disabled={currentPage === 1 || loading}
                                 onClick={() => {
-                                    setCurrentPage(prev => Math.max(1, prev - 1));
+                                    runOptimize(currentPage - 1);
                                     window.scrollTo({ top: 0, behavior: 'smooth' });
                                 }}
                                 style={{
@@ -274,20 +274,20 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                     borderRadius: '6px',
                                     border: '1px solid var(--border-color, #ddd)',
                                     background: 'var(--bg-card, #fff)',
-                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                    opacity: currentPage === 1 ? 0.5 : 1
+                                    cursor: (currentPage === 1 || loading) ? 'not-allowed' : 'pointer',
+                                    opacity: (currentPage === 1 || loading) ? 0.5 : 1
                                 }}
                             >
                                 ← 上一页
                             </button>
                             <div className="page-info" style={{ fontSize: '14px', fontWeight: '600' }}>
                                 第 <span style={{ color: 'var(--primary, #007bff)' }}>{currentPage}</span> / {totalPages} 页
-                                <span style={{ marginLeft: '10px', color: '#888', fontWeight: '400' }}>(共 {dailyRankings.length} 天)</span>
+                                <span style={{ marginLeft: '10px', color: '#888', fontWeight: '400' }}>(共 {pagination?.totalDays || 0} 天)</span>
                             </div>
                             <button
-                                disabled={currentPage === totalPages}
+                                disabled={currentPage === totalPages || loading}
                                 onClick={() => {
-                                    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                    runOptimize(currentPage + 1);
                                     window.scrollTo({ top: 0, behavior: 'smooth' });
                                 }}
                                 style={{
@@ -295,8 +295,8 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                     borderRadius: '6px',
                                     border: '1px solid var(--border-color, #ddd)',
                                     background: 'var(--bg-card, #fff)',
-                                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                                    opacity: currentPage === totalPages ? 0.5 : 1
+                                    cursor: (currentPage === totalPages || loading) ? 'not-allowed' : 'pointer',
+                                    opacity: (currentPage === totalPages || loading) ? 0.5 : 1
                                 }}
                             >
                                 下一页 →
