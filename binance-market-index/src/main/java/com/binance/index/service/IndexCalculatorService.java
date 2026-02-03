@@ -3070,14 +3070,18 @@ public class IndexCalculatorService {
                 }
 
                 // 使用起始时间的开盘价（而不是收盘价）
-                double startPrice = startPrices.get(0).getOpenPrice();
+                Double openPriceObj = startPrices.get(0).getOpenPrice();
+                double startPrice;
+
+                // 如果开盘价为空或为0，回退使用收盘价
+                if (openPriceObj == null || openPriceObj <= 0) {
+                    startPrice = startPrices.get(0).getPrice();
+                } else {
+                    startPrice = openPriceObj;
+                }
+
                 // 使用当前时间的收盘价
                 double currentPrice = currentPrices.get(0).getPrice();
-
-                // 如果开盘价为空，回退使用收盘价
-                if (startPrice == null || startPrice <= 0) {
-                    startPrice = startPrices.get(0).getPrice();
-                }
 
                 if (startPrice <= 0) {
                     continue;
