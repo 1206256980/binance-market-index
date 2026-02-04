@@ -461,6 +461,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                                         <XAxis
                                                             dataKey="time"
+                                                            type="category"
                                                             tick={{ fontSize: 11, fill: '#64748b' }}
                                                             height={40}
                                                         />
@@ -481,22 +482,21 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                         />
                                                         {/* 水平0轴线 */}
                                                         <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-                                                        {/* 垂直基准点分界线 */}
-                                                        {pivotTime && (
-                                                            <ReferenceLine
-                                                                x={pivotTime}
-                                                                stroke="#667eea"
-                                                                strokeWidth={2}
-                                                                strokeDasharray="5 5"
-                                                                label={{
-                                                                    value: '基准点',
-                                                                    position: 'top',
-                                                                    fill: '#667eea',
-                                                                    fontSize: 11,
-                                                                    fontWeight: 600
-                                                                }}
-                                                            />
-                                                        )}
+                                                        {/* 垂直基准点分界线 - 直接使用 pivotTime */}
+                                                        <ReferenceLine
+                                                            x={pivotTime}
+                                                            stroke="#667eea"
+                                                            strokeWidth={2}
+                                                            strokeDasharray="5 5"
+                                                            label={{
+                                                                value: '基准点',
+                                                                position: 'top',
+                                                                fill: '#667eea',
+                                                                fontSize: 11,
+                                                                fontWeight: 600
+                                                            }}
+                                                            ifOverflow="extendDomain"
+                                                        />
                                                         <Line
                                                             type="monotone"
                                                             dataKey="profit"
