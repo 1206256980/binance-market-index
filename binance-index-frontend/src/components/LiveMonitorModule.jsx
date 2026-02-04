@@ -445,7 +445,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 data={trackingData.hourlySnapshots.map(snapshot => ({
                                                     time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
                                                     profit: parseFloat(snapshot.totalProfit.toFixed(2)),
-                                                    hoursFromStart: snapshot.hoursFromStart,
+                                                    hoursFromPivot: snapshot.hoursFromPivot,
+                                                    isPivot: snapshot.isPivot,
                                                     isLatest: snapshot.isLatest
                                                 }))}
                                                 margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
@@ -508,9 +509,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 >
                                                     <span className="time">
                                                         {snapshot.snapshotTime}
+                                                        {snapshot.isPivot && <span className="pivot-badge">基准点</span>}
                                                         {snapshot.isLatest && <span className="latest-badge">实时</span>}
                                                     </span>
-                                                    <span className="duration">第 {snapshot.hoursFromStart + 1} 小时</span>
+                                                    <span className="duration">
+                                                        {snapshot.hoursFromPivot === 0 ? '基准点' :
+                                                            snapshot.hoursFromPivot > 0 ? `+${snapshot.hoursFromPivot}h` :
+                                                                `${snapshot.hoursFromPivot}h`}
+                                                    </span>
                                                     <span className={`profit ${snapshot.totalProfit >= 0 ? 'positive' : 'negative'}`}>
                                                         {snapshot.totalProfit >= 0 ? '+' : ''}{snapshot.totalProfit.toFixed(2)} U
                                                     </span>

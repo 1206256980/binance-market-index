@@ -3257,52 +3257,88 @@ public class IndexCalculatorService {
                 .map(c -> String.format("%s@%.6f", c.get("symbol"), c.get("price")))
                 .collect(Collectors.toList()));
 
+        // ========== 第三步：获取基准点(pivot)的价格 ==========
+        // entryTime 是基准点，盈亏为0。我们需要获取基准点时刻的价格
+        Map<String, Double> pivotPrices = getHistoricalPrices(entryTimeUtc, allSymbols);
+        if (pivotPrices.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("error", "无法获取基准点价格数据");
+            return result;
+        }
+        log.info("获取到基准点 {} 的价格，共 {} 个币种", entryTime, pivotPrices.size());
+
         // 当前时间
         LocalDateTime now = LocalDateTime.now(userZone);
         LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
 
-        // 追踪范围：从 (当前整点 - monitorHours) 到 当前整点
-        LocalDateTime trackingStart = currentHour.minusHours(monitorHours);
-        LocalDateTime trackingEnd = currentHour;
-        log.info("追踪范围({}): {} 至 {}, 共 {} 小时", timezone, trackingStart, trackingEnd, monitorHours);
+        // ========== 第四步：计算追踪范围 ==========
+        // 追踪范围以 entryTime 为中心，向前和向后各 monitorHours/2 小时
+        // 简化处理：向前 monitorHours 小时，向后到当前时间
+        LocalDateTime trackingStart = entryTime.minusHours(monitorHours);
+        LocalDateTime trackingEnd = currentHour.isAfter(entryTime) ? currentHour : entryTime;
+        log.info("追踪范围({}): {} 至 {}, 基准点: {}", timezone, trackingStart, trackingEnd, entryTime);
 
         List<Map<String, Object>> hourlySnapshots = new ArrayList<>();
 
-        // 生成整点快照
-        for (int h = 0; h < monitorHours; h++) {
+        // ========== 第五步：生成快照 ==========
+        // 遍历从 trackingStart 到 trackingEnd 的每个整点
+
+        // 计算需要遍历的小时数
+        long totalHours = ChronoUnit.HOURS.between(trackingStart, trackingEnd);
+
+        for (int h = 0; h <= totalHours; h++) {
             LocalDateTime snapshotTime = trackingStart.plusHours(h);
             LocalDateTime snapshotTimeUtc = snapshotTime.atZone(userZone).withZoneSameInstant(utcZone)
                     .toLocalDateTime();
 
-            // 获取该小时的历史价格
-            Map<String, Double> exitPrices = getHistoricalPrices(snapshotTimeUtc, allSymbols);
+            // 获取该时刻的历史价格
+            Map<String, Double> snapshotPrices = getHistoricalPrices(snapshotTimeUtc, allSymbols);
+            if (snapshotPrices.isEmpty()) {
+                continue; // 跳过无数据的时间点
+            }
 
-            Map<String, Object> snapshot = calculateSnapshotProfit(topCoins, exitPrices, amountPerCoin);
+            // 判断该快照是在基准点之前、之后、还是就是基准点
+            boolean isBeforePivot = snapshotTime.isBefore(entryTime);
+            boolean isAtPivot = snapshotTime.equals(entryTime);
+            boolean isAfterPivot = snapshotTime.isAfter(entryTime);
+
+            // 计算该快照的盈亏
+            Map<String, Object> snapshot = calculatePivotSnapshotProfit(
+                    topCoins, snapshotPrices, pivotPrices, amountPerCoin,
+                    isBeforePivot, isAtPivot, isAfterPivot);
+
             snapshot.put("snapshotTime", snapshotTime.toString().replace("T", " "));
-            snapshot.put("hoursFromStart", h);
+            snapshot.put("hoursFromPivot", ChronoUnit.HOURS.between(entryTime, snapshotTime));
+            snapshot.put("isPivot", isAtPivot);
             snapshot.put("isLatest", false);
             hourlySnapshots.add(snapshot);
         }
 
-        // 添加最新5分钟K线快照
+        // ========== 第六步：添加最新5分钟K线快照（如果在基准点之后） ==========
         LocalDateTime nowUtc = now.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
         LocalDateTime latestTimeUtc = alignTo5Minutes(nowUtc);
-        Map<String, Double> latestPrices = getExitPrices(latestTimeUtc, allSymbols);
+        LocalDateTime latestTimeLocal = latestTimeUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime();
 
-        if (!latestPrices.isEmpty()) {
-            Map<String, Object> latestSnapshot = calculateSnapshotProfit(topCoins, latestPrices, amountPerCoin);
-            LocalDateTime latestTimeLocal = latestTimeUtc.atZone(utcZone).withZoneSameInstant(userZone)
-                    .toLocalDateTime();
-            latestSnapshot.put("snapshotTime", latestTimeLocal.toString().replace("T", " "));
-            latestSnapshot.put("hoursFromStart", monitorHours);
-            latestSnapshot.put("isLatest", true);
-            hourlySnapshots.add(latestSnapshot);
-            log.info("添加最新快照: {} (UTC: {})", latestTimeLocal, latestTimeUtc);
+        // 只有当最新时间在基准点之后才添加
+        if (latestTimeLocal.isAfter(entryTime)) {
+            Map<String, Double> latestPrices = getExitPrices(latestTimeUtc, allSymbols);
+            if (!latestPrices.isEmpty()) {
+                Map<String, Object> latestSnapshot = calculatePivotSnapshotProfit(
+                        topCoins, latestPrices, pivotPrices, amountPerCoin,
+                        false, false, true);
+                latestSnapshot.put("snapshotTime", latestTimeLocal.toString().replace("T", " "));
+                latestSnapshot.put("hoursFromPivot", ChronoUnit.MINUTES.between(entryTime, latestTimeLocal) / 60.0);
+                latestSnapshot.put("isPivot", false);
+                latestSnapshot.put("isLatest", true);
+                hourlySnapshots.add(latestSnapshot);
+                log.info("添加最新快照: {} (UTC: {})", latestTimeLocal, latestTimeUtc);
+            }
         }
 
-        // 构建返回结果
+        // ========== 第七步：构建返回结果 ==========
         Map<String, Object> result = new HashMap<>();
         result.put("entryTime", entryTimeStr);
+        result.put("pivotTime", entryTimeStr); // 基准点时间
         result.put("currentTime", now.toString().replace("T", " "));
         result.put("trackingStart", trackingStart.toString().replace("T", " "));
         result.put("trackingEnd", trackingEnd.toString().replace("T", " "));
@@ -3313,11 +3349,12 @@ public class IndexCalculatorService {
         strategy.put("monitorHours", monitorHours);
         result.put("strategy", strategy);
 
-        // 返回固定的入场币种和价格信息
+        // 返回做空的币种和基准点价格信息
         List<Map<String, Object>> entryCoins = topCoins.stream().map(coin -> {
+            String symbol = (String) coin.get("symbol");
             Map<String, Object> info = new HashMap<>();
-            info.put("symbol", coin.get("symbol"));
-            info.put("entryPrice", coin.get("price"));
+            info.put("symbol", symbol);
+            info.put("pivotPrice", pivotPrices.get(symbol)); // 基准点价格
             info.put("change24h", coin.get("change"));
             return info;
         }).collect(Collectors.toList());
@@ -3327,6 +3364,90 @@ public class IndexCalculatorService {
 
         log.info("追踪完成，共 {} 个快照（含最新）", hourlySnapshots.size());
         return result;
+    }
+
+    /**
+     * 计算基准点(pivot)模式下的快照盈亏
+     * 
+     * 【核心逻辑】
+     * - 基准点之前：snapshot价格作为入场价，pivot价格作为平仓价
+     * 盈亏 = (snapshot价格 - pivot价格) / snapshot价格
+     * - 基准点：盈亏 = 0
+     * - 基准点之后：pivot价格作为入场价，snapshot价格作为平仓价
+     * 盈亏 = (pivot价格 - snapshot价格) / pivot价格
+     */
+    private Map<String, Object> calculatePivotSnapshotProfit(
+            List<Map<String, Object>> topCoins,
+            Map<String, Double> snapshotPrices,
+            Map<String, Double> pivotPrices,
+            double amountPerCoin,
+            boolean isBeforePivot,
+            boolean isAtPivot,
+            boolean isAfterPivot) {
+
+        List<Map<String, Object>> trades = new ArrayList<>();
+        int winCount = 0;
+        int loseCount = 0;
+        double totalProfit = 0.0;
+
+        for (Map<String, Object> coin : topCoins) {
+            String symbol = (String) coin.get("symbol");
+            double change24h = (double) coin.get("change");
+
+            Double snapshotPrice = snapshotPrices.get(symbol);
+            Double pivotPrice = pivotPrices.get(symbol);
+
+            if (snapshotPrice == null || snapshotPrice <= 0 || pivotPrice == null || pivotPrice <= 0) {
+                continue;
+            }
+
+            double profitPercent;
+            double entryPrice;
+            double exitPrice;
+
+            if (isAtPivot) {
+                // 基准点：盈亏为0
+                profitPercent = 0.0;
+                entryPrice = pivotPrice;
+                exitPrice = pivotPrice;
+            } else if (isBeforePivot) {
+                // 基准点之前：snapshot价格作为入场价，pivot价格作为平仓价
+                // 做空逻辑：盈亏 = (入场价 - 平仓价) / 入场价
+                entryPrice = snapshotPrice;
+                exitPrice = pivotPrice;
+                profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
+            } else {
+                // 基准点之后：pivot价格作为入场价，snapshot价格作为平仓价
+                entryPrice = pivotPrice;
+                exitPrice = snapshotPrice;
+                profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
+            }
+
+            double profit = (profitPercent / 100.0) * amountPerCoin;
+
+            if (profit > 0) {
+                winCount++;
+            } else if (profit < 0) {
+                loseCount++;
+            }
+            totalProfit += profit;
+
+            Map<String, Object> trade = new HashMap<>();
+            trade.put("symbol", symbol);
+            trade.put("change24h", change24h);
+            trade.put("entryPrice", entryPrice);
+            trade.put("exitPrice", exitPrice);
+            trade.put("profitPercent", profitPercent);
+            trade.put("profit", profit);
+            trades.add(trade);
+        }
+
+        Map<String, Object> snapshot = new HashMap<>();
+        snapshot.put("totalProfit", totalProfit);
+        snapshot.put("winCount", winCount);
+        snapshot.put("loseCount", loseCount);
+        snapshot.put("trades", trades);
+        return snapshot;
     }
 
     /**
