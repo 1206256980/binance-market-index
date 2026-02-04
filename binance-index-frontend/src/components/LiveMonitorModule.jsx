@@ -494,8 +494,30 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                             dataKey="priceIndex"
                                                             stroke="url(#priceIndexGradient)"
                                                             strokeWidth={2.5}
-                                                            dot={{ fill: '#667eea', r: 3 }}
-                                                            activeDot={{ r: 5 }}
+                                                            dot={(props) => {
+                                                                const { cx, cy, payload } = props;
+                                                                if (payload.isPivot) {
+                                                                    // 基准点用大红点+外圈标记
+                                                                    return (
+                                                                        <g key={`pivot-${payload.time}`}>
+                                                                            <circle cx={cx} cy={cy} r={8} fill="#ef4444" opacity={0.3} />
+                                                                            <circle cx={cx} cy={cy} r={5} fill="#ef4444" stroke="#fff" strokeWidth={2} />
+                                                                            <text x={cx} y={cy - 12} textAnchor="middle" fill="#ef4444" fontSize={10} fontWeight="bold">入场</text>
+                                                                        </g>
+                                                                    );
+                                                                }
+                                                                if (payload.isLatest) {
+                                                                    // 实时点用绿点标记
+                                                                    return (
+                                                                        <g key={`latest-${payload.time}`}>
+                                                                            <circle cx={cx} cy={cy} r={5} fill="#22c55e" stroke="#fff" strokeWidth={2} />
+                                                                        </g>
+                                                                    );
+                                                                }
+                                                                // 普通点
+                                                                return <circle key={`dot-${payload.time}`} cx={cx} cy={cy} r={3} fill="#667eea" />;
+                                                            }}
+                                                            activeDot={{ r: 6 }}
                                                         />
                                                         <defs>
                                                             <linearGradient id="priceIndexGradient" x1="0" y1="0" x2="1" y2="0">
