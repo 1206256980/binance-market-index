@@ -396,6 +396,58 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     <button className="modal-close" onClick={() => setTrackingData(null)}>✕</button>
                                 </div>
                                 <div className="sidebar-body">
+                                    {/* 盈亏趋势图 */}
+                                    <div className="sidebar-chart-container">
+                                        <ResponsiveContainer width="100%" height={220}>
+                                            <LineChart
+                                                data={trackingData.hourlySnapshots.map(snapshot => ({
+                                                    time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
+                                                    profit: parseFloat(snapshot.totalProfit.toFixed(2)),
+                                                    hoursHeld: snapshot.hoursHeld
+                                                }))}
+                                                margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                                <XAxis
+                                                    dataKey="time"
+                                                    tick={{ fontSize: 11, fill: '#64748b' }}
+                                                    height={40}
+                                                />
+                                                <YAxis
+                                                    tick={{ fontSize: 11, fill: '#64748b' }}
+                                                    width={50}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '8px',
+                                                        fontSize: '12px',
+                                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                                                    }}
+                                                    formatter={(value) => [`${value >= 0 ? '+' : ''}${value} U`, '盈亏']}
+                                                    labelFormatter={(label) => `时间: ${label}`}
+                                                />
+                                                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="profit"
+                                                    stroke="url(#sidebarProfitGradient)"
+                                                    strokeWidth={2.5}
+                                                    dot={{ fill: '#667eea', r: 3 }}
+                                                    activeDot={{ r: 5 }}
+                                                />
+                                                <defs>
+                                                    <linearGradient id="sidebarProfitGradient" x1="0" y1="0" x2="1" y2="0">
+                                                        <stop offset="0%" stopColor="#667eea" />
+                                                        <stop offset="100%" stopColor="#764ba2" />
+                                                    </linearGradient>
+                                                </defs>
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    {/* 快照卡片列表 */}
                                     {trackingData.hourlySnapshots.map((snapshot, idx) => {
                                         const isSnapshotExpanded = expandedSnapshots.includes(idx);
                                         return (

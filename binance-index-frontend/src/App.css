@@ -4137,6 +4137,14 @@ body {
   background: var(--bg-primary);
 }
 
+/* 侧边栏图表容器 */
+.sidebar-chart-container {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  margin-bottom: 0;
+}
+
 .modal-close {
   width: 32px;
   height: 32px;
