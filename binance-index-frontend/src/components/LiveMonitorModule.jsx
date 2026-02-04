@@ -38,6 +38,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     const [result, setResult] = useState(null)
     const [expandedHours, setExpandedHours] = useState([])
     const [trackingData, setTrackingData] = useState(null) // 逐小时追踪数据
+    const [expandedSnapshots, setExpandedSnapshots] = useState([]) // 逐小时追踪的展开状态
 
     const runMonitor = async () => {
         setLoading(true)
@@ -273,11 +274,15 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                             {formatProfit(hour.totalProfit)} U
                                         </span>
                                         <button
-                                            className="tracking-btn"
-                                            onClick={() => handleTrackingClick({ entryTime: hour.hour })}
+                                            className="tracking-btn modern-btn"
+                                            onClick={() => {
+                                                handleTrackingClick({ entryTime: hour.hour })
+                                                setExpandedSnapshots([]) // 打开追踪时重置折叠状态
+                                            }}
                                             title="查看逐小时追踪"
                                         >
-                                            📊 追踪
+                                            <span className="btn-icon">📈</span>
+                                            <span className="btn-text">追踪</span>
                                         </button>
                                         <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                                     </div>
@@ -337,41 +342,57 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     <button className="modal-close" onClick={() => setTrackingData(null)}>✕</button>
                                 </div>
                                 <div className="sidebar-body">
-                                    {trackingData.hourlySnapshots.map((snapshot, idx) => (
-                                        <div key={idx} className="hourly-snapshot-card">
-                                            <div className="snapshot-header">
-                                                <span className="time">{snapshot.snapshotTime}</span>
-                                                <span className="duration">持仓 {snapshot.hoursHeld} 小时</span>
-                                                <span className={`profit ${snapshot.totalProfit >= 0 ? 'positive' : 'negative'}`}>
-                                                    {snapshot.totalProfit >= 0 ? '+' : ''}{snapshot.totalProfit.toFixed(2)} U
-                                                </span>
-                                            </div>
-                                            <div className="daily-trades">
-                                                <div className="trade-header">
-                                                    <span>币种</span>
-                                                    <span>入场涨幅</span>
-                                                    <span>开仓价</span>
-                                                    <span>平仓价</span>
-                                                    <span>盈亏%</span>
-                                                    <span>盈亏U</span>
+                                    {trackingData.hourlySnapshots.map((snapshot, idx) => {
+                                        const isSnapshotExpanded = expandedSnapshots.includes(idx);
+                                        return (
+                                            <div key={idx} className="hourly-snapshot-card">
+                                                <div
+                                                    className={`snapshot-header clickable ${isSnapshotExpanded ? 'expanded' : ''}`}
+                                                    onClick={() => {
+                                                        if (isSnapshotExpanded) {
+                                                            setExpandedSnapshots(expandedSnapshots.filter(i => i !== idx));
+                                                        } else {
+                                                            setExpandedSnapshots([...expandedSnapshots, idx]);
+                                                        }
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <span className="time">{snapshot.snapshotTime}</span>
+                                                    <span className="duration">持仓 {snapshot.hoursHeld} 小时</span>
+                                                    <span className={`profit ${snapshot.totalProfit >= 0 ? 'positive' : 'negative'}`}>
+                                                        {snapshot.totalProfit >= 0 ? '+' : ''}{snapshot.totalProfit.toFixed(2)} U
+                                                    </span>
+                                                    <span className="expand-icon-small">{isSnapshotExpanded ? '▼' : '▶'}</span>
                                                 </div>
-                                                {snapshot.trades.map((trade, tIdx) => (
-                                                    <div key={tIdx} className="trade-row">
-                                                        <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
-                                                        <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h.toFixed(2)}%</span>
-                                                        <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
-                                                        <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
-                                                        <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
-                                                            {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
-                                                        </span>
-                                                        <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
-                                                            {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
-                                                        </span>
+                                                {isSnapshotExpanded && (
+                                                    <div className="daily-trades">
+                                                        <div className="trade-header">
+                                                            <span>币种</span>
+                                                            <span>入场涨幅</span>
+                                                            <span>开仓价</span>
+                                                            <span>平仓价</span>
+                                                            <span>盈亏%</span>
+                                                            <span>盈亏U</span>
+                                                        </div>
+                                                        {snapshot.trades.map((trade, tIdx) => (
+                                                            <div key={tIdx} className="trade-row">
+                                                                <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                                <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h.toFixed(2)}%</span>
+                                                                <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                                <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                                    {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                                </span>
+                                                                <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                                    {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

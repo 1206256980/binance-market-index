@@ -3045,6 +3045,51 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 获取历史价格（用于逐小时追踪）
+     * 查询指定时间点或最接近的历史价格
+     * 
+     * @param targetTimeUtc 目标时间（UTC）
+     * @param symbols       币种列表
+     * @return 币种价格映射
+     */
+    private Map<String, Double> getHistoricalPrices(LocalDateTime targetTimeUtc, List<String> symbols) {
+        Map<String, Double> prices = new HashMap<>();
+
+        // 先尝试精确匹配
+        List<CoinPrice> exactPrices = coinPriceRepository.findByTimestamp(targetTimeUtc);
+
+        if (!exactPrices.isEmpty()) {
+            log.debug("找到精确时间点 {} 的价格，共 {} 个币种", targetTimeUtc, exactPrices.size());
+            for (CoinPrice price : exactPrices) {
+                if (price.getPrice() != null && price.getPrice() > 0) {
+                    prices.put(price.getSymbol(), price.getPrice());
+                }
+            }
+            return prices;
+        }
+
+        // 如果没有精确匹配，查询最接近且不晚于目标时间的价格
+        List<CoinPrice> closestPrices = coinPriceRepository.findLatestPricesBefore(targetTimeUtc);
+
+        if (closestPrices.isEmpty()) {
+            log.warn("未找到时间点 {} (UTC) 或之前的历史价格", targetTimeUtc);
+            return prices;
+        }
+
+        LocalDateTime actualTime = closestPrices.get(0).getTimestamp();
+        log.debug("历史价格：期望时间 {} (UTC)，实际使用 {} (UTC)，共 {} 个币种",
+                targetTimeUtc, actualTime, closestPrices.size());
+
+        for (CoinPrice price : closestPrices) {
+            if (price.getPrice() != null && price.getPrice() > 0) {
+                prices.put(price.getSymbol(), price.getPrice());
+            }
+        }
+
+        return prices;
+    }
+
+    /**
      * 计算指定小时的涨幅榜
      * 
      * @param hourUtc         当前小时（UTC时间）
@@ -3172,8 +3217,8 @@ public class IndexCalculatorService {
                     .toLocalDateTime();
             LocalDateTime exitTimeUtc = alignTo5Minutes(snapshotTimeUtc);
 
-            // 获取该小时的出场价格
-            Map<String, Double> exitPrices = getExitPrices(exitTimeUtc, allSymbols);
+            // 获取该小时的历史价格（而非最新价格）
+            Map<String, Double> exitPrices = getHistoricalPrices(exitTimeUtc, allSymbols);
 
             List<Map<String, Object>> trades = new ArrayList<>();
             int winCount = 0;
