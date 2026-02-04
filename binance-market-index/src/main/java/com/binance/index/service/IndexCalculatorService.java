@@ -3274,11 +3274,10 @@ public class IndexCalculatorService {
         LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
 
         // ========== 第四步：计算追踪范围 ==========
-        // 追踪范围以 entryTime 为中心，向前和向后各 monitorHours/2 小时
-        // 简化处理：向前 monitorHours 小时，向后到当前时间
-        LocalDateTime trackingStart = entryTime.minusHours(monitorHours);
+        // 追踪范围：从入场时间到当前时间（不再向前追溯）
+        LocalDateTime trackingStart = entryTime; // 从入场时间开始
         LocalDateTime trackingEnd = currentHour.isAfter(entryTime) ? currentHour : entryTime;
-        log.info("追踪范围({}): {} 至 {}, 基准点: {}", timezone, trackingStart, trackingEnd, entryTime);
+        log.info("追踪范围({}): {} 至 {}", timezone, trackingStart, trackingEnd);
 
         List<Map<String, Object>> hourlySnapshots = new ArrayList<>();
 
