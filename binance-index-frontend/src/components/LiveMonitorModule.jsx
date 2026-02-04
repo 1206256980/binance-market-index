@@ -249,7 +249,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                         <div className="chart-title">📈 盈亏趋势图</div>
                         <ResponsiveContainer width="100%" height={280}>
                             <LineChart
-                                data={result.hourlyResults.slice().reverse().map(hour => ({
+                                data={result.hourlyResults.map(hour => ({
                                     time: formatHour(hour.hour),
                                     profit: parseFloat(hour.totalProfit.toFixed(2)),
                                     fullTime: hour.hour
