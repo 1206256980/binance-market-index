@@ -380,7 +380,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                         {formatProfit(trade.profit)}
                                                     </span>
                                                 </div>
-                                            ))}\n                                        </div>
+                                            ))}                                        </div>
                                     )}
                                 </div>
                             );
