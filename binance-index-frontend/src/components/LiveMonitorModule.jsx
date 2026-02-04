@@ -107,14 +107,42 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         }
     }
 
+    /**
+     * ================================================================================
+     * 逐小时盈亏追踪 (Hourly Profit/Loss Tracking)
+     * ================================================================================
+     * 
+     * 【业务逻辑说明】
+     * 这是一个"回顾性分析"功能，核心概念是：入场条件与追踪范围【解耦】
+     * 
+     * 1. hourData.entryTime（入场时间）的作用：
+     *    - 仅用于确定"做空哪些币种"（该时刻涨幅榜 Top N）
+     *    - 仅用于确定"入场价格是多少"（该时刻的开盘价）
+     *    - 与追踪范围完全无关！
+     * 
+     * 2. 追踪范围由 monitorHours 和当前时间决定：
+     *    - 开始时间 = 当前整点 - monitorHours
+     *    - 结束时间 = 当前整点 + 最新5分钟K线
+     * 
+     * 【举例】
+     * 假设当前时间 20:05，monitorHours=24：
+     * - 用户点击"15:00"入场行的追踪按钮
+     * - 系统获取 15:00 时刻的涨幅榜 Top N 作为做空标的
+     * - 追踪范围 = 昨天 20:00 → 今天 20:00 + 最新价格
+     * - 所有快照的盈亏都相对于 15:00 的入场价计算
+     * 
+     * 【设计意义】
+     * 分析：如果使用某个时间点的入场条件，在过去N小时的市场行情下表现如何
+     */
     const handleTrackingClick = async (hourData) => {
         try {
             const res = await axios.get('/api/index/live-monitor/hourly-tracking', {
                 params: {
-                    entryTime: hourData.entryTime,
-                    rankingHours,
-                    topN,
-                    totalAmount: hourlyAmount,
+                    entryTime: hourData.entryTime,  // 用于确定做空币种和入场价格
+                    rankingHours,                    // 涨幅榜周期（如24小时涨幅榜）
+                    topN,                            // 做空前N名
+                    totalAmount: hourlyAmount,       // 总投入金额
+                    monitorHours,                    // 追踪范围长度（决定看过去多少小时）
                     timezone: 'Asia/Shanghai'
                 }
             })
@@ -128,6 +156,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             console.error('追踪请求失败:', err)
         }
     }
+
+
 
     return (
         <div className="backtest-module">
@@ -415,7 +445,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 data={trackingData.hourlySnapshots.map(snapshot => ({
                                                     time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
                                                     profit: parseFloat(snapshot.totalProfit.toFixed(2)),
-                                                    hoursHeld: snapshot.hoursHeld
+                                                    hoursFromStart: snapshot.hoursFromStart,
+                                                    isLatest: snapshot.isLatest
                                                 }))}
                                                 margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
                                             >
@@ -475,8 +506,11 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                     }}
                                                     style={{ cursor: 'pointer' }}
                                                 >
-                                                    <span className="time">{snapshot.snapshotTime}</span>
-                                                    <span className="duration">持仓 {snapshot.hoursHeld} 小时</span>
+                                                    <span className="time">
+                                                        {snapshot.snapshotTime}
+                                                        {snapshot.isLatest && <span className="latest-badge">实时</span>}
+                                                    </span>
+                                                    <span className="duration">第 {snapshot.hoursFromStart + 1} 小时</span>
                                                     <span className={`profit ${snapshot.totalProfit >= 0 ? 'positive' : 'negative'}`}>
                                                         {snapshot.totalProfit >= 0 ? '+' : ''}{snapshot.totalProfit.toFixed(2)} U
                                                     </span>

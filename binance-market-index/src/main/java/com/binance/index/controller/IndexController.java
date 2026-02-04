@@ -1498,6 +1498,11 @@ public class IndexController {
 
     /**
      * 逐小时盈亏追踪
+     * 
+     * 核心逻辑：
+     * 1. entryTime 只用于确定做空的币种列表和入场价格
+     * 2. 追踪范围：从 (当前整点 - monitorHours) 到 (当前整点) + 最新5分钟K线
+     * 3. 所有快照的盈亏都相对于 entryTime 的入场价格计算
      */
     @GetMapping("/live-monitor/hourly-tracking")
     public ResponseEntity<Map<String, Object>> getHourlyTracking(
@@ -1505,15 +1510,16 @@ public class IndexController {
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "5") int topN,
             @RequestParam(defaultValue = "1000") double totalAmount,
+            @RequestParam(defaultValue = "24") int monitorHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
 
         log.info("========== 开始调用 /live-monitor/hourly-tracking 接口 ==========");
-        log.info("参数: entryTime={}, rankingHours={}, topN={}, totalAmount={}, timezone={}",
-                entryTime, rankingHours, topN, totalAmount, timezone);
+        log.info("参数: entryTime={}, rankingHours={}, topN={}, totalAmount={}, monitorHours={}, timezone={}",
+                entryTime, rankingHours, topN, totalAmount, monitorHours, timezone);
 
         try {
             Map<String, Object> result = indexCalculatorService.getHourlyTracking(
-                    entryTime, rankingHours, topN, totalAmount, timezone);
+                    entryTime, rankingHours, topN, totalAmount, monitorHours, timezone);
 
             Map<String, Object> response = new HashMap<>();
             if (result.containsKey("error")) {

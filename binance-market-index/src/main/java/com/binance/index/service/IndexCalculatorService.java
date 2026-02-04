@@ -3171,20 +3171,65 @@ public class IndexCalculatorService {
     }
 
     /**
-     * 逐小时盈亏追踪
-     * 从指定入场时间开始，计算每个小时的盈亏变化
+     * ================================================================================
+     * 逐小时盈亏追踪 (Hourly Profit/Loss Tracking)
+     * ================================================================================
+     * 
+     * 【业务背景】
+     * 这是一个"回顾性分析"功能，用于分析：如果使用某个时间点的入场条件（涨幅榜Top N），
+     * 在过去若干小时的市场行情下，做空策略的表现如何。
+     * 
+     * 【核心设计 - 入场条件与追踪范围解耦】
+     * 
+     * 1. entryTime（入场时间）的作用：
+     * - 仅用于确定"做空哪些币种"（该时刻涨幅榜 Top N）
+     * - 仅用于确定"入场价格是多少"（该时刻的开盘价）
+     * - 与追踪范围完全无关
+     * 
+     * 2. 追踪范围的计算（与 entryTime 无关）：
+     * - 开始时间 = 当前整点 - monitorHours
+     * - 结束时间 = 当前整点 + 最新5分钟K线（标记为"实时"）
+     * 
+     * 3. 盈亏计算：
+     * - 每个快照时间点使用该时刻的历史价格作为"平仓价"
+     * - 盈亏 = (入场价 - 平仓价) / 入场价 × 投入金额
+     * - 入场价在整个追踪过程中保持【固定不变】
+     * 
+     * 【使用场景举例】
+     * 假设当前时间是 2026年2月4日 20:05，用户设置 monitorHours=24：
+     * - 用户点击"15:00"那一行的追踪按钮
+     * - 系统获取 15:00 时刻的涨幅榜 Top N 作为做空标的，15:00 开盘价作为入场价
+     * - 追踪范围 = 2月3日 20:00 → 2月4日 20:00 + 最新实时价格
+     * - 共生成 24 个整点快照 + 1 个实时快照
+     * - 每个快照的盈亏都是相对于 15:00 入场价计算
+     * 
+     * 【设计意义】
+     * - 允许用户选择不同的入场时间点，对比"如果当时入场，历史表现如何"
+     * - 不需要等待未来数据，可以立即看到完整的追踪曲线
+     * - 用于评估某个特定涨幅榜组合在历史行情下的回撤和盈利情况
+     * 
+     * ================================================================================
+     * 
+     * @param entryTimeStr 入场时间（用于确定做空币种和入场价格，格式: "yyyy-MM-dd HH:mm"）
+     * @param rankingHours 涨幅榜周期（如24表示24小时涨幅榜）
+     * @param topN         做空涨幅榜前N名
+     * @param totalAmount  总投入金额（平均分配到每个币种）
+     * @param monitorHours 监控小时数（追踪范围长度，如24表示看过去24小时）
+     * @param timezone     用户时区
+     * @return 包含 hourlySnapshots 数组的结果Map
      */
+
     public Map<String, Object> getHourlyTracking(String entryTimeStr, int rankingHours, int topN,
-            double totalAmount, String timezone) {
+            double totalAmount, int monitorHours, String timezone) {
         log.info("========== 逐小时盈亏追踪 ==========");
-        log.info("入场时间: {}, 涨幅榜周期: {}h, Top{}, 总金额: {}U, 时区: {}",
-                entryTimeStr, rankingHours, topN, totalAmount, timezone);
+        log.info("入场时间: {}, 涨幅榜周期: {}h, Top{}, 总金额: {}U, 监控小时: {}, 时区: {}",
+                entryTimeStr, rankingHours, topN, totalAmount, monitorHours, timezone);
 
         // 时区定义
         ZoneId userZone = ZoneId.of(timezone);
         ZoneId utcZone = ZoneId.of("UTC");
 
-        // 解析入场时间（用户时区）
+        // 解析入场时间（用户时区）- 只用于确定币种和入场价格
         LocalDateTime entryTime = LocalDateTime.parse(entryTimeStr.replace(" ", "T"));
         log.info("解析入场时间({}): {}", timezone, entryTime);
 
@@ -3196,7 +3241,7 @@ public class IndexCalculatorService {
         // 获取所有交易对
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
 
-        // 计算入场时的涨幅榜
+        // 计算入场时的涨幅榜 - 确定做空的币种和入场价格
         List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
         if (ranking.isEmpty()) {
             Map<String, Object> result = new HashMap<>();
@@ -3204,92 +3249,133 @@ public class IndexCalculatorService {
             return result;
         }
 
-        // 选择做空的前N名
+        // 选择做空的前N名 - 这是固定的持仓列表和入场价格
         List<Map<String, Object>> topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
         double amountPerCoin = totalAmount / topN;
 
-        log.info("做空币种: {}", topCoins.stream()
-                .map(c -> c.get("symbol"))
+        log.info("做空币种（固定基准价）: {}", topCoins.stream()
+                .map(c -> String.format("%s@%.6f", c.get("symbol"), c.get("price")))
                 .collect(Collectors.toList()));
 
-        // 计算从入场时间到当前的每个小时快照
+        // 当前时间
         LocalDateTime now = LocalDateTime.now(userZone);
         LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
 
-        // 计算需要追踪的小时数
-        long hoursToTrack = ChronoUnit.HOURS.between(entryTime, currentHour);
-        log.info("需要追踪的小时数: {}", hoursToTrack);
+        // 追踪范围：从 (当前整点 - monitorHours) 到 当前整点
+        LocalDateTime trackingStart = currentHour.minusHours(monitorHours);
+        LocalDateTime trackingEnd = currentHour;
+        log.info("追踪范围({}): {} 至 {}, 共 {} 小时", timezone, trackingStart, trackingEnd, monitorHours);
 
         List<Map<String, Object>> hourlySnapshots = new ArrayList<>();
 
-        for (int h = 1; h <= hoursToTrack; h++) {
-            LocalDateTime snapshotTime = entryTime.plusHours(h);
+        // 生成整点快照
+        for (int h = 0; h < monitorHours; h++) {
+            LocalDateTime snapshotTime = trackingStart.plusHours(h);
             LocalDateTime snapshotTimeUtc = snapshotTime.atZone(userZone).withZoneSameInstant(utcZone)
                     .toLocalDateTime();
-            LocalDateTime exitTimeUtc = alignTo5Minutes(snapshotTimeUtc);
 
-            // 获取该小时的历史价格（而非最新价格）
-            Map<String, Double> exitPrices = getHistoricalPrices(exitTimeUtc, allSymbols);
+            // 获取该小时的历史价格
+            Map<String, Double> exitPrices = getHistoricalPrices(snapshotTimeUtc, allSymbols);
 
-            List<Map<String, Object>> trades = new ArrayList<>();
-            int winCount = 0;
-            int loseCount = 0;
-            double totalProfit = 0.0;
-
-            for (Map<String, Object> coin : topCoins) {
-                String symbol = (String) coin.get("symbol");
-                double entryPrice = (double) coin.get("price");
-                double change24h = (double) coin.get("change");
-
-                Double exitPrice = exitPrices.get(symbol);
-                if (exitPrice == null || exitPrice <= 0) {
-                    continue;
-                }
-
-                // 做空：盈亏 = (入场价 - 出场价) / 入场价
-                double profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
-                double profit = (profitPercent / 100.0) * amountPerCoin;
-
-                if (profit > 0) {
-                    winCount++;
-                } else {
-                    loseCount++;
-                }
-                totalProfit += profit;
-
-                Map<String, Object> trade = new HashMap<>();
-                trade.put("symbol", symbol);
-                trade.put("change24h", change24h);
-                trade.put("entryPrice", entryPrice);
-                trade.put("exitPrice", exitPrice);
-                trade.put("profitPercent", profitPercent);
-                trade.put("profit", profit);
-                trades.add(trade);
-            }
-
-            Map<String, Object> snapshot = new HashMap<>();
+            Map<String, Object> snapshot = calculateSnapshotProfit(topCoins, exitPrices, amountPerCoin);
             snapshot.put("snapshotTime", snapshotTime.toString().replace("T", " "));
-            snapshot.put("hoursHeld", h);
-            snapshot.put("totalProfit", totalProfit);
-            snapshot.put("winCount", winCount);
-            snapshot.put("loseCount", loseCount);
-            snapshot.put("trades", trades);
+            snapshot.put("hoursFromStart", h);
+            snapshot.put("isLatest", false);
             hourlySnapshots.add(snapshot);
+        }
+
+        // 添加最新5分钟K线快照
+        LocalDateTime nowUtc = now.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime latestTimeUtc = alignTo5Minutes(nowUtc);
+        Map<String, Double> latestPrices = getExitPrices(latestTimeUtc, allSymbols);
+
+        if (!latestPrices.isEmpty()) {
+            Map<String, Object> latestSnapshot = calculateSnapshotProfit(topCoins, latestPrices, amountPerCoin);
+            LocalDateTime latestTimeLocal = latestTimeUtc.atZone(utcZone).withZoneSameInstant(userZone)
+                    .toLocalDateTime();
+            latestSnapshot.put("snapshotTime", latestTimeLocal.toString().replace("T", " "));
+            latestSnapshot.put("hoursFromStart", monitorHours);
+            latestSnapshot.put("isLatest", true);
+            hourlySnapshots.add(latestSnapshot);
+            log.info("添加最新快照: {} (UTC: {})", latestTimeLocal, latestTimeUtc);
         }
 
         // 构建返回结果
         Map<String, Object> result = new HashMap<>();
         result.put("entryTime", entryTimeStr);
         result.put("currentTime", now.toString().replace("T", " "));
+        result.put("trackingStart", trackingStart.toString().replace("T", " "));
+        result.put("trackingEnd", trackingEnd.toString().replace("T", " "));
 
         Map<String, Object> strategy = new HashMap<>();
         strategy.put("rankingHours", rankingHours);
         strategy.put("topN", topN);
+        strategy.put("monitorHours", monitorHours);
         result.put("strategy", strategy);
+
+        // 返回固定的入场币种和价格信息
+        List<Map<String, Object>> entryCoins = topCoins.stream().map(coin -> {
+            Map<String, Object> info = new HashMap<>();
+            info.put("symbol", coin.get("symbol"));
+            info.put("entryPrice", coin.get("price"));
+            info.put("change24h", coin.get("change"));
+            return info;
+        }).collect(Collectors.toList());
+        result.put("entryCoins", entryCoins);
 
         result.put("hourlySnapshots", hourlySnapshots);
 
-        log.info("追踪完成，共 {} 个小时快照", hourlySnapshots.size());
+        log.info("追踪完成，共 {} 个快照（含最新）", hourlySnapshots.size());
         return result;
+    }
+
+    /**
+     * 计算单个快照的盈亏
+     */
+    private Map<String, Object> calculateSnapshotProfit(List<Map<String, Object>> topCoins,
+            Map<String, Double> exitPrices, double amountPerCoin) {
+
+        List<Map<String, Object>> trades = new ArrayList<>();
+        int winCount = 0;
+        int loseCount = 0;
+        double totalProfit = 0.0;
+
+        for (Map<String, Object> coin : topCoins) {
+            String symbol = (String) coin.get("symbol");
+            double entryPrice = (double) coin.get("price");
+            double change24h = (double) coin.get("change");
+
+            Double exitPrice = exitPrices.get(symbol);
+            if (exitPrice == null || exitPrice <= 0) {
+                continue;
+            }
+
+            // 做空：盈亏 = (入场价 - 出场价) / 入场价
+            double profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
+            double profit = (profitPercent / 100.0) * amountPerCoin;
+
+            if (profit > 0) {
+                winCount++;
+            } else {
+                loseCount++;
+            }
+            totalProfit += profit;
+
+            Map<String, Object> trade = new HashMap<>();
+            trade.put("symbol", symbol);
+            trade.put("change24h", change24h);
+            trade.put("entryPrice", entryPrice);
+            trade.put("exitPrice", exitPrice);
+            trade.put("profitPercent", profitPercent);
+            trade.put("profit", profit);
+            trades.add(trade);
+        }
+
+        Map<String, Object> snapshot = new HashMap<>();
+        snapshot.put("totalProfit", totalProfit);
+        snapshot.put("winCount", winCount);
+        snapshot.put("loseCount", loseCount);
+        snapshot.put("trades", trades);
+        return snapshot;
     }
 }
