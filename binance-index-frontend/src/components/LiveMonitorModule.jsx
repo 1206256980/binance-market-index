@@ -442,13 +442,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     <div className="sidebar-chart-container">
                                         <ResponsiveContainer width="100%" height={220}>
                                             {(() => {
-                                                // 准备图表数据
-                                                const chartData = trackingData.hourlySnapshots.map(snapshot => ({
-                                                    time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
-                                                    priceIndex: snapshot.priceIndex ? parseFloat(snapshot.priceIndex.toFixed(2)) : 100,
-                                                    hoursFromPivot: snapshot.hoursFromPivot,
-                                                    isPivot: snapshot.isPivot || snapshot.hoursFromPivot === 0,
-                                                    isLatest: snapshot.isLatest
+                                                // 准备图表数据 - 使用后端返回的专门用于图表的完整24小时数据
+                                                const chartData = (trackingData.priceIndexData || []).map(point => ({
+                                                    time: point.time.split(' ')[1], // 只显示时间部分
+                                                    priceIndex: point.priceIndex ? parseFloat(point.priceIndex.toFixed(2)) : 100,
+                                                    isPivot: point.isPivot,
+                                                    isLatest: point.isLatest
                                                 }));
 
                                                 return (
