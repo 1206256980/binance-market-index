@@ -1,4 +1,5 @@
 import { useState, useEffect, memo } from 'react'
+import { createPortal } from 'react-dom'
 import axios from 'axios'
 
 /**
@@ -36,6 +37,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     const [error, setError] = useState(null)
     const [result, setResult] = useState(null)
     const [expandedHours, setExpandedHours] = useState([])
+    const [trackingData, setTrackingData] = useState(null) // 逐小时追踪数据
 
     const runMonitor = async () => {
         setLoading(true)
@@ -88,6 +90,28 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             return `${month}-${day} ${hour}:${minute}`
         } catch {
             return hourStr
+        }
+    }
+
+    const handleTrackingClick = async (hourData) => {
+        try {
+            const res = await axios.get('/api/index/live-monitor/hourly-tracking', {
+                params: {
+                    entryTime: hourData.entryTime,
+                    rankingHours,
+                    topN,
+                    totalAmount: hourlyAmount,
+                    timezone: 'Asia/Shanghai'
+                }
+            })
+
+            if (res.data.success) {
+                setTrackingData(res.data.data)
+            } else {
+                console.error('追踪失败:', res.data.message)
+            }
+        } catch (err) {
+            console.error('追踪请求失败:', err)
         }
     }
 
@@ -190,8 +214,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                         <div className="summary-card">
                             <div className="summary-label">📊 每日胜率</div>
                             <div className="summary-value positive">
-                                {result.summary.totalHours > 0 
-                                    ? ((result.hourlyResults.filter(h => h.totalProfit > 0).length / result.summary.totalHours) * 100).toFixed(0) 
+                                {result.summary.totalHours > 0
+                                    ? ((result.hourlyResults.filter(h => h.totalProfit > 0).length / result.summary.totalHours) * 100).toFixed(0)
                                     : 0}% ({result.hourlyResults.filter(h => h.totalProfit > 0).length}/{result.summary.totalHours})
                             </div>
                         </div>
@@ -227,11 +251,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                 <div key={hour.hour} className="daily-item">
                                     <div
                                         className={`daily-summary ${isExpanded ? 'expanded' : ''}`}
-                                        onClick={() => {
-                                            if (isExpanded) {
-                                                setExpandedHours(expandedHours.filter(i => i !== idx));
-                                            } else {
-                                                setExpandedHours([...expandedHours, idx]);
+                                        onClick={(e) => {
+                                            // 防止追踪按钮点击触发展开
+                                            if (!e.target.closest('.tracking-btn')) {
+                                                if (isExpanded) {
+                                                    setExpandedHours(expandedHours.filter(i => i !== idx));
+                                                } else {
+                                                    setExpandedHours([...expandedHours, idx]);
+                                                }
                                             }
                                         }}
                                     >
@@ -245,6 +272,13 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                         <span className={`daily-profit ${getProfitClass(hour.totalProfit)}`}>
                                             {formatProfit(hour.totalProfit)} U
                                         </span>
+                                        <button
+                                            className="tracking-btn"
+                                            onClick={() => handleTrackingClick({ entryTime: hour.hour })}
+                                            title="查看逐小时追踪"
+                                        >
+                                            📊 追踪
+                                        </button>
                                         <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                                     </div>
 
@@ -275,14 +309,75 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                         {formatProfit(trade.profit)}
                                                     </span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                            ))}\n                                        </div>
                                     )}
                                 </div>
                             );
                         })}
                     </div>
                 </div>
+            )}
+
+            {/* 逐小时追踪侧边栏 - Portal到body */}
+            {createPortal(
+                <>
+                    {trackingData && (
+                        <div className="sidebar-overlay" onClick={() => setTrackingData(null)} />
+                    )}
+                    <div className={`sidebar-container ${trackingData ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
+                        {trackingData && (
+                            <div className="sidebar-content-wrapper">
+                                <div className="sidebar-header">
+                                    <div className="sidebar-title">
+                                        <span>📈 {trackingData.entryTime} 逐小时追踪</span>
+                                        <span className="sidebar-subtitle">
+                                            {trackingData.strategy.rankingHours}h | Top {trackingData.strategy.topN}
+                                        </span>
+                                    </div>
+                                    <button className="modal-close" onClick={() => setTrackingData(null)}>✕</button>
+                                </div>
+                                <div className="sidebar-body">
+                                    {trackingData.hourlySnapshots.map((snapshot, idx) => (
+                                        <div key={idx} className="hourly-snapshot-card">
+                                            <div className="snapshot-header">
+                                                <span className="time">{snapshot.snapshotTime}</span>
+                                                <span className="duration">持仓 {snapshot.hoursHeld} 小时</span>
+                                                <span className={`profit ${snapshot.totalProfit >= 0 ? 'positive' : 'negative'}`}>
+                                                    {snapshot.totalProfit >= 0 ? '+' : ''}{snapshot.totalProfit.toFixed(2)} U
+                                                </span>
+                                            </div>
+                                            <div className="daily-trades">
+                                                <div className="trade-header">
+                                                    <span>币种</span>
+                                                    <span>入场涨幅</span>
+                                                    <span>开仓价</span>
+                                                    <span>平仓价</span>
+                                                    <span>盈亏%</span>
+                                                    <span>盈亏U</span>
+                                                </div>
+                                                {snapshot.trades.map((trade, tIdx) => (
+                                                    <div key={tIdx} className="trade-row">
+                                                        <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                        <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h.toFixed(2)}%</span>
+                                                        <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                        <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                        <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                            {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                        </span>
+                                                        <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                            {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>,
+                document.body
             )}
         </div>
     )

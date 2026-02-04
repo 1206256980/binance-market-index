@@ -4316,4 +4316,65 @@ body {
 
 .sidebar-body::-webkit-scrollbar-track {
   background: transparent;
+} 
+ 
+/* 追踪按钮 */
+.tracking-btn {
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 10px;
+  margin-right: 10px;
+  transition: all 0.2s;
+}
+
+.tracking-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* 小时快照卡片 */
+.hourly-snapshot-card {
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.snapshot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.snapshot-header .time {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.snapshot-header .duration {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.snapshot-header .profit {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.snapshot-header .profit.positive {
+  color: var(--success);
+}
+
+.snapshot-header .profit.negative {
+  color: var(--danger);
 }

@@ -1495,4 +1495,41 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 逐小时盈亏追踪
+     */
+    @GetMapping("/live-monitor/hourly-tracking")
+    public ResponseEntity<Map<String, Object>> getHourlyTracking(
+            @RequestParam String entryTime,
+            @RequestParam(defaultValue = "24") int rankingHours,
+            @RequestParam(defaultValue = "5") int topN,
+            @RequestParam(defaultValue = "1000") double totalAmount,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+
+        log.info("========== 开始调用 /live-monitor/hourly-tracking 接口 ==========");
+        log.info("参数: entryTime={}, rankingHours={}, topN={}, totalAmount={}, timezone={}",
+                entryTime, rankingHours, topN, totalAmount, timezone);
+
+        try {
+            Map<String, Object> result = indexCalculatorService.getHourlyTracking(
+                    entryTime, rankingHours, topN, totalAmount, timezone);
+
+            Map<String, Object> response = new HashMap<>();
+            if (result.containsKey("error")) {
+                response.put("success", false);
+                response.put("message", result.get("error"));
+            } else {
+                response.put("success", true);
+                response.put("data", result);
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("逐小时追踪失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "追踪失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
