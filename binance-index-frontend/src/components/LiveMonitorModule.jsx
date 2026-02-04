@@ -516,18 +516,21 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     </div>
 
 
-                                    {/* 快照卡片列表 */}
-                                    {trackingData.hourlySnapshots.map((snapshot, idx) => {
-                                        const isSnapshotExpanded = expandedSnapshots.includes(idx);
+
+
+                                    {/* 快照卡片列表 - 倒序显示，最新在上面 */}
+                                    {trackingData.hourlySnapshots.slice().reverse().map((snapshot, idx) => {
+                                        const originalIdx = trackingData.hourlySnapshots.length - 1 - idx;
+                                        const isSnapshotExpanded = expandedSnapshots.includes(originalIdx);
                                         return (
                                             <div key={idx} className="hourly-snapshot-card">
                                                 <div
                                                     className={`snapshot-header clickable ${isSnapshotExpanded ? 'expanded' : ''}`}
                                                     onClick={() => {
                                                         if (isSnapshotExpanded) {
-                                                            setExpandedSnapshots(expandedSnapshots.filter(i => i !== idx));
+                                                            setExpandedSnapshots(expandedSnapshots.filter(i => i !== originalIdx));
                                                         } else {
-                                                            setExpandedSnapshots([...expandedSnapshots, idx]);
+                                                            setExpandedSnapshots([...expandedSnapshots, originalIdx]);
                                                         }
                                                     }}
                                                     style={{ cursor: 'pointer' }}
