@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 /**
  * 实时持仓监控模块
@@ -242,6 +243,59 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                             ⏰ 当前出场时间（对齐5分钟）: <strong>{formatHour(result.exitTime)}</strong>
                         </div>
                     )}
+
+                    {/* 盈亏折线图 */}
+                    <div className="profit-chart-container">
+                        <div className="chart-title">📈 盈亏趋势图</div>
+                        <ResponsiveContainer width="100%" height={280}>
+                            <LineChart
+                                data={result.hourlyResults.slice().reverse().map(hour => ({
+                                    time: formatHour(hour.hour),
+                                    profit: parseFloat(hour.totalProfit.toFixed(2)),
+                                    fullTime: hour.hour
+                                }))}
+                                margin={{ top: 10, right: 30, left: 10, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis
+                                    dataKey="time"
+                                    tick={{ fontSize: 11, fill: '#64748b' }}
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={60}
+                                />
+                                <YAxis
+                                    tick={{ fontSize: 12, fill: '#64748b' }}
+                                    label={{ value: '盈亏 (U)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#64748b' } }}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    formatter={(value) => [`${value >= 0 ? '+' : ''}${value} U`, '盈亏']}
+                                />
+                                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                                <Line
+                                    type="monotone"
+                                    dataKey="profit"
+                                    stroke="url(#profitGradient)"
+                                    strokeWidth={3}
+                                    dot={{ fill: '#667eea', r: 4 }}
+                                    activeDot={{ r: 6 }}
+                                />
+                                <defs>
+                                    <linearGradient id="profitGradient" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#667eea" />
+                                        <stop offset="100%" stopColor="#764ba2" />
+                                    </linearGradient>
+                                </defs>
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
 
                     {/* 每小时明细 */}
                     <div className="daily-results">
