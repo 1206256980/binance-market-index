@@ -47,6 +47,18 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         localStorage.setItem('daily_opt_holdHours', holdHours)
     }, [totalAmount, days, selectedEntryHours, holdHours])
 
+    // 侧边栏打开时锁定body滚动
+    useEffect(() => {
+        if (selectedStrategy) {
+            document.body.style.overflow = 'hidden'
+        } else {
+            document.body.style.overflow = ''
+        }
+        return () => {
+            document.body.style.overflow = ''
+        }
+    }, [selectedStrategy])
+
     const toggleHour = (hour) => {
         if (selectedEntryHours.includes(hour)) {
             setSelectedEntryHours(selectedEntryHours.filter(h => h !== hour));

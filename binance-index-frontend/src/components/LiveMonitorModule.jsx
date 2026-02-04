@@ -41,6 +41,18 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     const [trackingData, setTrackingData] = useState(null) // 逐小时追踪数据
     const [expandedSnapshots, setExpandedSnapshots] = useState([]) // 逐小时追踪的展开状态
 
+    // 侧边栏打开时锁定body滚动
+    useEffect(() => {
+        if (trackingData) {
+            document.body.style.overflow = 'hidden'
+        } else {
+            document.body.style.overflow = ''
+        }
+        return () => {
+            document.body.style.overflow = ''
+        }
+    }, [trackingData])
+
     const runMonitor = async () => {
         setLoading(true)
         setError(null)
