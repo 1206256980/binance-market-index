@@ -3444,8 +3444,25 @@ public class IndexCalculatorService {
             trades.add(trade);
         }
 
+        // ========== 计算价格指数 ==========
+        // 价格指数 = 各币 (当前价/入场价) 的平均值 × 100
+        // 入场时刻 = 100，指数 > 100 表示价格上涨（做空亏损方向），< 100 表示价格下跌（做空盈利方向）
+        double totalPriceRatio = 0.0;
+        int validCoinCount = 0;
+        for (Map<String, Object> coin : topCoins) {
+            String symbol = (String) coin.get("symbol");
+            Double snapshotPrice = snapshotPrices.get(symbol);
+            Double pivotPrice = pivotPrices.get(symbol);
+            if (snapshotPrice != null && snapshotPrice > 0 && pivotPrice != null && pivotPrice > 0) {
+                totalPriceRatio += snapshotPrice / pivotPrice;
+                validCoinCount++;
+            }
+        }
+        double priceIndex = validCoinCount > 0 ? (totalPriceRatio / validCoinCount) * 100.0 : 100.0;
+
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("totalProfit", totalProfit);
+        snapshot.put("priceIndex", priceIndex); // 新增：价格指数
         snapshot.put("winCount", winCount);
         snapshot.put("loseCount", loseCount);
         snapshot.put("trades", trades);

@@ -438,36 +438,32 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     <button className="modal-close" onClick={() => setTrackingData(null)}>✕</button>
                                 </div>
                                 <div className="sidebar-body">
-                                    {/* 盈亏趋势图 */}
+                                    {/* 价格指数趋势图 - 显示做空币种的综合价格走势 */}
                                     <div className="sidebar-chart-container">
                                         <ResponsiveContainer width="100%" height={220}>
                                             {(() => {
-                                                // 准备图表数据并找到基准点的时间
+                                                // 准备图表数据
                                                 const chartData = trackingData.hourlySnapshots.map(snapshot => ({
                                                     time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
-                                                    fullTime: snapshot.snapshotTime,
-                                                    profit: parseFloat(snapshot.totalProfit.toFixed(2)),
+                                                    priceIndex: snapshot.priceIndex ? parseFloat(snapshot.priceIndex.toFixed(2)) : 100,
                                                     hoursFromPivot: snapshot.hoursFromPivot,
                                                     isPivot: snapshot.isPivot || snapshot.hoursFromPivot === 0,
                                                     isLatest: snapshot.isLatest
                                                 }));
-                                                // 找到基准点的时间用于垂直分界线（使用 hoursFromPivot === 0 更可靠）
-                                                const pivotPoint = chartData.find(d => d.hoursFromPivot === 0 || d.isPivot);
-                                                const pivotTime = pivotPoint ? pivotPoint.time : null;
-                                                console.log('基准点检测:', { pivotPoint, pivotTime, chartData: chartData.map(d => ({ time: d.time, hoursFromPivot: d.hoursFromPivot, isPivot: d.isPivot })) });
 
                                                 return (
                                                     <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                                         <XAxis
                                                             dataKey="time"
-                                                            type="category"
-                                                            tick={{ fontSize: 11, fill: '#64748b' }}
+                                                            tick={{ fontSize: 10, fill: '#64748b' }}
                                                             height={40}
+                                                            interval="preserveStartEnd"
                                                         />
                                                         <YAxis
                                                             tick={{ fontSize: 11, fill: '#64748b' }}
                                                             width={50}
+                                                            domain={['dataMin - 2', 'dataMax + 2']}
                                                         />
                                                         <Tooltip
                                                             contentStyle={{
@@ -477,36 +473,32 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                                 fontSize: '12px',
                                                                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
                                                             }}
-                                                            formatter={(value) => [`${value >= 0 ? '+' : ''}${value} U`, '盈亏']}
+                                                            formatter={(value) => [value.toFixed(2), '价格指数']}
                                                             labelFormatter={(label) => `时间: ${label}`}
                                                         />
-                                                        {/* 水平0轴线 */}
-                                                        <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-                                                        {/* 垂直基准点分界线 - 直接使用 pivotTime */}
+                                                        {/* 基准线 y=100（入场价格） */}
                                                         <ReferenceLine
-                                                            x={pivotTime}
+                                                            y={100}
                                                             stroke="#667eea"
                                                             strokeWidth={2}
                                                             strokeDasharray="5 5"
                                                             label={{
-                                                                value: '基准点',
-                                                                position: 'top',
+                                                                value: '入场价(100)',
+                                                                position: 'right',
                                                                 fill: '#667eea',
-                                                                fontSize: 11,
-                                                                fontWeight: 600
+                                                                fontSize: 10
                                                             }}
-                                                            ifOverflow="extendDomain"
                                                         />
                                                         <Line
                                                             type="monotone"
-                                                            dataKey="profit"
-                                                            stroke="url(#sidebarProfitGradient)"
+                                                            dataKey="priceIndex"
+                                                            stroke="url(#priceIndexGradient)"
                                                             strokeWidth={2.5}
                                                             dot={{ fill: '#667eea', r: 3 }}
                                                             activeDot={{ r: 5 }}
                                                         />
                                                         <defs>
-                                                            <linearGradient id="sidebarProfitGradient" x1="0" y1="0" x2="1" y2="0">
+                                                            <linearGradient id="priceIndexGradient" x1="0" y1="0" x2="1" y2="0">
                                                                 <stop offset="0%" stopColor="#667eea" />
                                                                 <stop offset="100%" stopColor="#764ba2" />
                                                             </linearGradient>
@@ -515,7 +507,11 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 );
                                             })()}
                                         </ResponsiveContainer>
+                                        <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                                            📈 指数&gt;100 = 币价上涨(亏损方向) | 📉 指数&lt;100 = 币价下跌(盈利方向)
+                                        </div>
                                     </div>
+
 
 
 
