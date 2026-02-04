@@ -4532,22 +4532,22 @@ body {
   box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
 }
 
-/* 现代化按钮样式增强 */
+/* 现代化按钮样式增强 - 使用和开始监控一样的蓝紫色渐变 */
 .tracking-btn.modern-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.25);
 }
 
 .tracking-btn.modern-btn:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.35);
   transform: translateY(-1px);
 }
 
@@ -4560,19 +4560,23 @@ body {
   line-height: 1;
 }
 
-/* 小时快照卡片 */
+/* 小时快照卡片 - 无圆角，和策略优化器表格样式一致 */
 .hourly-snapshot-card {
-  margin-bottom: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  margin-bottom: 1px;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
   overflow: hidden;
   background: var(--bg-card);
   transition: all 0.2s;
 }
 
+.hourly-snapshot-card:first-child {
+  border-top: none;
+}
+
 .hourly-snapshot-card:hover {
-  border-color: var(--border-color-hover);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--bg-card-hover);
 }
 
 .snapshot-header {
