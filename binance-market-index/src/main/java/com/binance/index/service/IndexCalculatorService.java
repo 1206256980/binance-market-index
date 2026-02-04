@@ -3047,6 +3047,7 @@ public class IndexCalculatorService {
     /**
      * 获取历史价格（用于逐小时追踪）
      * 查询指定时间点或最接近的历史价格
+     * 使用开盘价作为平仓价（符合实际交易场景）
      * 
      * @param targetTimeUtc 目标时间（UTC）
      * @param symbols       币种列表
@@ -3061,8 +3062,13 @@ public class IndexCalculatorService {
         if (!exactPrices.isEmpty()) {
             log.debug("找到精确时间点 {} 的价格，共 {} 个币种", targetTimeUtc, exactPrices.size());
             for (CoinPrice price : exactPrices) {
-                if (price.getPrice() != null && price.getPrice() > 0) {
-                    prices.put(price.getSymbol(), price.getPrice());
+                // 优先使用开盘价，如果为空则使用收盘价
+                Double priceValue = price.getOpenPrice();
+                if (priceValue == null || priceValue <= 0) {
+                    priceValue = price.getPrice();
+                }
+                if (priceValue != null && priceValue > 0) {
+                    prices.put(price.getSymbol(), priceValue);
                 }
             }
             return prices;
@@ -3081,8 +3087,13 @@ public class IndexCalculatorService {
                 targetTimeUtc, actualTime, closestPrices.size());
 
         for (CoinPrice price : closestPrices) {
-            if (price.getPrice() != null && price.getPrice() > 0) {
-                prices.put(price.getSymbol(), price.getPrice());
+            // 优先使用开盘价，如果为空则使用收盘价
+            Double priceValue = price.getOpenPrice();
+            if (priceValue == null || priceValue <= 0) {
+                priceValue = price.getPrice();
+            }
+            if (priceValue != null && priceValue > 0) {
+                prices.put(price.getSymbol(), priceValue);
             }
         }
 
