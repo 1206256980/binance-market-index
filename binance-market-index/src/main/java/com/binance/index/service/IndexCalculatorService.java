@@ -3230,8 +3230,10 @@ public class IndexCalculatorService {
         ZoneId utcZone = ZoneId.of("UTC");
 
         // 解析入场时间（用户时区）- 只用于确定币种和入场价格
-        LocalDateTime entryTime = LocalDateTime.parse(entryTimeStr.replace(" ", "T"));
-        log.info("解析入场时间({}): {}", timezone, entryTime);
+        // 规范化为整点，确保与快照时间点完全匹配
+        LocalDateTime entryTime = LocalDateTime.parse(entryTimeStr.replace(" ", "T"))
+                .withMinute(0).withSecond(0).withNano(0);
+        log.info("解析入场时间({}): {} (规范化为整点)", timezone, entryTime);
 
         // 转换为UTC时间
         LocalDateTime entryTimeUtc = entryTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();

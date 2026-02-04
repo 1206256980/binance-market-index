@@ -445,14 +445,16 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 // 准备图表数据并找到基准点的时间
                                                 const chartData = trackingData.hourlySnapshots.map(snapshot => ({
                                                     time: snapshot.snapshotTime.split(' ')[1], // 只显示时间部分
+                                                    fullTime: snapshot.snapshotTime,
                                                     profit: parseFloat(snapshot.totalProfit.toFixed(2)),
                                                     hoursFromPivot: snapshot.hoursFromPivot,
-                                                    isPivot: snapshot.isPivot,
+                                                    isPivot: snapshot.isPivot || snapshot.hoursFromPivot === 0,
                                                     isLatest: snapshot.isLatest
                                                 }));
-                                                // 找到基准点的时间用于垂直分界线
-                                                const pivotPoint = chartData.find(d => d.isPivot);
+                                                // 找到基准点的时间用于垂直分界线（使用 hoursFromPivot === 0 更可靠）
+                                                const pivotPoint = chartData.find(d => d.hoursFromPivot === 0 || d.isPivot);
                                                 const pivotTime = pivotPoint ? pivotPoint.time : null;
+                                                console.log('基准点检测:', { pivotPoint, pivotTime, chartData: chartData.map(d => ({ time: d.time, hoursFromPivot: d.hoursFromPivot, isPivot: d.isPivot })) });
 
                                                 return (
                                                     <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
