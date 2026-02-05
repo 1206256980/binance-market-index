@@ -158,6 +158,15 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     }
 
 
+    const handleCopySymbol = (symbol) => {
+        if (!symbol) return;
+        navigator.clipboard.writeText(symbol).then(() => {
+            // 可以添加简单的提示，这里先用 console 记录，如果需要 UI 提示可以再加
+            console.log('Copied:', symbol);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    }
 
     return (
         <div className="backtest-module">
@@ -395,7 +404,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                             </div>
                                             {hour.trades.map((trade, tIdx) => (
                                                 <div key={tIdx} className="trade-row">
-                                                    <span className="trade-symbol">
+                                                    <span
+                                                        className="trade-symbol clickable-symbol"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleCopySymbol(trade.symbol);
+                                                        }}
+                                                        title={`点击复制 ${trade.symbol}`}
+                                                    >
                                                         {trade.symbol.replace('USDT', '')}
                                                     </span>
                                                     <span className="trade-change positive">
@@ -581,7 +597,13 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                         </div>
                                                         {snapshot.trades.map((trade, tIdx) => (
                                                             <div key={tIdx} className="trade-row">
-                                                                <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                                <span
+                                                                    className="trade-symbol clickable-symbol"
+                                                                    onClick={() => handleCopySymbol(trade.symbol)}
+                                                                    title={`点击复制 ${trade.symbol}`}
+                                                                >
+                                                                    {trade.symbol.replace('USDT', '')}
+                                                                </span>
                                                                 <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h.toFixed(2)}%</span>
                                                                 <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
                                                                 <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
