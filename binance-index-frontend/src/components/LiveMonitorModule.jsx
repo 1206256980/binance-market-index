@@ -160,12 +160,45 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
     const handleCopySymbol = (symbol) => {
         if (!symbol) return;
-        navigator.clipboard.writeText(symbol).then(() => {
-            // 可以添加简单的提示，这里先用 console 记录，如果需要 UI 提示可以再加
-            console.log('Copied:', symbol);
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-        });
+
+        // 优先使用 navigator.clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(symbol).then(() => {
+                console.log('Copied (Modern):', symbol);
+            }).catch(err => {
+                console.error('Modern copy failed, trying fallback:', err);
+                copyToClipboardFallback(symbol);
+            });
+        } else {
+            // 降级方案
+            copyToClipboardFallback(symbol);
+        }
+    }
+
+    const copyToClipboardFallback = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+
+        // 确保 textarea 在移动端和桌面端都不可见
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                console.log('Copied (Fallback):', text);
+            } else {
+                console.error('Fallback copy failed');
+            }
+        } catch (err) {
+            console.error('Fallback copy error:', err);
+        }
+
+        document.body.removeChild(textArea);
     }
 
     return (
