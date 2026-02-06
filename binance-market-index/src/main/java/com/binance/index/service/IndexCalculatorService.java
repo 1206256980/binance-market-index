@@ -2871,19 +2871,43 @@ public class IndexCalculatorService {
      * 监控每个整点小时做空涨幅榜的盈亏情况
      * 
      * 修复时区问题：用户时区时间转换为UTC后查询数据库
+     * 
+     * @param rankingHours     涨幅榜周期
+     * @param topN             做空前N名
+     * @param hourlyAmount     每小时金额
+     * @param monitorHours     监控小时数
+     * @param timezone         时区
+     * @param backtrackTimeStr 回溯时间（可选），指定后使用该时间作为"当前时间"
      */
     public Map<String, Object> liveMonitor(int rankingHours, int topN, double hourlyAmount,
-            int monitorHours, String timezone) {
+            int monitorHours, String timezone, String backtrackTimeStr) {
         log.info("========== 实时持仓监控 ==========");
-        log.info("涨幅榜周期: {}小时, 做空前{}名, 每小时金额: {}U, 监控小时: {}, 时区: {}",
-                rankingHours, topN, hourlyAmount, monitorHours, timezone);
+        log.info("涨幅榜周期: {}小时, 做空前{}名, 每小时金额: {}U, 监控小时: {}, 时区: {}, 回溯时间: {}",
+                rankingHours, topN, hourlyAmount, monitorHours, timezone, backtrackTimeStr);
 
         // 时区定义
         ZoneId userZone = ZoneId.of(timezone);
         ZoneId utcZone = ZoneId.of("UTC");
 
-        // 当前时间（用户时区）
-        LocalDateTime now = LocalDateTime.now(userZone);
+        // 确定"当前时间"：回溯模式使用指定时间，否则使用系统当前时间
+        LocalDateTime now;
+        boolean isBacktrackMode = false;
+
+        if (backtrackTimeStr != null && !backtrackTimeStr.trim().isEmpty()) {
+            // 回溯模式：解析用户指定的时间
+            try {
+                now = LocalDateTime.parse(backtrackTimeStr.replace(" ", "T"));
+                isBacktrackMode = true;
+                log.info("回溯模式: 使用 {} 作为当前时间", now);
+            } catch (Exception e) {
+                log.warn("解析回溯时间失败: {}, 使用当前时间", backtrackTimeStr);
+                now = LocalDateTime.now(userZone);
+            }
+        } else {
+            // 实时模式：使用系统当前时间
+            now = LocalDateTime.now(userZone);
+        }
+
         LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
         LocalDateTime startHour = currentHour.minusHours(monitorHours - 1);
         log.info("监控区间({}): {} 至 {} (共{}个小时)", timezone, startHour, currentHour, monitorHours);
@@ -2896,9 +2920,15 @@ public class IndexCalculatorService {
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
         log.info("获取到 {} 个交易对", allSymbols.size());
 
-        // 获取出场价格（使用UTC时间）
-        Map<String, Double> exitPrices = getExitPrices(exitTimeUtc, allSymbols);
-        log.info("获取到 {} 个币种的出场价格", exitPrices.size());
+        // 获取出场价格（回溯模式使用历史价格，实时模式使用最新价格）
+        Map<String, Double> exitPrices;
+        if (isBacktrackMode) {
+            exitPrices = getHistoricalPrices(exitTimeUtc, allSymbols);
+            log.info("回溯模式: 获取到 {} 个币种的历史出场价格", exitPrices.size());
+        } else {
+            exitPrices = getExitPrices(exitTimeUtc, allSymbols);
+            log.info("实时模式: 获取到 {} 个币种的实时出场价格", exitPrices.size());
+        }
 
         List<Map<String, Object>> hourlyResults = new ArrayList<>();
         int totalTrades = 0;
@@ -2997,6 +3027,12 @@ public class IndexCalculatorService {
         result.put("summary", summary);
         result.put("hourlyResults", hourlyResults);
         result.put("exitTime", exitTimeUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime().toString());
+
+        // 回溯模式标识
+        result.put("isBacktrackMode", isBacktrackMode);
+        if (isBacktrackMode) {
+            result.put("backtrackTime", now.toString());
+        }
 
         log.info("========== 监控完成 ==========");
         log.info("总小时: {}, 总交易: {}, 胜率: {:.2f}%, 总盈亏: {:.2f}U",

@@ -1464,11 +1464,12 @@ public class IndexController {
      * 实时持仓监控
      * 监控每个整点小时做空涨幅榜的盈亏情况
      *
-     * @param rankingHours 涨幅榜周期（默认24小时）
-     * @param topN         做空前N名（默认10）
-     * @param hourlyAmount 每小时总金额（默认1000U）
-     * @param monitorHours 监控小时数（默认24）
-     * @param timezone     时区（默认 Asia/Shanghai）
+     * @param rankingHours  涨幅榜周期（默认24小时）
+     * @param topN          做空前N名（默认10）
+     * @param hourlyAmount  每小时总金额（默认1000U）
+     * @param monitorHours  监控小时数（默认24）
+     * @param timezone      时区（默认 Asia/Shanghai）
+     * @param backtrackTime 回溯时间（可选，格式：yyyy-MM-dd HH:mm:ss），指定后以该时间作为"当前时间"计算
      * @return 监控结果
      */
     @GetMapping("/live-monitor")
@@ -1477,15 +1478,16 @@ public class IndexController {
             @RequestParam(defaultValue = "10") int topN,
             @RequestParam(defaultValue = "1000") double hourlyAmount,
             @RequestParam(defaultValue = "24") int monitorHours,
-            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
+            @RequestParam(required = false) String backtrackTime) {
 
         log.info("========== 开始调用 /live-monitor 接口 ==========");
-        log.info("参数: rankingHours={}, topN={}, hourlyAmount={}, monitorHours={}, timezone={}",
-                rankingHours, topN, hourlyAmount, monitorHours, timezone);
+        log.info("参数: rankingHours={}, topN={}, hourlyAmount={}, monitorHours={}, timezone={}, backtrackTime={}",
+                rankingHours, topN, hourlyAmount, monitorHours, timezone, backtrackTime);
 
         try {
             Map<String, Object> result = indexCalculatorService.liveMonitor(
-                    rankingHours, topN, hourlyAmount, monitorHours, timezone);
+                    rankingHours, topN, hourlyAmount, monitorHours, timezone, backtrackTime);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("实时监控失败", e);

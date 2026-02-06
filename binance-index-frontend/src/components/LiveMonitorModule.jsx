@@ -25,6 +25,10 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         return value !== null ? parseInt(value) : 24;
     })
 
+    // 回溯模式
+    const [isBacktrackMode, setIsBacktrackMode] = useState(false)
+    const [backtrackTime, setBacktrackTime] = useState('')
+
     // 参数自动保存到 localStorage
     useEffect(() => {
         localStorage.setItem('lm_rankingHours', rankingHours)
@@ -59,15 +63,20 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         setExpandedHours([]) // 重置展开行
 
         try {
-            const res = await axios.get('/api/index/live-monitor', {
-                params: {
-                    rankingHours,
-                    topN,
-                    hourlyAmount,
-                    monitorHours,
-                    timezone: 'Asia/Shanghai'
-                }
-            })
+            const params = {
+                rankingHours,
+                topN,
+                hourlyAmount,
+                monitorHours,
+                timezone: 'Asia/Shanghai'
+            }
+
+            // 回溯模式：添加回溯时间参数
+            if (isBacktrackMode && backtrackTime) {
+                params.backtrackTime = backtrackTime.replace('T', ' ') + ':00'
+            }
+
+            const res = await axios.get('/api/index/live-monitor', { params })
 
             if (res.data.success) {
                 setResult(res.data)
@@ -264,12 +273,31 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     </select>
                 </div>
 
+                <div className="param-group backtrack-group">
+                    <label className="backtrack-toggle">
+                        <input
+                            type="checkbox"
+                            checked={isBacktrackMode}
+                            onChange={(e) => setIsBacktrackMode(e.target.checked)}
+                        />
+                        <span>回溯模式</span>
+                    </label>
+                    {isBacktrackMode && (
+                        <input
+                            type="datetime-local"
+                            value={backtrackTime}
+                            onChange={(e) => setBacktrackTime(e.target.value)}
+                            className="datetime-input"
+                        />
+                    )}
+                </div>
+
                 <button
                     className={`backtest-btn ${loading ? 'loading' : ''}`}
                     onClick={runMonitor}
-                    disabled={loading}
+                    disabled={loading || (isBacktrackMode && !backtrackTime)}
                 >
-                    🚀 {loading ? '监控中...' : '开始监控'}
+                    🚀 {loading ? '监控中...' : (isBacktrackMode ? '开始回溯' : '开始监控')}
                 </button>
             </div>
 
@@ -283,6 +311,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             {/* 结果展示 */}
             {result && (
                 <div className="backtest-results">
+                    {/* 回溯模式提示 */}
+                    {result.isBacktrackMode && (
+                        <div className="backtrack-info">
+                            ⏪ 回溯模式: 查看 <strong>{result.backtrackTime?.replace('T', ' ')}</strong> 时刻的持仓情况
+                        </div>
+                    )}
                     {/* 汇总卡片 */}
                     <div className="result-summary">
                         <div className="summary-card">

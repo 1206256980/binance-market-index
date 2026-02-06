@@ -4715,6 +4715,7 @@ body {
   font-weight: 600;
   border-radius: 4px;
 }
+
 /* 可点击的币种名称 */
 .trade-symbol.clickable-symbol {
   cursor: pointer;
@@ -4728,4 +4729,75 @@ body {
   background-color: var(--bg-card-hover);
   color: var(--accent-primary);
   border: 1px dashed var(--accent-primary);
+}
+
+/* ===== 回溯模式样式 ===== */
+.backtrack-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.backtrack-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.backtrack-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.backtrack-toggle span {
+  transition: color 0.2s;
+}
+
+.backtrack-toggle:hover span {
+  color: var(--text-primary);
+}
+
+.datetime-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  transition: all 0.2s;
+}
+
+.datetime-input:hover {
+  border-color: var(--accent-primary);
+}
+
+.datetime-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* 回溯模式提示条 */
+.backtrack-info {
+  margin: 16px 0;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.backtrack-info strong {
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-left: 8px;
 }
