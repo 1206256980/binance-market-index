@@ -61,6 +61,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         setLoading(true)
         setError(null)
         setExpandedHours([]) // 重置展开行
+        setIsBacktrackMode(false) // 点击开始监控时重置为实时模式
+        setBacktrackTime('')
 
         try {
             const params = {
@@ -69,11 +71,6 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                 hourlyAmount,
                 monitorHours,
                 timezone: 'Asia/Shanghai'
-            }
-
-            // 回溯模式：添加回溯时间参数
-            if (isBacktrackMode && backtrackTime) {
-                params.backtrackTime = backtrackTime.replace('T', ' ') + ':00'
             }
 
             const res = await axios.get('/api/index/live-monitor', { params })
@@ -163,6 +160,42 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             }
         } catch (err) {
             console.error('追踪请求失败:', err)
+        }
+    }
+
+    /**
+     * 回溯功能：以选定的时间点作为"当前时间"重新计算持仓监控
+     * 点击某一行的回溯按钮，将该行的时间作为回溯时间
+     */
+    const handleBacktrackClick = async (hourStr) => {
+        setLoading(true)
+        setError(null)
+        setExpandedHours([])
+        setIsBacktrackMode(true)
+        setBacktrackTime(hourStr)
+
+        try {
+            const res = await axios.get('/api/index/live-monitor', {
+                params: {
+                    rankingHours,
+                    topN,
+                    hourlyAmount,
+                    monitorHours,
+                    timezone: 'Asia/Shanghai',
+                    backtrackTime: hourStr.replace('T', ' ') + ':00'
+                }
+            })
+
+            if (res.data.success) {
+                setResult(res.data)
+            } else {
+                setError(res.data.message || '回溯失败')
+            }
+        } catch (err) {
+            console.error('回溯请求失败:', err)
+            setError(err.response?.data?.message || err.message || '请求失败')
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -273,31 +306,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     </select>
                 </div>
 
-                <div className="param-group backtrack-group">
-                    <label className="backtrack-toggle">
-                        <input
-                            type="checkbox"
-                            checked={isBacktrackMode}
-                            onChange={(e) => setIsBacktrackMode(e.target.checked)}
-                        />
-                        <span>回溯模式</span>
-                    </label>
-                    {isBacktrackMode && (
-                        <input
-                            type="datetime-local"
-                            value={backtrackTime}
-                            onChange={(e) => setBacktrackTime(e.target.value)}
-                            className="datetime-input"
-                        />
-                    )}
-                </div>
-
                 <button
                     className={`backtest-btn ${loading ? 'loading' : ''}`}
                     onClick={runMonitor}
-                    disabled={loading || (isBacktrackMode && !backtrackTime)}
+                    disabled={loading}
                 >
-                    🚀 {loading ? '监控中...' : (isBacktrackMode ? '开始回溯' : '开始监控')}
+                    🚀 {loading ? '监控中...' : '开始监控'}
                 </button>
             </div>
 
@@ -455,6 +469,16 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                         >
                                             <span className="btn-icon">📈</span>
                                             <span className="btn-text">追踪</span>
+                                        </button>
+                                        <button
+                                            className="backtrack-btn-row"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleBacktrackClick(hour.hour)
+                                            }}
+                                            title="回溯到该时间点"
+                                        >
+                                            ⏪ 回溯
                                         </button>
                                         <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                                     </div>

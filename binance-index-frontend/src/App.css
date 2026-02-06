@@ -4801,3 +4801,31 @@ body {
   font-size: 1.05rem;
   margin-left: 8px;
 }
+
+/* 每行回溯按钮 */
+.backtrack-btn-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
+}
+
+.backtrack-btn-row:hover {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.35);
+  transform: translateY(-1px);
+}
+
+.backtrack-btn-row:active {
+  transform: translateY(0);
+}
