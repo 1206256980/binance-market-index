@@ -3707,7 +3707,9 @@ public class IndexCalculatorService {
 
         for (Map<String, Object> coin : topCoins) {
             String symbol = (String) coin.get("symbol");
-            double change24h = (double) coin.get("change");
+            // 手动选币模式下可能没有change字段，使用0.0作为默认值
+            Double change24hObj = (Double) coin.get("change");
+            double change24h = change24hObj != null ? change24hObj : 0.0;
 
             Double snapshotPrice = snapshotPrices.get(symbol);
             Double pivotPrice = pivotPrices.get(symbol);
