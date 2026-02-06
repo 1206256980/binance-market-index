@@ -53,6 +53,11 @@ public class BinanceApiService {
 
     private Set<String> excludeSymbols;
 
+    // 24hr ticker缓存（5分钟）
+    private volatile List<TickerData> cachedTickers = null;
+    private volatile long tickerCacheTime = 0;
+    private static final long TICKER_CACHE_DURATION_MS = 5 * 60 * 1000; // 5分钟
+
     public BinanceApiService(OkHttpClient httpClient) {
         this.httpClient = httpClient;
         this.objectMapper = new ObjectMapper();
@@ -413,5 +418,35 @@ public class BinanceApiService {
 
         log.info("从币安API获取到 {} 个币种的实时价格", prices.size());
         return prices;
+    }
+
+    /**
+     * 获取所有24hr ticker数据（带5分钟缓存）
+     * 用于前端币种选择器，减少API调用频率
+     * 
+     * @return ticker列表
+     */
+    public List<TickerData> getAll24hTickersWithCache() {
+        long now = System.currentTimeMillis();
+
+        // 检查缓存是否有效
+        if (cachedTickers != null && (now - tickerCacheTime) < TICKER_CACHE_DURATION_MS) {
+            long cacheAge = (now - tickerCacheTime) / 1000;
+            log.debug("使用缓存的24hr ticker数据 ({}秒前)", cacheAge);
+            return cachedTickers;
+        }
+
+        // 缓存过期，重新获取
+        log.info("缓存过期或不存在，从币安API获取24hr ticker数据");
+        List<TickerData> tickers = getAll24hTickers();
+
+        if (tickers != null && !tickers.isEmpty()) {
+            // 更新缓存
+            cachedTickers = tickers;
+            tickerCacheTime = now;
+            log.info("已缓存 {} 个币种的ticker数据", tickers.size());
+        }
+
+        return tickers;
     }
 }

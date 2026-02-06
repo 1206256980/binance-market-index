@@ -1,12 +1,18 @@
 import { useState, useEffect, memo } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
+import Select from 'react-select'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 /**
  * 实时持仓监控模块
  */
 const LiveMonitorModule = memo(function LiveMonitorModule() {
+    // 模式选择
+    const [mode, setMode] = useState(() => {
+        return localStorage.getItem('lm_mode') || 'ranking';
+    })
+
     // 输入参数 - 从 localStorage 加载缓存
     const [rankingHours, setRankingHours] = useState(() => {
         const value = localStorage.getItem('lm_rankingHours');
@@ -25,6 +31,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         return value !== null ? parseInt(value) : 24;
     })
 
+    // 手动选币相关
+    const [selectedSymbols, setSelectedSymbols] = useState(() => {
+        const saved = localStorage.getItem('lm_selectedSymbols');
+        return saved ? JSON.parse(saved) : [];
+    })
+    const [availableSymbols, setAvailableSymbols] = useState([])
+    const [loadingSymbols, setLoadingSymbols] = useState(false)
+
     // 回溯模式
     const [isBacktrackMode, setIsBacktrackMode] = useState(false)
     const [backtrackTime, setBacktrackTime] = useState('')
@@ -36,6 +50,38 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         localStorage.setItem('lm_hourlyAmount', hourlyAmount)
         localStorage.setItem('lm_monitorHours', monitorHours)
     }, [rankingHours, topN, hourlyAmount, monitorHours])
+
+    // 保存模式和选币到localStorage
+    useEffect(() => {
+        localStorage.setItem('lm_mode', mode)
+    }, [mode])
+
+    useEffect(() => {
+        if (selectedSymbols.length > 0) {
+            localStorage.setItem('lm_selectedSymbols', JSON.stringify(selectedSymbols))
+        }
+    }, [selectedSymbols])
+
+    // 获取所有可用币种
+    useEffect(() => {
+        if (mode === 'manual') {
+            fetchAvailableSymbols()
+        }
+    }, [mode])
+
+    const fetchAvailableSymbols = async () => {
+        setLoadingSymbols(true)
+        try {
+            const res = await axios.get('/api/index/symbols/tickers')
+            if (res.data.success) {
+                setAvailableSymbols(res.data.symbols)
+            }
+        } catch (error) {
+            console.error('获取币种列表失败:', error)
+        } finally {
+            setLoadingSymbols(false)
+        }
+    }
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -77,15 +123,34 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         setBacktrackTime('')
 
         try {
-            const params = {
-                rankingHours,
-                topN,
-                hourlyAmount,
-                monitorHours,
-                timezone: 'Asia/Shanghai'
-            }
+            let res;
 
-            const res = await axios.get('/api/index/live-monitor', { params })
+            if (mode === 'ranking') {
+                // 涨幅榜模式
+                const params = {
+                    rankingHours,
+                    topN,
+                    hourlyAmount,
+                    monitorHours,
+                    timezone: 'Asia/Shanghai'
+                }
+                res = await axios.get('/api/index/live-monitor', { params })
+            } else {
+                // 手动选币模式
+                if (selectedSymbols.length === 0) {
+                    setError('请至少选择一个币种')
+                    setLoading(false)
+                    return
+                }
+
+                const params = {
+                    symbols: selectedSymbols.join(','),
+                    hourlyAmount,
+                    monitorHours,
+                    timezone: 'Asia/Shanghai'
+                }
+                res = await axios.get('/api/index/live-monitor/manual', { params })
+            }
 
             if (res.data.success) {
                 setResult(res.data)
@@ -282,6 +347,87 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         document.body.removeChild(textArea);
     }
 
+    // 币种选择器组件
+    const SymbolSelector = ({ symbols, selectedSymbols, onChange }) => {
+        // 转换为react-select需要的格式
+        const options = symbols.map(s => ({
+            value: s.symbol,
+            label: s.symbol,
+            priceChangePercent: s.priceChangePercent
+        }));
+
+        const selectedOptions = options.filter(opt =>
+            selectedSymbols.includes(opt.value)
+        );
+
+        // 自定义选项显示（带涨跌幅颜色）
+        const formatOptionLabel = ({ label, priceChangePercent }) => {
+            const pct = priceChangePercent || 0;
+            const color = pct > 0 ? '#0ecb81' : '#f6465d';
+            return (
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '4px 0'
+                }}>
+                    <span>{label.replace('USDT', '')}</span>
+                    <span style={{
+                        color: color,
+                        fontWeight: 'bold',
+                        marginLeft: '12px',
+                        fontSize: '13px'
+                    }}>
+                        {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
+                    </span>
+                </div>
+            );
+        };
+
+        return (
+            <Select
+                isMulti
+                options={options}
+                value={selectedOptions}
+                onChange={(selected) => {
+                    onChange(selected ? selected.map(s => s.value) : []);
+                }}
+                formatOptionLabel={formatOptionLabel}
+                placeholder="搜索并选择币种..."
+                noOptionsMessage={() => "未找到匹配的币种"}
+                isLoading={loadingSymbols}
+                styles={{
+                    container: (base) => ({
+                        ...base,
+                        width: '100%'
+                    }),
+                    control: (base) => ({
+                        ...base,
+                        minHeight: '38px',
+                        borderRadius: '6px',
+                        borderColor: '#e5e7eb'
+                    }),
+                    multiValue: (base) => ({
+                        ...base,
+                        backgroundColor: '#e5e7eb'
+                    }),
+                    multiValueLabel: (base) => ({
+                        ...base,
+                        color: '#1f2937'
+                    })
+                }}
+                theme={(theme) => ({
+                    ...theme,
+                    colors: {
+                        ...theme.colors,
+                        primary: '#667eea',
+                        primary25: '#e5e7eb'
+                    }
+                })}
+            />
+        );
+    };
+
     return (
         <div className="backtest-module">
             <div className="backtest-header">
@@ -291,34 +437,84 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
             {/* 参数输入区 */}
             <div className="backtest-params">
-                <div className="param-group">
-                    <label>涨幅榜周期</label>
-                    <select
-                        value={rankingHours}
-                        onChange={(e) => setRankingHours(parseInt(e.target.value))}
-                        className="ranking-select"
-                    >
-                        <option value={24}>24小时涨幅榜</option>
-                        <option value={48}>48小时涨幅榜</option>
-                        <option value={72}>72小时涨幅榜</option>
-                        <option value={168}>7天涨幅榜</option>
-                    </select>
+                {/* 模式选择 */}
+                <div className="param-group" style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>
+                    <label style={{ marginBottom: '8px', display: 'block', fontWeight: '600' }}>
+                        选币方式:
+                    </label>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                value="ranking"
+                                checked={mode === 'ranking'}
+                                onChange={(e) => setMode(e.target.value)}
+                                style={{ marginRight: '6px' }}
+                            />
+                            <span>涨幅榜</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                value="manual"
+                                checked={mode === 'manual'}
+                                onChange={(e) => setMode(e.target.value)}
+                                style={{ marginRight: '6px' }}
+                            />
+                            <span>手动选择</span>
+                        </label>
+                    </div>
                 </div>
 
-                <div className="param-group">
-                    <label>做空前 N 名</label>
-                    <select
-                        value={topN}
-                        onChange={(e) => setTopN(parseInt(e.target.value))}
-                        className="ranking-select"
-                    >
-                        <option value={5}>前 5 名</option>
-                        <option value={10}>前 10 名</option>
-                        <option value={15}>前 15 名</option>
-                        <option value={20}>前 20 名</option>
-                        <option value={30}>前 30 名</option>
-                    </select>
-                </div>
+                {/* 根据模式显示不同的参数 */}
+                {mode === 'ranking' ? (
+                    <>
+                        <div className="param-group">
+                            <label>涨幅榜周期</label>
+                            <select
+                                value={rankingHours}
+                                onChange={(e) => setRankingHours(parseInt(e.target.value))}
+                                className="ranking-select"
+                            >
+                                <option value={24}>24小时涨幅榜</option>
+                                <option value={48}>48小时涨幅榜</option>
+                                <option value={72}>72小时涨幅榜</option>
+                                <option value={168}>7天涨幅榜</option>
+                            </select>
+                        </div>
+
+                        <div className="param-group">
+                            <label>做空前 N 名</label>
+                            <select
+                                value={topN}
+                                onChange={(e) => setTopN(parseInt(e.target.value))}
+                                className="ranking-select"
+                            >
+                                <option value={5}>前 5 名</option>
+                                <option value={10}>前 10 名</option>
+                                <option value={15}>前 15 名</option>
+                                <option value={20}>前 20 名</option>
+                                <option value={30}>前 30 名</option>
+                            </select>
+                        </div>
+                    </>
+                ) : (
+                    <div className="param-group" style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ marginBottom: '8px', display: 'block' }}>
+                            选择币种:
+                        </label>
+                        <SymbolSelector
+                            symbols={availableSymbols}
+                            selectedSymbols={selectedSymbols}
+                            onChange={setSelectedSymbols}
+                        />
+                        <div style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
+                            已选择: {selectedSymbols.length > 0
+                                ? `${selectedSymbols.map(s => s.replace('USDT', '')).join(', ')} (${selectedSymbols.length}个)`
+                                : '尚未选择'}
+                        </div>
+                    </div>
+                )}
 
                 <div className="param-group">
                     <label>每小时总金额 (U)</label>
@@ -332,7 +528,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                 </div>
 
                 <div className="param-group">
-                    <label>实时小时</label>
+                    <label>监控小时</label>
                     <select
                         value={monitorHours}
                         onChange={(e) => setMonitorHours(parseInt(e.target.value))}

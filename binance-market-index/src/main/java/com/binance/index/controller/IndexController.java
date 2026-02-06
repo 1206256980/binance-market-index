@@ -1592,4 +1592,89 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 获取所有交易对及其24小时涨跌幅
+     * 用于前端币种选择器（带5分钟缓存）
+     */
+    @GetMapping("/symbols/tickers")
+    public ResponseEntity<Map<String, Object>> getAllSymbolTickers() {
+        log.info("========== 开始调用 /symbols/tickers 接口 ==========");
+
+        try {
+            List<com.binance.index.dto.TickerData> tickers = binanceApiService.getAll24hTickersWithCache();
+
+            // 转换为前端需要的格式
+            List<Map<String, Object>> symbolList = tickers.stream()
+                    .map(ticker -> {
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("symbol", ticker.getSymbol());
+                        item.put("priceChangePercent", ticker.getPriceChangePercent());
+                        item.put("lastPrice", ticker.getLastPrice());
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("symbols", symbolList);
+            response.put("count", symbolList.size());
+
+            log.info("成功返回 {} 个币种的ticker数据", symbolList.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("获取币种ticker数据失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 实时持仓监控 - 手动选币模式
+     * 
+     * @param symbols       用户选择的币种列表（逗号分隔，如 "BTCUSDT,ETHUSDT,SOLUSDT"）
+     * @param hourlyAmount  每小时总金额
+     * @param monitorHours  监控小时数
+     * @param timezone      时区
+     * @param backtrackTime 回溯时间（可选）
+     */
+    @GetMapping("/live-monitor/manual")
+    public ResponseEntity<Map<String, Object>> liveMonitorManual(
+            @RequestParam String symbols,
+            @RequestParam(defaultValue = "1000") double hourlyAmount,
+            @RequestParam(defaultValue = "24") int monitorHours,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
+            @RequestParam(required = false) String backtrackTime) {
+
+        log.info("========== 开始调用 /live-monitor/manual 接口 ==========");
+        log.info("选择币种: {}", symbols);
+
+        try {
+            // 解析币种列表
+            List<String> symbolList = Arrays.stream(symbols.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+
+            if (symbolList.isEmpty()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "请至少选择一个币种");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            Map<String, Object> result = indexCalculatorService.liveMonitorManual(
+                    symbolList, hourlyAmount, monitorHours, timezone, backtrackTime);
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("手动选币监控失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "监控失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }

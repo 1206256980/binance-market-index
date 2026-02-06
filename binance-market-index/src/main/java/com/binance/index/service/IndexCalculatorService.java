@@ -3041,6 +3041,174 @@ public class IndexCalculatorService {
         return result;
     }
 
+    /**
+     * 实时持仓监控 - 手动选币模式
+     * 用户手动选择币种，不使用涨幅榜自动选择
+     * 
+     * @param symbols          用户选择的币种列表
+     * @param hourlyAmount     每小时金额
+     * @param monitorHours     监控小时数
+     * @param timezone         时区
+     * @param backtrackTimeStr 回溯时间（可选）
+     */
+    public Map<String, Object> liveMonitorManual(
+            List<String> symbols,
+            double hourlyAmount,
+            int monitorHours,
+            String timezone,
+            String backtrackTimeStr) {
+
+        log.info("========== 实时持仓监控 (手动选币) ==========");
+        log.info("选择币种: {}, 每小时金额: {}U, 监控小时: {}, 时区: {}, 回溯时间: {}",
+                symbols, hourlyAmount, monitorHours, timezone, backtrackTimeStr);
+
+        // 时区定义
+        ZoneId userZone = ZoneId.of(timezone);
+        ZoneId utcZone = ZoneId.of("UTC");
+
+        // 确定"当前时间"
+        LocalDateTime now;
+        boolean isBacktrackMode = false;
+
+        if (backtrackTimeStr != null && !backtrackTimeStr.trim().isEmpty()) {
+            try {
+                now = LocalDateTime.parse(backtrackTimeStr.replace(" ", "T"));
+                isBacktrackMode = true;
+                log.info("回溯模式: 使用 {} 作为当前时间", now);
+            } catch (Exception e) {
+                log.warn("解析回溯时间失败: {}, 使用当前时间", backtrackTimeStr);
+                now = LocalDateTime.now(userZone);
+            }
+        } else {
+            now = LocalDateTime.now(userZone);
+        }
+
+        LocalDateTime currentHour = now.withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime startHour = currentHour.minusHours(monitorHours - 1);
+        log.info("监控区间({}): {} 至 {} (共{}个小时)", timezone, startHour, currentHour, monitorHours);
+
+        // 转换为UTC时间
+        LocalDateTime nowUtc = now.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime exitTimeUtc = alignTo5Minutes(nowUtc);
+        log.info("当前时间: {} ({}), UTC: {}, 出场时间(UTC): {}", now, timezone, nowUtc, exitTimeUtc);
+
+        // 获取出场价格
+        Map<String, Double> exitPrices;
+        if (isBacktrackMode) {
+            exitPrices = getHistoricalPrices(exitTimeUtc, symbols);
+            log.info("回溯模式: 获取到 {} 个币种的历史出场价格", exitPrices.size());
+        } else {
+            exitPrices = getExitPrices(exitTimeUtc, symbols);
+            log.info("实时模式: 获取到 {} 个币种的实时出场价格", exitPrices.size());
+        }
+
+        List<Map<String, Object>> hourlyResults = new ArrayList<>();
+        int totalTrades = 0;
+        int totalWins = 0;
+        int totalLosses = 0;
+        double totalProfit = 0.0;
+
+        // 每币金额
+        double amountPerCoin = hourlyAmount / symbols.size();
+
+        for (int i = 0; i < monitorHours; i++) {
+            LocalDateTime entryHour = startHour.plusHours(i);
+            LocalDateTime entryHourUtc = entryHour.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+
+            try {
+                // 获取入场价格
+                Map<String, Double> entryPrices = getHistoricalPrices(entryHourUtc, symbols);
+
+                if (entryPrices.isEmpty()) {
+                    log.warn("小时 {} 无法获取入场价格，跳过", entryHour);
+                    continue;
+                }
+
+                // 计算盈亏
+                List<Map<String, Object>> trades = new ArrayList<>();
+                int hourWins = 0;
+                int hourLosses = 0;
+                double hourProfit = 0.0;
+
+                for (String symbol : symbols) {
+                    Double entryPrice = entryPrices.get(symbol);
+                    Double exitPrice = exitPrices.get(symbol);
+
+                    if (entryPrice == null || exitPrice == null || entryPrice <= 0 || exitPrice <= 0) {
+                        log.warn("币种 {} 在时间 {} 无价格数据，跳过", symbol, entryHour);
+                        continue;
+                    }
+
+                    // 做空盈亏计算
+                    double profitPercent = ((entryPrice - exitPrice) / entryPrice) * 100.0;
+                    double profit = (profitPercent / 100.0) * amountPerCoin;
+
+                    if (profit > 0) {
+                        hourWins++;
+                    } else {
+                        hourLosses++;
+                    }
+
+                    hourProfit += profit;
+                    totalProfit += profit;
+                    totalTrades++;
+
+                    Map<String, Object> trade = new HashMap<>();
+                    trade.put("symbol", symbol);
+                    trade.put("entryPrice", entryPrice);
+                    trade.put("exitPrice", exitPrice);
+                    trade.put("profitPercent", profitPercent);
+                    trade.put("profit", profit);
+                    trades.add(trade);
+                }
+
+                totalWins += hourWins;
+                totalLosses += hourLosses;
+
+                Map<String, Object> hourResult = new HashMap<>();
+                hourResult.put("hour", entryHour.toString());
+                hourResult.put("winCount", hourWins);
+                hourResult.put("loseCount", hourLosses);
+                hourResult.put("totalProfit", hourProfit);
+                hourResult.put("trades", trades);
+                hourlyResults.add(hourResult);
+
+                log.info("小时 {} ({}): 盈利{} 亏损{} 总盈亏{}", entryHour, timezone, hourWins, hourLosses, hourProfit);
+
+            } catch (Exception e) {
+                log.error("处理小时 {} 时出错: {}", entryHour, e.getMessage(), e);
+            }
+        }
+
+        // 构建返回结果
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalHours", hourlyResults.size());
+        summary.put("totalTrades", totalTrades);
+        summary.put("winTrades", totalWins);
+        summary.put("loseTrades", totalLosses);
+        summary.put("winRate", totalTrades > 0 ? (double) totalWins / totalTrades * 100.0 : 0.0);
+        summary.put("totalProfit", totalProfit);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("mode", "manual");
+        result.put("symbols", symbols);
+        result.put("summary", summary);
+        result.put("hourlyResults", hourlyResults);
+        result.put("exitTime", exitTimeUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime().toString());
+        result.put("isBacktrackMode", isBacktrackMode);
+
+        if (isBacktrackMode) {
+            result.put("backtrackTime", now.toString());
+        }
+
+        log.info("========== 监控完成 (手动选币) ==========");
+        log.info("币种: {}, 总小时: {}, 总交易: {}, 胜率: {:.2f}%, 总盈亏: {:.2f}U",
+                symbols, hourlyResults.size(), totalTrades, summary.get("winRate"), totalProfit);
+
+        return result;
+    }
+
     private LocalDateTime alignTo5Minutes(LocalDateTime time) {
         int minute = time.getMinute();
         int alignedMinute = (minute / 5) * 5;
