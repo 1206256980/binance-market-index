@@ -3048,16 +3048,32 @@ public class IndexCalculatorService {
     }
 
     /**
-     * 获取出场价格（使用最新可用价格）
+     * 获取出场价格（优先使用币安API实时价格，失败时降级到数据库）
      * 
-     * @param exitTimeUtc 出场时间参考（UTC时间），实际会查询最新可用价格
+     * @param exitTimeUtc 出场时间参考（UTC时间）
      * @param symbols     币种列表
      * @return 币种价格映射
      */
     private Map<String, Double> getExitPrices(LocalDateTime exitTimeUtc, List<String> symbols) {
         Map<String, Double> prices = new HashMap<>();
 
-        // 查询数据库中最新时间点的所有币种价格（而不是精确匹配exitTimeUtc）
+        // 【新增】优先尝试从币安API获取实时价格
+        try {
+            log.info("尝试从币安API获取实时价格...");
+            Map<String, Double> apiPrices = binanceApiService.getAllLatestPrices();
+
+            if (!apiPrices.isEmpty()) {
+                log.info("成功从币安API获取 {} 个币种的实时价格", apiPrices.size());
+                return apiPrices;
+            } else {
+                log.warn("币安API返回空数据，降级到数据库查询");
+            }
+        } catch (Exception e) {
+            log.error("从币安API获取实时价格失败，降级到数据库查询: {}", e.getMessage());
+        }
+
+        // 【保留】降级方案：查询数据库中最新时间点的所有币种价格
+        log.info("从数据库查询最新价格...");
         List<CoinPrice> latestPrices = coinPriceRepository.findLatestPrices();
 
         if (latestPrices.isEmpty()) {

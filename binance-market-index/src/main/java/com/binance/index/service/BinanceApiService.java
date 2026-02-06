@@ -19,7 +19,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -31,7 +33,7 @@ public class BinanceApiService {
 
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
-    
+
     @Autowired
     @Lazy
     private EmailNotificationService emailNotificationService;
@@ -74,7 +76,7 @@ public class BinanceApiService {
         log.error("🚨🚨🚨 [严重警告] 币安API返回 {} - IP可能已被封禁！", statusCode);
         log.error("🚨🚨🚨 [严重警告] 所有API调用已停止，请检查IP或更换节点！");
         log.error("🚨🚨🚨 [严重警告] 限流原因: {}", rateLimitReason);
-        
+
         // 发送邮件通知
         if (emailNotificationService != null) {
             emailNotificationService.sendRateLimitNotification(rateLimitReason);
@@ -119,7 +121,7 @@ public class BinanceApiService {
         if (isRateLimited()) {
             return symbols;
         }
-//0.6894->0.9242
+        // 0.6894->0.9242
         try {
             String url = baseUrl + "/fapi/v1/exchangeInfo";
             Request request = new Request.Builder().url(url).get().build();
@@ -141,10 +143,11 @@ public class BinanceApiService {
                         for (JsonNode symbolNode : symbolsNode) {
                             String symbol = symbolNode.get("symbol").asText();
                             String status = symbolNode.get("status").asText();
-                            String contractType = symbolNode.has("contractType") ? 
-                                    symbolNode.get("contractType").asText() : "";
-                            String quoteAsset = symbolNode.has("quoteAsset") ? 
-                                    symbolNode.get("quoteAsset").asText() : "";
+                            String contractType = symbolNode.has("contractType")
+                                    ? symbolNode.get("contractType").asText()
+                                    : "";
+                            String quoteAsset = symbolNode.has("quoteAsset") ? symbolNode.get("quoteAsset").asText()
+                                    : "";
 
                             // 只要正在交易的、永续合约、USDT结算的
                             if (!"TRADING".equals(status)) {
@@ -392,5 +395,23 @@ public class BinanceApiService {
             log.debug("获取最新K线失败 {}: {}", symbol, e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * 获取所有交易对的实时最新价格
+     * 通过24hr ticker接口获取，实时性强
+     * 
+     * @return 币种符号 -> 最新价格的映射
+     */
+    public Map<String, Double> getAllLatestPrices() {
+        List<TickerData> tickers = getAll24hTickers();
+        Map<String, Double> prices = new HashMap<>();
+
+        for (TickerData ticker : tickers) {
+            prices.put(ticker.getSymbol(), ticker.getLastPrice());
+        }
+
+        log.info("从币安API获取到 {} 个币种的实时价格", prices.size());
+        return prices;
     }
 }
