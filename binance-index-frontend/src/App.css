@@ -4829,3 +4829,92 @@ body {
 .backtrack-btn-row:active {
   transform: translateY(0);
 }
+
+/* ===== 价格指数按钮 ===== */
+.price-index-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+
+.price-index-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.price-index-btn:active {
+  transform: translateY(0);
+}
+
+/* ===== 宽版侧边栏（900px） ===== */
+.sidebar-container.wide {
+  width: 0;
+}
+
+.sidebar-container.wide.open {
+  width: 900px;
+}
+
+.sidebar-content-wrapper.wide {
+  width: 900px;
+}
+
+/* 颗粒度选择器 */
+.granularity-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.granularity-selector .selector-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+
+.granularity-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.granularity-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.granularity-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* 宽版图表容器 */
+.sidebar-chart-container.wide {
+  padding: 24px;
+  background: var(--bg-card);
+}

@@ -45,9 +45,13 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     const [trackingData, setTrackingData] = useState(null) // 逐小时追踪数据
     const [expandedSnapshots, setExpandedSnapshots] = useState([]) // 逐小时追踪的展开状态
 
+    // 价格指数图状态
+    const [priceIndexData, setPriceIndexData] = useState(null)
+    const [priceIndexGranularity, setPriceIndexGranularity] = useState(60) // 颗粒度（分钟）
+
     // 侧边栏打开时锁定body滚动
     useEffect(() => {
-        if (trackingData) {
+        if (trackingData || priceIndexData) {
             document.body.style.overflow = 'hidden'
         } else {
             document.body.style.overflow = ''
@@ -55,7 +59,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         return () => {
             document.body.style.overflow = ''
         }
-    }, [trackingData])
+    }, [trackingData, priceIndexData])
 
     const runMonitor = async () => {
         setLoading(true)
@@ -196,6 +200,33 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             setError(err.response?.data?.message || err.message || '请求失败')
         } finally {
             setLoading(false)
+        }
+    }
+
+    /**
+     * 价格指数图功能：获取指定入场时间的详细价格指数数据
+     */
+    const handlePriceIndexClick = async (hourStr, granularity = priceIndexGranularity) => {
+        try {
+            const res = await axios.get('/api/index/live-monitor/price-index', {
+                params: {
+                    entryTime: hourStr,
+                    rankingHours,
+                    topN,
+                    granularity,
+                    lookbackHours: 24,
+                    timezone: 'Asia/Shanghai'
+                }
+            })
+
+            if (res.data.success) {
+                setPriceIndexData(res.data.data)
+                setPriceIndexGranularity(granularity)
+            } else {
+                console.error('获取价格指数失败:', res.data.message)
+            }
+        } catch (err) {
+            console.error('价格指数请求失败:', err)
         }
     }
 
@@ -480,6 +511,16 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                         >
                                             ⏪ 回溯
                                         </button>
+                                        <button
+                                            className="price-index-btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handlePriceIndexClick(hour.hour)
+                                            }}
+                                            title="查看价格指数图"
+                                        >
+                                            📊 指数
+                                        </button>
                                         <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                                     </div>
 
@@ -714,6 +755,123 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </>,
+                document.body
+            )}
+
+            {/* 价格指数图侧边栏 */}
+            {priceIndexData && createPortal(
+                <>
+                    <div className="sidebar-overlay" onClick={() => setPriceIndexData(null)} />
+                    <div className={`sidebar-container wide ${priceIndexData ? 'open' : ''}`}>
+                        <div className="sidebar-content-wrapper wide">
+                            <div className="sidebar-header">
+                                <div className="sidebar-title">
+                                    📊 价格指数走势
+                                    <div className="sidebar-subtitle">
+                                        入场时间: <strong>{priceIndexData.entryTime}</strong> |
+                                        币种: {priceIndexData.symbols?.slice(0, 3).map(s => s.replace('USDT', '')).join(', ')}
+                                        {priceIndexData.symbols?.length > 3 && ` +${priceIndexData.symbols.length - 3}`}
+                                    </div>
+                                </div>
+                                <button className="modal-close" onClick={() => setPriceIndexData(null)}>×</button>
+                            </div>
+
+                            <div className="sidebar-body">
+                                {/* 颗粒度选择器 */}
+                                <div className="granularity-selector">
+                                    <span className="selector-label">颗粒度:</span>
+                                    {[5, 15, 30, 60].map(g => (
+                                        <button
+                                            key={g}
+                                            className={`granularity-btn ${priceIndexGranularity === g ? 'active' : ''}`}
+                                            onClick={() => handlePriceIndexClick(priceIndexData.entryTime, g)}
+                                        >
+                                            {g === 60 ? '1小时' : `${g}分钟`}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* 价格指数图表 */}
+                                <div className="sidebar-chart-container wide">
+                                    <ResponsiveContainer width="100%" height={400}>
+                                        <LineChart
+                                            data={priceIndexData.priceIndexData}
+                                            margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis
+                                                dataKey="time"
+                                                tick={{ fontSize: 10, fill: '#64748b' }}
+                                                angle={-45}
+                                                textAnchor="end"
+                                                height={70}
+                                                interval={priceIndexGranularity <= 15 ? 'preserveStartEnd' : 0}
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                                width={50}
+                                                domain={['dataMin - 2', 'dataMax + 2']}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '12px',
+                                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                                                }}
+                                                formatter={(value) => [value.toFixed(2), '价格指数']}
+                                                labelFormatter={(label) => `时间: ${label}`}
+                                            />
+                                            {/* 基准线 y=100（入场价格） */}
+                                            <ReferenceLine
+                                                y={100}
+                                                stroke="#667eea"
+                                                strokeWidth={2}
+                                                strokeDasharray="5 5"
+                                                label={{
+                                                    value: '入场 (100)',
+                                                    position: 'right',
+                                                    fill: '#667eea',
+                                                    fontSize: 11
+                                                }}
+                                            />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="priceIndex"
+                                                stroke="url(#priceIndexGradient2)"
+                                                strokeWidth={2.5}
+                                                dot={(props) => {
+                                                    const { cx, cy, payload } = props;
+                                                    if (payload.isEntryPoint) {
+                                                        return (
+                                                            <g key={`entry-${payload.time}`}>
+                                                                <circle cx={cx} cy={cy} r={10} fill="#ef4444" opacity={0.3} />
+                                                                <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={2} />
+                                                                <text x={cx} y={cy - 15} textAnchor="middle" fill="#ef4444" fontSize={11} fontWeight="bold">入场</text>
+                                                            </g>
+                                                        );
+                                                    }
+                                                    return <circle key={`dot-${payload.time}`} cx={cx} cy={cy} r={2} fill="#667eea" />;
+                                                }}
+                                                activeDot={{ r: 5 }}
+                                            />
+                                            <defs>
+                                                <linearGradient id="priceIndexGradient2" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#667eea" />
+                                                    <stop offset="100%" stopColor="#764ba2" />
+                                                </linearGradient>
+                                            </defs>
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                    <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                                        📈 指数&gt;100 = 币价上涨(亏损方向) | 📉 指数&lt;100 = 币价下跌(盈利方向)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </>,
                 document.body

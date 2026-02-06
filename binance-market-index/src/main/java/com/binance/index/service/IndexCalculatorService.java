@@ -3612,4 +3612,138 @@ public class IndexCalculatorService {
         snapshot.put("trades", trades);
         return snapshot;
     }
+
+    /**
+     * 获取价格指数数据（支持不同颗粒度）
+     * 
+     * 核心逻辑：
+     * 1. 根据 entryTime 计算涨幅榜 Top N 币种
+     * 2. 以入场时间点的价格为基准 (= 100)
+     * 3. 返回入场前后各 lookbackHours 小时的价格指数数据
+     * 4. 支持 5/15/30/60 分钟颗粒度
+     * 
+     * @param entryTimeStr  入场时间
+     * @param rankingHours  涨幅榜周期
+     * @param topN          做空前N名
+     * @param granularity   颗粒度（分钟）
+     * @param lookbackHours 前后各查看多少小时
+     * @param timezone      时区
+     * @return 价格指数数据
+     */
+    public Map<String, Object> getPriceIndexData(String entryTimeStr, int rankingHours, int topN,
+            int granularity, int lookbackHours, String timezone) {
+
+        log.info("========== 获取价格指数数据 ==========");
+        log.info("入场时间: {}, 涨幅榜周期: {}h, Top{}, 颗粒度: {}分钟, 前后各: {}小时",
+                entryTimeStr, rankingHours, topN, granularity, lookbackHours);
+
+        // 时区定义
+        ZoneId userZone = ZoneId.of(timezone);
+        ZoneId utcZone = ZoneId.of("UTC");
+
+        // 解析入场时间
+        LocalDateTime entryTime = LocalDateTime.parse(entryTimeStr.replace(" ", "T"))
+                .withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime entryTimeUtc = entryTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime rankingStartUtc = entryTimeUtc.minusHours(rankingHours);
+
+        // 获取所有交易对
+        List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
+
+        // 计算入场时的涨幅榜 - 确定做空的币种
+        List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
+        if (ranking.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("error", "无法计算涨幅榜，可能数据不足");
+            return result;
+        }
+
+        // 选择做空的前N名
+        List<Map<String, Object>> topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
+        List<String> symbols = topCoins.stream()
+                .map(c -> (String) c.get("symbol"))
+                .collect(Collectors.toList());
+
+        log.info("做空币种: {}", symbols);
+
+        // 获取入场时刻的基准价格
+        Map<String, Double> basePrices = getHistoricalPrices(entryTimeUtc, allSymbols);
+        if (basePrices.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("error", "无法获取入场时刻的基准价格");
+            return result;
+        }
+
+        // 计算时间范围
+        LocalDateTime startTime = entryTime.minusHours(lookbackHours);
+        LocalDateTime endTime = entryTime.plusHours(lookbackHours);
+
+        // 限制结束时间不超过当前时间
+        LocalDateTime now = LocalDateTime.now(userZone);
+        if (endTime.isAfter(now)) {
+            endTime = now;
+        }
+
+        log.info("时间范围({}): {} 至 {}", timezone, startTime, endTime);
+
+        // 生成时间点列表
+        List<LocalDateTime> timePoints = new ArrayList<>();
+        LocalDateTime current = startTime;
+        while (!current.isAfter(endTime)) {
+            timePoints.add(current);
+            current = current.plusMinutes(granularity);
+        }
+
+        log.info("共 {} 个时间点（颗粒度: {}分钟）", timePoints.size(), granularity);
+
+        // 获取各时间点的价格并计算指数
+        List<Map<String, Object>> priceIndexData = new ArrayList<>();
+
+        for (LocalDateTime timePoint : timePoints) {
+            LocalDateTime timePointUtc = timePoint.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+
+            // 获取该时间点的价格
+            Map<String, Double> prices = getHistoricalPrices(timePointUtc, allSymbols);
+            if (prices.isEmpty()) {
+                continue;
+            }
+
+            // 计算价格指数（以入场价为基准 = 100）
+            double totalRatio = 0.0;
+            int validCount = 0;
+
+            for (String symbol : symbols) {
+                Double currentPrice = prices.get(symbol);
+                Double basePrice = basePrices.get(symbol);
+
+                if (currentPrice != null && currentPrice > 0 && basePrice != null && basePrice > 0) {
+                    totalRatio += currentPrice / basePrice;
+                    validCount++;
+                }
+            }
+
+            if (validCount == 0) {
+                continue;
+            }
+
+            double priceIndex = (totalRatio / validCount) * 100.0;
+            boolean isEntryPoint = timePoint.equals(entryTime);
+
+            Map<String, Object> dataPoint = new HashMap<>();
+            dataPoint.put("time", timePoint.toString().replace("T", " "));
+            dataPoint.put("priceIndex", Math.round(priceIndex * 100) / 100.0);
+            dataPoint.put("isEntryPoint", isEntryPoint);
+            priceIndexData.add(dataPoint);
+        }
+
+        log.info("成功获取 {} 个价格指数数据点", priceIndexData.size());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("entryTime", entryTime.toString().replace("T", " "));
+        result.put("granularity", granularity);
+        result.put("symbols", symbols);
+        result.put("priceIndexData", priceIndexData);
+
+        return result;
+    }
 }

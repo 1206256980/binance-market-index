@@ -1540,4 +1540,56 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 价格指数图 - 获取指定入场时间点的详细价格指数数据
+     * 
+     * 核心逻辑：
+     * 1. entryTime 用于确定涨幅榜 Top N 币种
+     * 2. 以入场时间点的价格为基准 (= 100)
+     * 3. 返回入场前后各 lookbackHours 小时的价格指数数据
+     * 4. 支持不同颗粒度 (5/15/30/60 分钟)
+     * 
+     * @param entryTime     入场时间
+     * @param rankingHours  涨幅榜周期
+     * @param topN          做空前N名
+     * @param granularity   颗粒度（分钟），可选：5/15/30/60
+     * @param lookbackHours 前后各查看多少小时
+     * @param timezone      时区
+     * @return 价格指数数据
+     */
+    @GetMapping("/live-monitor/price-index")
+    public ResponseEntity<Map<String, Object>> getPriceIndex(
+            @RequestParam String entryTime,
+            @RequestParam(defaultValue = "24") int rankingHours,
+            @RequestParam(defaultValue = "10") int topN,
+            @RequestParam(defaultValue = "60") int granularity,
+            @RequestParam(defaultValue = "24") int lookbackHours,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
+
+        log.info("========== 开始调用 /live-monitor/price-index 接口 ==========");
+        log.info("参数: entryTime={}, rankingHours={}, topN={}, granularity={}分钟, lookbackHours={}, timezone={}",
+                entryTime, rankingHours, topN, granularity, lookbackHours, timezone);
+
+        try {
+            Map<String, Object> result = indexCalculatorService.getPriceIndexData(
+                    entryTime, rankingHours, topN, granularity, lookbackHours, timezone);
+
+            Map<String, Object> response = new HashMap<>();
+            if (result.containsKey("error")) {
+                response.put("success", false);
+                response.put("message", result.get("error"));
+            } else {
+                response.put("success", true);
+                response.put("data", result);
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("价格指数获取失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "获取失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
