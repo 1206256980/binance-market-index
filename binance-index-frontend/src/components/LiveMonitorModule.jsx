@@ -47,7 +47,15 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
     // 价格指数图状态
     const [priceIndexData, setPriceIndexData] = useState(null)
-    const [priceIndexGranularity, setPriceIndexGranularity] = useState(60) // 颗粒度（分钟）
+    const [priceIndexGranularity, setPriceIndexGranularity] = useState(() => {
+        const value = localStorage.getItem('lm_priceIndexGranularity');
+        return value !== null ? parseInt(value) : 15; // 默认 15 分钟
+    })
+
+    // 价格指数颗粒度缓存到 localStorage
+    useEffect(() => {
+        localStorage.setItem('lm_priceIndexGranularity', priceIndexGranularity)
+    }, [priceIndexGranularity])
 
     // 侧边栏打开时锁定body滚动
     useEffect(() => {
@@ -804,10 +812,32 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                             <XAxis
                                                 dataKey="time"
                                                 tick={{ fontSize: 10, fill: '#64748b' }}
-                                                angle={-45}
+                                                angle={-35}
                                                 textAnchor="end"
-                                                height={70}
-                                                interval={priceIndexGranularity <= 15 ? 'preserveStartEnd' : 0}
+                                                height={50}
+                                                tickFormatter={(value) => {
+                                                    // 只有 00:00 才显示日期，其他只显示 HH:mm
+                                                    const parts = value.split(' ');
+                                                    if (parts.length >= 2) {
+                                                        const timePart = parts[1];
+                                                        const [hour, minute] = timePart.split(':');
+                                                        // 只有午夜 00:00 显示日期+时间
+                                                        if (hour === '00' && minute === '00') {
+                                                            const datePart = parts[0].split('-').slice(1).join('/');
+                                                            return `${datePart} 00:00`;
+                                                        }
+                                                        return `${hour}:${minute}`;
+                                                    }
+                                                    return value;
+                                                }}
+                                                interval={(() => {
+                                                    // 根据数据点数量动态计算间隔
+                                                    const dataLen = priceIndexData?.priceIndexData?.length || 0;
+                                                    if (dataLen <= 20) return 0;  // 所有标签都显示
+                                                    if (dataLen <= 50) return 1;  // 每2个显示1个
+                                                    if (dataLen <= 100) return 3; // 每4个显示1个
+                                                    return Math.floor(dataLen / 20); // 约显示20个标签
+                                                })()}
                                             />
                                             <YAxis
                                                 tick={{ fontSize: 11, fill: '#64748b' }}
