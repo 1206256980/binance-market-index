@@ -366,12 +366,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
     // 币种选择器组件
     const SymbolSelector = ({ symbols, selectedSymbols, onChange }) => {
-        // 转换为react-select需要的格式
-        const options = symbols.map(s => ({
-            value: s.symbol,
-            label: s.symbol,
-            priceChangePercent: s.priceChangePercent
-        }));
+        // 转换为react-select需要的格式并按涨幅倒序排序
+        const options = symbols
+            .map(s => ({
+                value: s.symbol,
+                label: s.symbol,
+                priceChangePercent: s.priceChangePercent
+            }))
+            .sort((a, b) => b.priceChangePercent - a.priceChangePercent); // 涨幅倒序
 
         const selectedOptions = options.filter(opt =>
             selectedSymbols.includes(opt.value)
@@ -386,14 +388,19 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '4px 0'
+                    padding: '6px 8px'
                 }}>
-                    <span>{label.replace('USDT', '')}</span>
+                    <span style={{
+                        fontSize: '14px',
+                        fontWeight: '500'
+                    }}>{label.replace('USDT', '')}</span>
                     <span style={{
                         color: color,
                         fontWeight: 'bold',
-                        marginLeft: '12px',
-                        fontSize: '13px'
+                        marginLeft: '16px',
+                        fontSize: '13px',
+                        minWidth: '70px',
+                        textAlign: 'right'
                     }}>
                         {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
                     </span>
@@ -413,24 +420,83 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                 placeholder="搜索并选择币种..."
                 noOptionsMessage={() => "未找到匹配的币种"}
                 isLoading={loadingSymbols}
+                closeMenuOnSelect={false} // 选择后不关闭菜单
+                hideSelectedOptions={false} // 显示已选择的选项
                 styles={{
                     container: (base) => ({
                         ...base,
                         width: '100%'
                     }),
-                    control: (base) => ({
+                    control: (base, state) => ({
                         ...base,
-                        minHeight: '38px',
+                        minHeight: '42px',
+                        borderRadius: '8px',
+                        borderColor: state.isFocused ? '#667eea' : '#d1d5db',
+                        borderWidth: '2px',
+                        boxShadow: state.isFocused ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
+                        '&:hover': {
+                            borderColor: '#667eea'
+                        }
+                    }),
+                    menu: (base) => ({
+                        ...base,
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                        border: '1px solid #e5e7eb',
+                        marginTop: '4px'
+                    }),
+                    menuList: (base) => ({
+                        ...base,
+                        padding: '4px',
+                        maxHeight: '300px'
+                    }),
+                    option: (base, state) => ({
+                        ...base,
+                        backgroundColor: state.isSelected
+                            ? '#667eea'
+                            : state.isFocused
+                                ? '#f3f4f6'
+                                : 'transparent',
+                        color: state.isSelected ? 'white' : '#1f2937',
                         borderRadius: '6px',
-                        borderColor: '#e5e7eb'
+                        margin: '2px 0',
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        '&:active': {
+                            backgroundColor: '#667eea'
+                        }
                     }),
                     multiValue: (base) => ({
                         ...base,
-                        backgroundColor: '#e5e7eb'
+                        backgroundColor: '#e0e7ff',
+                        borderRadius: '6px',
+                        padding: '2px'
                     }),
                     multiValueLabel: (base) => ({
                         ...base,
-                        color: '#1f2937'
+                        color: '#4338ca',
+                        fontWeight: '500',
+                        fontSize: '13px',
+                        padding: '2px 6px'
+                    }),
+                    multiValueRemove: (base) => ({
+                        ...base,
+                        color: '#6366f1',
+                        borderRadius: '0 4px 4px 0',
+                        '&:hover': {
+                            backgroundColor: '#c7d2fe',
+                            color: '#4338ca'
+                        }
+                    }),
+                    placeholder: (base) => ({
+                        ...base,
+                        color: '#9ca3af',
+                        fontSize: '14px'
+                    }),
+                    input: (base) => ({
+                        ...base,
+                        color: '#1f2937',
+                        fontSize: '14px'
                     })
                 }}
                 theme={(theme) => ({
@@ -438,7 +504,9 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     colors: {
                         ...theme.colors,
                         primary: '#667eea',
-                        primary25: '#e5e7eb'
+                        primary75: '#818cf8',
+                        primary50: '#a5b4fc',
+                        primary25: '#e0e7ff'
                     }
                 })}
             />
