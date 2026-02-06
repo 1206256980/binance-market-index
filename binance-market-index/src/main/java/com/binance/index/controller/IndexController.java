@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,16 +25,19 @@ public class IndexController {
     private final IndexCalculatorService indexCalculatorService;
     private final com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler;
     private final com.binance.index.service.KlineService klineService;
+    private final com.binance.index.service.BinanceApiService binanceApiService;
 
     // 限制 uptrend-distribution 接口并发为1的信号量
     private final Semaphore uptrendSemaphore = new Semaphore(1);
 
     public IndexController(IndexCalculatorService indexCalculatorService,
             com.binance.index.scheduler.DataCollectorScheduler dataCollectorScheduler,
-            com.binance.index.service.KlineService klineService) {
+            com.binance.index.service.KlineService klineService,
+            com.binance.index.service.BinanceApiService binanceApiService) {
         this.indexCalculatorService = indexCalculatorService;
         this.dataCollectorScheduler = dataCollectorScheduler;
         this.klineService = klineService;
+        this.binanceApiService = binanceApiService;
     }
 
     /**
