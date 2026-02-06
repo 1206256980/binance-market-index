@@ -1509,6 +1509,7 @@ public class IndexController {
     @GetMapping("/live-monitor/hourly-tracking")
     public ResponseEntity<Map<String, Object>> getHourlyTracking(
             @RequestParam String entryTime,
+            @RequestParam(required = false) String symbols, // 手动选币模式
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "5") int topN,
             @RequestParam(defaultValue = "1000") double totalAmount,
@@ -1516,12 +1517,21 @@ public class IndexController {
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
 
         log.info("========== 开始调用 /live-monitor/hourly-tracking 接口 ==========");
-        log.info("参数: entryTime={}, rankingHours={}, topN={}, totalAmount={}, monitorHours={}, timezone={}",
-                entryTime, rankingHours, topN, totalAmount, monitorHours, timezone);
+        log.info("参数: entryTime={}, symbols={}, rankingHours={}, topN={}, totalAmount={}, monitorHours={}, timezone={}",
+                entryTime, symbols, rankingHours, topN, totalAmount, monitorHours, timezone);
 
         try {
+            // 解析symbols参数（如果有）
+            List<String> symbolList = null;
+            if (symbols != null && !symbols.trim().isEmpty()) {
+                symbolList = Arrays.stream(symbols.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
+            }
+
             Map<String, Object> result = indexCalculatorService.getHourlyTracking(
-                    entryTime, rankingHours, topN, totalAmount, monitorHours, timezone);
+                    entryTime, symbolList, rankingHours, topN, totalAmount, monitorHours, timezone);
 
             Map<String, Object> response = new HashMap<>();
             if (result.containsKey("error")) {
@@ -1561,6 +1571,7 @@ public class IndexController {
     @GetMapping("/live-monitor/price-index")
     public ResponseEntity<Map<String, Object>> getPriceIndex(
             @RequestParam String entryTime,
+            @RequestParam(required = false) String symbols, // 手动选币模式
             @RequestParam(defaultValue = "24") int rankingHours,
             @RequestParam(defaultValue = "10") int topN,
             @RequestParam(defaultValue = "60") int granularity,
@@ -1568,12 +1579,22 @@ public class IndexController {
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone) {
 
         log.info("========== 开始调用 /live-monitor/price-index 接口 ==========");
-        log.info("参数: entryTime={}, rankingHours={}, topN={}, granularity={}分钟, lookbackHours={}, timezone={}",
-                entryTime, rankingHours, topN, granularity, lookbackHours, timezone);
+        log.info(
+                "参数: entryTime={}, symbols={}, rankingHours={}, topN={}, granularity={}分钟, lookbackHours={}, timezone={}",
+                entryTime, symbols, rankingHours, topN, granularity, lookbackHours, timezone);
 
         try {
+            // 解析symbols参数（如果有）
+            List<String> symbolList = null;
+            if (symbols != null && !symbols.trim().isEmpty()) {
+                symbolList = Arrays.stream(symbols.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
+            }
+
             Map<String, Object> result = indexCalculatorService.getPriceIndexData(
-                    entryTime, rankingHours, topN, granularity, lookbackHours, timezone);
+                    entryTime, symbolList, rankingHours, topN, granularity, lookbackHours, timezone);
 
             Map<String, Object> response = new HashMap<>();
             if (result.containsKey("error")) {

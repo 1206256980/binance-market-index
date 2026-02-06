@@ -3439,11 +3439,11 @@ public class IndexCalculatorService {
      * @return 包含 hourlySnapshots 数组的结果Map
      */
 
-    public Map<String, Object> getHourlyTracking(String entryTimeStr, int rankingHours, int topN,
-            double totalAmount, int monitorHours, String timezone) {
+    public Map<String, Object> getHourlyTracking(String entryTimeStr, List<String> symbolList,
+            int rankingHours, int topN, double totalAmount, int monitorHours, String timezone) {
         log.info("========== 逐小时盈亏追踪 ==========");
-        log.info("入场时间: {}, 涨幅榜周期: {}h, Top{}, 总金额: {}U, 监控小时: {}, 时区: {}",
-                entryTimeStr, rankingHours, topN, totalAmount, monitorHours, timezone);
+        log.info("入场时间: {}, 选择币种: {}, 涨幅榜周期: {}h, Top{}, 总金额: {}U, 监控小时: {}, 时区: {}",
+                entryTimeStr, symbolList, rankingHours, topN, totalAmount, monitorHours, timezone);
 
         // 时区定义
         ZoneId userZone = ZoneId.of(timezone);
@@ -3458,22 +3458,57 @@ public class IndexCalculatorService {
         // 转换为UTC时间
         LocalDateTime entryTimeUtc = entryTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
         LocalDateTime rankingStartUtc = entryTimeUtc.minusHours(rankingHours);
-        log.info("涨幅榜时间范围(UTC): {} 至 {}", rankingStartUtc, entryTimeUtc);
 
         // 获取所有交易对
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
 
-        // 计算入场时的涨幅榜 - 确定做空的币种和入场价格
-        List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
-        if (ranking.isEmpty()) {
-            Map<String, Object> result = new HashMap<>();
-            result.put("error", "无法计算涨幅榜，可能数据不足");
-            return result;
+        // 确定做空币种和入场价格
+        List<Map<String, Object>> topCoins;
+        int coinCount;
+
+        if (symbolList != null && !symbolList.isEmpty()) {
+            // 手动选币模式：使用用户选择的币种
+            log.info("使用手动选择的 {} 个币种", symbolList.size());
+            log.info("涨幅榜时间范围(UTC): {} 至 {} （仅用于获取入场价格）", rankingStartUtc, entryTimeUtc);
+
+            // 获取入场时刻选择币种的价格
+            Map<String, Double> entryPrices = getHistoricalPrices(entryTimeUtc, allSymbols);
+
+            topCoins = new ArrayList<>();
+            for (String symbol : symbolList) {
+                Double price = entryPrices.get(symbol);
+                if (price != null && price > 0) {
+                    Map<String, Object> coin = new HashMap<>();
+                    coin.put("symbol", symbol);
+                    coin.put("price", price);
+                    topCoins.add(coin);
+                }
+            }
+
+            if (topCoins.isEmpty()) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("error", "无法获取选择币种的入场价格");
+                return result;
+            }
+
+            coinCount = topCoins.size();
+
+        } else {
+            // 涨幅榜模式：计算涨幅榜并选择前N名
+            log.info("涨幅榜时间范围(UTC): {} 至 {}", rankingStartUtc, entryTimeUtc);
+
+            List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
+            if (ranking.isEmpty()) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("error", "无法计算涨幅榜，可能数据不足");
+                return result;
+            }
+
+            topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
+            coinCount = topN;
         }
 
-        // 选择做空的前N名 - 这是固定的持仓列表和入场价格
-        List<Map<String, Object>> topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
-        double amountPerCoin = totalAmount / topN;
+        double amountPerCoin = totalAmount / coinCount;
 
         log.info("做空币种（固定基准价）: {}", topCoins.stream()
                 .map(c -> String.format("%s@%.6f", c.get("symbol"), c.get("price")))
@@ -3814,12 +3849,13 @@ public class IndexCalculatorService {
      * @param timezone      时区
      * @return 价格指数数据
      */
-    public Map<String, Object> getPriceIndexData(String entryTimeStr, int rankingHours, int topN,
+    public Map<String, Object> getPriceIndexData(String entryTimeStr, List<String> symbolList, int rankingHours,
+            int topN,
             int granularity, int lookbackHours, String timezone) {
 
         log.info("========== 获取价格指数数据 ==========");
-        log.info("入场时间: {}, 涨幅榜周期: {}h, Top{}, 颗粒度: {}分钟, 前后各: {}小时",
-                entryTimeStr, rankingHours, topN, granularity, lookbackHours);
+        log.info("入场时间: {}, 选择币种: {}, 涨幅槜周期: {}h, Top{}, 颗粒度: {}分钟, 前后各: {}小时",
+                entryTimeStr, symbolList, rankingHours, topN, granularity, lookbackHours);
 
         // 时区定义
         ZoneId userZone = ZoneId.of(timezone);
@@ -3834,21 +3870,28 @@ public class IndexCalculatorService {
         // 获取所有交易对
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
 
-        // 计算入场时的涨幅榜 - 确定做空的币种
-        List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
-        if (ranking.isEmpty()) {
-            Map<String, Object> result = new HashMap<>();
-            result.put("error", "无法计算涨幅榜，可能数据不足");
-            return result;
+        // 确定做空的币种
+        List<String> symbols;
+
+        if (symbolList != null && !symbolList.isEmpty()) {
+            // 手动选币模式：直接使用用户选择的币种
+            symbols = symbolList;
+            log.info("使用手动选择的 {} 个币种: {}", symbols.size(), symbols);
+        } else {
+            // 涨幅槜模式：计算涨幅槜并选择前N名
+            List<Map<String, Object>> ranking = calculateRankingAtHour(entryTimeUtc, rankingStartUtc, allSymbols);
+            if (ranking.isEmpty()) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("error", "无法计算涨幅槜，可能数据不足");
+                return result;
+            }
+
+            List<Map<String, Object>> topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
+            symbols = topCoins.stream()
+                    .map(c -> (String) c.get("symbol"))
+                    .collect(Collectors.toList());
+            log.info("做空币种: {}", symbols);
         }
-
-        // 选择做空的前N名
-        List<Map<String, Object>> topCoins = ranking.stream().limit(topN).collect(Collectors.toList());
-        List<String> symbols = topCoins.stream()
-                .map(c -> (String) c.get("symbol"))
-                .collect(Collectors.toList());
-
-        log.info("做空币种: {}", symbols);
 
         // 获取入场时刻的基准价格
         Map<String, Double> basePrices = getHistoricalPrices(entryTimeUtc, allSymbols);

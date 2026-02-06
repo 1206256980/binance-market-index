@@ -219,16 +219,21 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
      */
     const handleTrackingClick = async (hourData) => {
         try {
-            const res = await axios.get('/api/index/live-monitor/hourly-tracking', {
-                params: {
-                    entryTime: hourData.entryTime,  // 用于确定做空币种和入场价格
-                    rankingHours,                    // 涨幅榜周期（如24小时涨幅榜）
-                    topN,                            // 做空前N名
-                    totalAmount: hourlyAmount,       // 总投入金额
-                    monitorHours,                    // 追踪范围长度（决定看过去多少小时）
-                    timezone: 'Asia/Shanghai'
-                }
-            })
+            const params = {
+                entryTime: hourData.entryTime,
+                rankingHours,
+                topN,
+                totalAmount: hourlyAmount,
+                monitorHours,
+                timezone: 'Asia/Shanghai'
+            };
+
+            // 手动选币模式：传递symbols参数
+            if (mode === 'manual' && selectedSymbols.length > 0) {
+                params.symbols = selectedSymbols.join(',');
+            }
+
+            const res = await axios.get('/api/index/live-monitor/hourly-tracking', { params })
 
             if (res.data.success) {
                 setTrackingData(res.data.data)
@@ -252,16 +257,23 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         setBacktrackTime(hourStr)
 
         try {
-            const res = await axios.get('/api/index/live-monitor', {
-                params: {
-                    rankingHours,
-                    topN,
-                    hourlyAmount,
-                    monitorHours,
-                    timezone: 'Asia/Shanghai',
-                    backtrackTime: hourStr.replace('T', ' ') + ':00'
-                }
-            })
+            let apiUrl = '/api/index/live-monitor';
+            const params = {
+                rankingHours,
+                topN,
+                hourlyAmount,
+                monitorHours,
+                timezone: 'Asia/Shanghai',
+                backtrackTime: hourStr.replace('T', ' ') + ':00'
+            };
+
+            // 手动选币模式：使用manual接口
+            if (mode === 'manual' && selectedSymbols.length > 0) {
+                apiUrl = '/api/index/live-monitor/manual';
+                params.symbols = selectedSymbols.join(',');
+            }
+
+            const res = await axios.get(apiUrl, { params })
 
             if (res.data.success) {
                 setResult(res.data)
@@ -281,16 +293,21 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
      */
     const handlePriceIndexClick = async (hourStr, granularity = priceIndexGranularity) => {
         try {
-            const res = await axios.get('/api/index/live-monitor/price-index', {
-                params: {
-                    entryTime: hourStr,
-                    rankingHours,
-                    topN,
-                    granularity,
-                    lookbackHours: 24,
-                    timezone: 'Asia/Shanghai'
-                }
-            })
+            const params = {
+                entryTime: hourStr,
+                rankingHours,
+                topN,
+                granularity,
+                lookbackHours: 24,
+                timezone: 'Asia/Shanghai'
+            };
+
+            // 手动选币模式：传递symbols参数
+            if (mode === 'manual' && selectedSymbols.length > 0) {
+                params.symbols = selectedSymbols.join(',');
+            }
+
+            const res = await axios.get('/api/index/live-monitor/price-index', { params })
 
             if (res.data.success) {
                 setPriceIndexData(res.data.data)
