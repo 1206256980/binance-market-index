@@ -448,7 +448,21 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     menuList: (base) => ({
                         ...base,
                         padding: '4px',
-                        maxHeight: '300px'
+                        maxHeight: '300px',
+                        // 隐藏滚动条但保持滚动功能
+                        '::-webkit-scrollbar': {
+                            width: '6px'
+                        },
+                        '::-webkit-scrollbar-track': {
+                            background: 'transparent'
+                        },
+                        '::-webkit-scrollbar-thumb': {
+                            background: '#d1d5db',
+                            borderRadius: '3px'
+                        },
+                        '::-webkit-scrollbar-thumb:hover': {
+                            background: '#9ca3af'
+                        }
                     }),
                     option: (base, state) => ({
                         ...base,
@@ -527,26 +541,26 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     <label style={{ marginBottom: '8px', display: 'block', fontWeight: '600' }}>
                         选币方式:
                     </label>
-                    <div style={{ display: 'flex', gap: '16px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '6px' }}>
                             <input
                                 type="radio"
                                 value="ranking"
                                 checked={mode === 'ranking'}
                                 onChange={(e) => setMode(e.target.value)}
-                                style={{ marginRight: '6px' }}
+                                style={{ margin: 0, cursor: 'pointer' }}
                             />
-                            <span>涨幅榜</span>
+                            <span style={{ userSelect: 'none' }}>涨幅榜</span>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '6px' }}>
                             <input
                                 type="radio"
                                 value="manual"
                                 checked={mode === 'manual'}
                                 onChange={(e) => setMode(e.target.value)}
-                                style={{ marginRight: '6px' }}
+                                style={{ margin: 0, cursor: 'pointer' }}
                             />
-                            <span>手动选择</span>
+                            <span style={{ userSelect: 'none' }}>手动选择</span>
                         </label>
                     </div>
                 </div>
@@ -584,15 +598,17 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                         </div>
                     </>
                 ) : (
-                    <div className="param-group" style={{ gridColumn: '1 / -1' }}>
+                    <div className="param-group" style={{ gridColumn: '1 / -1', maxWidth: '100%' }}>
                         <label style={{ marginBottom: '8px', display: 'block' }}>
                             选择币种:
                         </label>
-                        <SymbolSelector
-                            symbols={availableSymbols}
-                            selectedSymbols={selectedSymbols}
-                            onChange={setSelectedSymbols}
-                        />
+                        <div style={{ width: '100%', minWidth: '500px' }}>
+                            <SymbolSelector
+                                symbols={availableSymbols}
+                                selectedSymbols={selectedSymbols}
+                                onChange={setSelectedSymbols}
+                            />
+                        </div>
                         <div style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
                             已选择: {selectedSymbols.length > 0
                                 ? `${selectedSymbols.map(s => s.replace('USDT', '')).join(', ')} (${selectedSymbols.length}个)`
