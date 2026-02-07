@@ -459,21 +459,23 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
                 {/* 下拉菜单 */}
                 {isOpen && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        backgroundColor: 'white',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-                        border: '1px solid #e5e7eb',
-                        zIndex: 1000,
-                        maxHeight: '320px',
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}>
+                    <div
+                        onClick={(e) => e.stopPropagation()} // 阻止事件冒泡，点击下拉框内部不关闭
+                        style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: '4px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                            border: '1px solid #e5e7eb',
+                            zIndex: 1000,
+                            maxHeight: '320px',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}>
                         {/* 搜索框 */}
                         <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
                             <input
@@ -541,6 +543,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => handleToggle(item.symbol)}
+                                                onClick={(e) => e.stopPropagation()} // 防止冒泡
                                                 style={{
                                                     marginRight: '10px',
                                                     cursor: 'pointer',
