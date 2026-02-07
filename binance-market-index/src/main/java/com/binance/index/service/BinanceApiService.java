@@ -20,6 +20,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -184,6 +185,7 @@ public class BinanceApiService {
 
     /**
      * 获取所有交易对的24小时行情
+     * 只返回正在交易的永续合约
      */
     public List<TickerData> getAll24hTickers() {
         List<TickerData> tickers = new ArrayList<>();
@@ -194,6 +196,15 @@ public class BinanceApiService {
         }
 
         try {
+            // 先获取有效的永续合约列表
+            List<String> validSymbols = getAllUsdtSymbols();
+            if (validSymbols.isEmpty()) {
+                log.warn("无法获取有效交易对列表，跳过ticker获取");
+                return tickers;
+            }
+
+            Set<String> validSymbolSet = new HashSet<>(validSymbols);
+
             String url = baseUrl + "/fapi/v1/ticker/24hr";
             Request request = new Request.Builder().url(url).get().build();
 
@@ -213,13 +224,8 @@ public class BinanceApiService {
                         for (JsonNode tickerNode : root) {
                             String symbol = tickerNode.get("symbol").asText();
 
-                            // 只保留USDT交易对
-                            if (!symbol.endsWith("USDT")) {
-                                continue;
-                            }
-
-                            // 跳过排除的币种
-                            if (getExcludeSymbols().contains(symbol)) {
+                            // 只保留在有效交易对列表中的币种（已交易的永续合约）
+                            if (!validSymbolSet.contains(symbol)) {
                                 continue;
                             }
 
@@ -233,7 +239,8 @@ public class BinanceApiService {
                     }
                 }
             }
-            log.debug("获取到 {} 个交易对的24h行情", tickers.size());
+            log.info("获取到 {} 个有效永续合约的24h行情（从 {} 个有效合约中）",
+                    tickers.size(), validSymbols.size());
         } catch (Exception e) {
             log.error("获取24h行情失败: {}", e.getMessage());
         }
