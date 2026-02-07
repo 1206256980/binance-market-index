@@ -1627,7 +1627,7 @@ public class IndexController {
         log.info("========== 开始调用 /symbols/tickers 接口 ==========");
 
         try {
-            List<com.binance.index.dto.TickerData> tickers = binanceApiService.getAll24hTickersWithCache();
+            List<com.binance.index.dto.TickerData> tickers = binanceApiService.getAll24hTickers();
 
             // 转换为前端需要的格式
             List<Map<String, Object>> symbolList = tickers.stream()

@@ -401,7 +401,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
                 {/* 输入框 */}
                 <div
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={(e) => {
+                        // 只有点击空白区域才toggle，点击标签不触发
+                        if (e.target === e.currentTarget) {
+                            setIsOpen(!isOpen);
+                        }
+                    }}
                     style={{
                         minHeight: '42px',
                         borderRadius: '8px',
@@ -417,11 +422,17 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     }}
                 >
                     {selectedSymbols.length === 0 ? (
-                        <span style={{ color: '#9ca3af', fontSize: '14px' }}>搜索并选择币种...</span>
+                        <span
+                            onClick={() => setIsOpen(true)}
+                            style={{ color: '#9ca3af', fontSize: '14px', width: '100%' }}
+                        >
+                            搜索并选择币种...
+                        </span>
                     ) : (
                         selectedSymbols.map(symbol => (
                             <div
                                 key={symbol}
+                                onClick={(e) => e.stopPropagation()} // 点击标签不触发toggle
                                 style={{
                                     backgroundColor: '#e0e7ff',
                                     borderRadius: '6px',
