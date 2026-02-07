@@ -422,6 +422,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                 isLoading={loadingSymbols}
                 closeMenuOnSelect={false} // 选择后不关闭菜单
                 hideSelectedOptions={false} // 显示已选择的选项
+                blurInputOnSelect={false} // 选择后不失焦
                 styles={{
                     container: (base) => ({
                         ...base,
