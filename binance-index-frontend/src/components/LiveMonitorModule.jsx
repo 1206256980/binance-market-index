@@ -536,32 +536,52 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
             {/* 参数输入区 */}
             <div className="backtest-params">
-                {/* 模式选择 */}
-                <div className="param-group" style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>
-                    <label style={{ marginBottom: '8px', display: 'block', fontWeight: '600' }}>
-                        选币方式:
-                    </label>
-                    <div style={{ display: 'flex', gap: '20px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '6px' }}>
-                            <input
-                                type="radio"
-                                value="ranking"
-                                checked={mode === 'ranking'}
-                                onChange={(e) => setMode(e.target.value)}
-                                style={{ margin: 0, cursor: 'pointer' }}
-                            />
-                            <span style={{ userSelect: 'none' }}>涨幅榜</span>
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '6px' }}>
-                            <input
-                                type="radio"
-                                value="manual"
-                                checked={mode === 'manual'}
-                                onChange={(e) => setMode(e.target.value)}
-                                style={{ margin: 0, cursor: 'pointer' }}
-                            />
-                            <span style={{ userSelect: 'none' }}>手动选择</span>
-                        </label>
+                {/* 模式选择 - 使用开关 */}
+                <div className="param-group">
+                    <label>选币方式</label>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        height: '38px'
+                    }}>
+                        <span style={{
+                            fontSize: '14px',
+                            color: mode === 'ranking' ? '#667eea' : '#64748b',
+                            fontWeight: mode === 'ranking' ? '600' : '400',
+                            transition: 'all 0.2s'
+                        }}>涨幅榜</span>
+                        <div
+                            onClick={() => setMode(mode === 'ranking' ? 'manual' : 'ranking')}
+                            style={{
+                                width: '48px',
+                                height: '24px',
+                                backgroundColor: mode === 'manual' ? '#667eea' : '#cbd5e1',
+                                borderRadius: '12px',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.3s',
+                                flexShrink: 0
+                            }}
+                        >
+                            <div style={{
+                                width: '20px',
+                                height: '20px',
+                                backgroundColor: 'white',
+                                borderRadius: '50%',
+                                position: 'absolute',
+                                top: '2px',
+                                left: mode === 'manual' ? '26px' : '2px',
+                                transition: 'left 0.3s',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }} />
+                        </div>
+                        <span style={{
+                            fontSize: '14px',
+                            color: mode === 'manual' ? '#667eea' : '#64748b',
+                            fontWeight: mode === 'manual' ? '600' : '400',
+                            transition: 'all 0.2s'
+                        }}>手动选择</span>
                     </div>
                 </div>
 
@@ -598,22 +618,13 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                         </div>
                     </>
                 ) : (
-                    <div className="param-group" style={{ gridColumn: '1 / -1', maxWidth: '100%' }}>
-                        <label style={{ marginBottom: '8px', display: 'block' }}>
-                            选择币种:
-                        </label>
-                        <div style={{ width: '100%', minWidth: '500px' }}>
-                            <SymbolSelector
-                                symbols={availableSymbols}
-                                selectedSymbols={selectedSymbols}
-                                onChange={setSelectedSymbols}
-                            />
-                        </div>
-                        <div style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
-                            已选择: {selectedSymbols.length > 0
-                                ? `${selectedSymbols.map(s => s.replace('USDT', '')).join(', ')} (${selectedSymbols.length}个)`
-                                : '尚未选择'}
-                        </div>
+                    <div className="param-group" style={{ gridColumn: '1 / -1' }}>
+                        <label>选择币种</label>
+                        <SymbolSelector
+                            symbols={availableSymbols}
+                            selectedSymbols={selectedSymbols}
+                            onChange={setSelectedSymbols}
+                        />
                     </div>
                 )}
 
