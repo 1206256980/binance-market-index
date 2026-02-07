@@ -527,8 +527,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     const color = pct > 0 ? '#0ecb81' : '#f6465d';
 
                                     return (
-                                        <label
+                                        <div
                                             key={item.symbol}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggle(item.symbol);
+                                            }}
                                             style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -539,9 +543,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 backgroundColor: isSelected ? '#667eea' : 'transparent',
                                                 color: isSelected ? 'white' : '#1f2937',
                                                 transition: 'background-color 0.15s',
-                                                ':hover': {
-                                                    backgroundColor: isSelected ? '#667eea' : '#f3f4f6'
-                                                }
+                                                userSelect: 'none'
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6';
@@ -553,13 +555,14 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
-                                                onChange={() => handleToggle(item.symbol)}
-                                                onClick={(e) => e.stopPropagation()} // 防止冒泡
+                                                onChange={() => { }} // 空函数，实际通过div的onClick处理
+                                                onClick={(e) => e.stopPropagation()}
                                                 style={{
                                                     marginRight: '10px',
                                                     cursor: 'pointer',
                                                     width: '16px',
-                                                    height: '16px'
+                                                    height: '16px',
+                                                    pointerEvents: 'none' // 禁用checkbox本身的点击，完全通过div处理
                                                 }}
                                             />
                                             <span style={{ flex: 1, fontSize: '14px', fontWeight: '500' }}>
@@ -574,7 +577,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                             }}>
                                                 {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
                                             </span>
-                                        </label>
+                                        </div>
                                     );
                                 })
                             )}
