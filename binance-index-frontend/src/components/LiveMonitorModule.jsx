@@ -1,7 +1,6 @@
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, memo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
-import Select from 'react-select'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 /**
@@ -364,167 +363,211 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         document.body.removeChild(textArea);
     }
 
-    // 币种选择器组件
+    // 币种选择器组件 - 使用原生checkbox实现
     const SymbolSelector = ({ symbols, selectedSymbols, onChange }) => {
-        // 转换为react-select需要的格式并按涨幅倒序排序
-        const options = symbols
-            .map(s => ({
-                value: s.symbol,
-                label: s.symbol,
-                priceChangePercent: s.priceChangePercent
-            }))
-            .sort((a, b) => b.priceChangePercent - a.priceChangePercent); // 涨幅倒序
+        const [isOpen, setIsOpen] = useState(false);
+        const [searchTerm, setSearchTerm] = useState('');
+        const dropdownRef = useRef(null);
 
-        const selectedOptions = options.filter(opt =>
-            selectedSymbols.includes(opt.value)
+        // 按涨幅倒序排序
+        const sortedSymbols = [...symbols].sort((a, b) => b.priceChangePercent - a.priceChangePercent);
+
+        // 过滤搜索
+        const filteredSymbols = sortedSymbols.filter(s =>
+            s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
-        // 自定义选项显示（带涨跌幅颜色）
-        const formatOptionLabel = ({ label, priceChangePercent }) => {
-            const pct = priceChangePercent || 0;
-            const color = pct > 0 ? '#0ecb81' : '#f6465d';
-            return (
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '6px 8px'
-                }}>
-                    <span style={{
-                        fontSize: '14px',
-                        fontWeight: '500'
-                    }}>{label.replace('USDT', '')}</span>
-                    <span style={{
-                        color: color,
-                        fontWeight: 'bold',
-                        marginLeft: '16px',
-                        fontSize: '13px',
-                        minWidth: '70px',
-                        textAlign: 'right'
-                    }}>
-                        {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
-                    </span>
-                </div>
-            );
+        // 处理选择/取消选择
+        const handleToggle = (symbol) => {
+            if (selectedSymbols.includes(symbol)) {
+                onChange(selectedSymbols.filter(s => s !== symbol));
+            } else {
+                onChange([...selectedSymbols, symbol]);
+            }
         };
 
+        // 点击外部关闭
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                    setIsOpen(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
+
         return (
-            <Select
-                isMulti
-                options={options}
-                value={selectedOptions}
-                onChange={(selected) => {
-                    onChange(selected ? selected.map(s => s.value) : []);
-                }}
-                formatOptionLabel={formatOptionLabel}
-                placeholder="搜索并选择币种..."
-                noOptionsMessage={() => "未找到匹配的币种"}
-                isLoading={loadingSymbols}
-                closeMenuOnSelect={false} // 选择后不关闭菜单
-                hideSelectedOptions={false} // 显示已选择的选项
-                blurInputOnSelect={false} // 选择后不失焦
-                styles={{
-                    container: (base) => ({
-                        ...base,
-                        width: '100%'
-                    }),
-                    control: (base, state) => ({
-                        ...base,
+            <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
+                {/* 输入框 */}
+                <div
+                    onClick={() => setIsOpen(!isOpen)}
+                    style={{
                         minHeight: '42px',
                         borderRadius: '8px',
-                        borderColor: state.isFocused ? '#667eea' : '#d1d5db',
-                        borderWidth: '2px',
-                        boxShadow: state.isFocused ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
-                        '&:hover': {
-                            borderColor: '#667eea'
-                        }
-                    }),
-                    menu: (base) => ({
-                        ...base,
+                        border: `2px solid ${isOpen ? '#667eea' : '#d1d5db'}`,
+                        padding: '6px 12px',
+                        cursor: 'pointer',
+                        boxShadow: isOpen ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '4px',
+                        alignItems: 'center',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    {selectedSymbols.length === 0 ? (
+                        <span style={{ color: '#9ca3af', fontSize: '14px' }}>搜索并选择币种...</span>
+                    ) : (
+                        selectedSymbols.map(symbol => (
+                            <div
+                                key={symbol}
+                                style={{
+                                    backgroundColor: '#e0e7ff',
+                                    borderRadius: '6px',
+                                    padding: '4px 8px',
+                                    fontSize: '13px',
+                                    color: '#4338ca',
+                                    fontWeight: '500',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                <span>{symbol.replace('USDT', '')}</span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onChange(selectedSymbols.filter(s => s !== symbol));
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#6366f1',
+                                        cursor: 'pointer',
+                                        padding: '0 2px',
+                                        fontSize: '16px',
+                                        lineHeight: '1'
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* 下拉菜单 */}
+                {isOpen && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        backgroundColor: 'white',
                         borderRadius: '8px',
                         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
                         border: '1px solid #e5e7eb',
-                        marginTop: '4px'
-                    }),
-                    menuList: (base) => ({
-                        ...base,
-                        padding: '4px',
-                        maxHeight: '300px',
-                        // 隐藏滚动条但保持滚动功能
-                        '::-webkit-scrollbar': {
-                            width: '6px'
-                        },
-                        '::-webkit-scrollbar-track': {
-                            background: 'transparent'
-                        },
-                        '::-webkit-scrollbar-thumb': {
-                            background: '#d1d5db',
-                            borderRadius: '3px'
-                        },
-                        '::-webkit-scrollbar-thumb:hover': {
-                            background: '#9ca3af'
-                        }
-                    }),
-                    option: (base, state) => ({
-                        ...base,
-                        backgroundColor: state.isSelected
-                            ? '#667eea'
-                            : state.isFocused
-                                ? '#f3f4f6'
-                                : 'transparent',
-                        color: state.isSelected ? 'white' : '#1f2937',
-                        borderRadius: '6px',
-                        margin: '2px 0',
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        '&:active': {
-                            backgroundColor: '#667eea'
-                        }
-                    }),
-                    multiValue: (base) => ({
-                        ...base,
-                        backgroundColor: '#e0e7ff',
-                        borderRadius: '6px',
-                        padding: '2px'
-                    }),
-                    multiValueLabel: (base) => ({
-                        ...base,
-                        color: '#4338ca',
-                        fontWeight: '500',
-                        fontSize: '13px',
-                        padding: '2px 6px'
-                    }),
-                    multiValueRemove: (base) => ({
-                        ...base,
-                        color: '#6366f1',
-                        borderRadius: '0 4px 4px 0',
-                        '&:hover': {
-                            backgroundColor: '#c7d2fe',
-                            color: '#4338ca'
-                        }
-                    }),
-                    placeholder: (base) => ({
-                        ...base,
-                        color: '#9ca3af',
-                        fontSize: '14px'
-                    }),
-                    input: (base) => ({
-                        ...base,
-                        color: '#1f2937',
-                        fontSize: '14px'
-                    })
-                }}
-                theme={(theme) => ({
-                    ...theme,
-                    colors: {
-                        ...theme.colors,
-                        primary: '#667eea',
-                        primary75: '#818cf8',
-                        primary50: '#a5b4fc',
-                        primary25: '#e0e7ff'
-                    }
-                })}
-            />
+                        zIndex: 1000,
+                        maxHeight: '320px',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        {/* 搜索框 */}
+                        <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
+                            <input
+                                type="text"
+                                placeholder="搜索币种..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    width: '100%',
+                                    padding: '6px 10px',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: '6px',
+                                    fontSize: '14px',
+                                    outline: 'none'
+                                }}
+                            />
+                        </div>
+
+                        {/* 选项列表 */}
+                        <div style={{
+                            overflowY: 'auto',
+                            padding: '4px',
+                            maxHeight: '260px'
+                        }}>
+                            {loadingSymbols ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                                    加载中...
+                                </div>
+                            ) : filteredSymbols.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                                    未找到匹配的币种
+                                </div>
+                            ) : (
+                                filteredSymbols.map(item => {
+                                    const isSelected = selectedSymbols.includes(item.symbol);
+                                    const pct = item.priceChangePercent || 0;
+                                    const color = pct > 0 ? '#0ecb81' : '#f6465d';
+
+                                    return (
+                                        <label
+                                            key={item.symbol}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '8px 12px',
+                                                margin: '2px 0',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                backgroundColor: isSelected ? '#667eea' : 'transparent',
+                                                color: isSelected ? 'white' : '#1f2937',
+                                                transition: 'background-color 0.15s',
+                                                ':hover': {
+                                                    backgroundColor: isSelected ? '#667eea' : '#f3f4f6'
+                                                }
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => handleToggle(item.symbol)}
+                                                style={{
+                                                    marginRight: '10px',
+                                                    cursor: 'pointer',
+                                                    width: '16px',
+                                                    height: '16px'
+                                                }}
+                                            />
+                                            <span style={{ flex: 1, fontSize: '14px', fontWeight: '500' }}>
+                                                {item.symbol.replace('USDT', '')}
+                                            </span>
+                                            <span style={{
+                                                color: isSelected ? 'white' : color,
+                                                fontWeight: 'bold',
+                                                fontSize: '13px',
+                                                minWidth: '70px',
+                                                textAlign: 'right'
+                                            }}>
+                                                {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
+                                            </span>
+                                        </label>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
         );
     };
 
