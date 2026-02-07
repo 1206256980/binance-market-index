@@ -4,6 +4,235 @@ import axios from 'axios'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 /**
+ * 币种选择器组件 - 使用原生checkbox实现
+ * 定义在外部以防止父组件重绘时导致内部状态（如isOpen）丢失
+ */
+const SymbolSelector = ({ symbols, selectedSymbols, onChange, loadingSymbols }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const dropdownRef = useRef(null);
+
+    // 按涨幅倒序排序
+    const sortedSymbols = [...symbols].sort((a, b) => b.priceChangePercent - a.priceChangePercent);
+
+    // 过滤搜索
+    const filteredSymbols = sortedSymbols.filter(s =>
+        s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // 处理选择/取消选择
+    const handleToggle = (symbol) => {
+        if (selectedSymbols.includes(symbol)) {
+            onChange(selectedSymbols.filter(s => s !== symbol));
+        } else {
+            onChange([...selectedSymbols, symbol]);
+        }
+    };
+
+    // 点击外部关闭
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div ref={dropdownRef} style={{ position: 'relative', width: '100%', minWidth: '450px' }}>
+            {/* 输入框 */}
+            <div
+                onClick={(e) => {
+                    // 只有点击空白区域才toggle，点击标签不触发
+                    if (e.target === e.currentTarget) {
+                        setIsOpen(!isOpen);
+                    }
+                }}
+                style={{
+                    minHeight: '42px',
+                    borderRadius: '8px',
+                    border: `2px solid ${isOpen ? '#667eea' : '#d1d5db'}`,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    boxShadow: isOpen ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    alignItems: 'center',
+                    transition: 'all 0.2s',
+                    backgroundColor: 'white'
+                }}
+            >
+                {selectedSymbols.length === 0 ? (
+                    <span
+                        onClick={() => setIsOpen(true)}
+                        style={{ color: '#9ca3af', fontSize: '14px', width: '100%' }}
+                    >
+                        搜索并选择币种...
+                    </span>
+                ) : (
+                    selectedSymbols.map(symbol => (
+                        <div
+                            key={symbol}
+                            onClick={(e) => e.stopPropagation()} // 点击标签不触发toggle
+                            style={{
+                                backgroundColor: '#e0e7ff',
+                                borderRadius: '6px',
+                                padding: '4px 8px',
+                                fontSize: '13px',
+                                color: '#4338ca',
+                                fontWeight: '500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                        >
+                            <span>{symbol.replace('USDT', '')}</span>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onChange(selectedSymbols.filter(s => s !== symbol));
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#6366f1',
+                                    cursor: 'pointer',
+                                    padding: '0 2px',
+                                    fontSize: '16px',
+                                    lineHeight: '1'
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* 下拉菜单 */}
+            {isOpen && (
+                <div
+                    onClick={(e) => e.stopPropagation()} // 阻止事件冒泡，点击下拉框内部不关闭
+                    style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        border: '1px solid #e5e7eb',
+                        zIndex: 2000,
+                        maxHeight: '320px',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                    {/* 搜索框 */}
+                    <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
+                        <input
+                            type="text"
+                            placeholder="搜索币种..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+
+                    {/* 选项列表 */}
+                    <div style={{
+                        overflowY: 'auto',
+                        padding: '4px',
+                        maxHeight: '260px'
+                    }}>
+                        {loadingSymbols ? (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                                加载中...
+                            </div>
+                        ) : filteredSymbols.length === 0 ? (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+                                未找到匹配的币种
+                            </div>
+                        ) : (
+                            filteredSymbols.map(item => {
+                                const isSelected = selectedSymbols.includes(item.symbol);
+                                const pct = item.priceChangePercent || 0;
+                                const color = pct > 0 ? '#0ecb81' : '#f6465d';
+
+                                return (
+                                    <div
+                                        key={item.symbol}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggle(item.symbol);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '8px 12px',
+                                            margin: '2px 0',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            backgroundColor: isSelected ? '#667eea' : 'transparent',
+                                            color: isSelected ? 'white' : '#1f2937',
+                                            transition: 'background-color 0.15s',
+                                            userSelect: 'none'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => { }} // 空函数，实际通过div的onClick处理
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                                marginRight: '10px',
+                                                cursor: 'pointer',
+                                                width: '16px',
+                                                height: '16px',
+                                                pointerEvents: 'none' // 禁用checkbox本身的点击，完全通过div处理
+                                            }}
+                                        />
+                                        <span style={{ flex: 1, fontSize: '14px', fontWeight: '500' }}>
+                                            {item.symbol.replace('USDT', '')}
+                                        </span>
+                                        <span style={{
+                                            color: isSelected ? 'white' : color,
+                                            fontWeight: 'bold',
+                                            fontSize: '13px',
+                                            minWidth: '70px',
+                                            textAlign: 'right'
+                                        }}>
+                                            {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/**
  * 实时持仓监控模块
  */
 const LiveMonitorModule = memo(function LiveMonitorModule() {
@@ -363,230 +592,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         document.body.removeChild(textArea);
     }
 
-    // 币种选择器组件 - 使用原生checkbox实现
-    const SymbolSelector = ({ symbols, selectedSymbols, onChange }) => {
-        const [isOpen, setIsOpen] = useState(false);
-        const [searchTerm, setSearchTerm] = useState('');
-        const dropdownRef = useRef(null);
 
-        // 按涨幅倒序排序
-        const sortedSymbols = [...symbols].sort((a, b) => b.priceChangePercent - a.priceChangePercent);
-
-        // 过滤搜索
-        const filteredSymbols = sortedSymbols.filter(s =>
-            s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-
-        // 处理选择/取消选择
-        const handleToggle = (symbol) => {
-            if (selectedSymbols.includes(symbol)) {
-                onChange(selectedSymbols.filter(s => s !== symbol));
-            } else {
-                onChange([...selectedSymbols, symbol]);
-            }
-        };
-
-        // 点击外部关闭
-        useEffect(() => {
-            const handleClickOutside = (event) => {
-                if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                    setIsOpen(false);
-                }
-            };
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => document.removeEventListener('mousedown', handleClickOutside);
-        }, []);
-
-        return (
-            <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
-                {/* 输入框 */}
-                <div
-                    onClick={(e) => {
-                        // 只有点击空白区域才toggle，点击标签不触发
-                        if (e.target === e.currentTarget) {
-                            setIsOpen(!isOpen);
-                        }
-                    }}
-                    style={{
-                        minHeight: '42px',
-                        borderRadius: '8px',
-                        border: `2px solid ${isOpen ? '#667eea' : '#d1d5db'}`,
-                        padding: '6px 12px',
-                        cursor: 'pointer',
-                        boxShadow: isOpen ? '0 0 0 3px rgba(102, 126, 234, 0.1)' : 'none',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '4px',
-                        alignItems: 'center',
-                        transition: 'all 0.2s'
-                    }}
-                >
-                    {selectedSymbols.length === 0 ? (
-                        <span
-                            onClick={() => setIsOpen(true)}
-                            style={{ color: '#9ca3af', fontSize: '14px', width: '100%' }}
-                        >
-                            搜索并选择币种...
-                        </span>
-                    ) : (
-                        selectedSymbols.map(symbol => (
-                            <div
-                                key={symbol}
-                                onClick={(e) => e.stopPropagation()} // 点击标签不触发toggle
-                                style={{
-                                    backgroundColor: '#e0e7ff',
-                                    borderRadius: '6px',
-                                    padding: '4px 8px',
-                                    fontSize: '13px',
-                                    color: '#4338ca',
-                                    fontWeight: '500',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                }}
-                            >
-                                <span>{symbol.replace('USDT', '')}</span>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onChange(selectedSymbols.filter(s => s !== symbol));
-                                    }}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: '#6366f1',
-                                        cursor: 'pointer',
-                                        padding: '0 2px',
-                                        fontSize: '16px',
-                                        lineHeight: '1'
-                                    }}
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
-
-                {/* 下拉菜单 */}
-                {isOpen && (
-                    <div
-                        onClick={(e) => e.stopPropagation()} // 阻止事件冒泡，点击下拉框内部不关闭
-                        style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            marginTop: '4px',
-                            backgroundColor: 'white',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-                            border: '1px solid #e5e7eb',
-                            zIndex: 1000,
-                            maxHeight: '320px',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }}>
-                        {/* 搜索框 */}
-                        <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
-                            <input
-                                type="text"
-                                placeholder="搜索币种..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                    width: '100%',
-                                    padding: '6px 10px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '6px',
-                                    fontSize: '14px',
-                                    outline: 'none'
-                                }}
-                            />
-                        </div>
-
-                        {/* 选项列表 */}
-                        <div style={{
-                            overflowY: 'auto',
-                            padding: '4px',
-                            maxHeight: '260px'
-                        }}>
-                            {loadingSymbols ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
-                                    加载中...
-                                </div>
-                            ) : filteredSymbols.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
-                                    未找到匹配的币种
-                                </div>
-                            ) : (
-                                filteredSymbols.map(item => {
-                                    const isSelected = selectedSymbols.includes(item.symbol);
-                                    const pct = item.priceChangePercent || 0;
-                                    const color = pct > 0 ? '#0ecb81' : '#f6465d';
-
-                                    return (
-                                        <div
-                                            key={item.symbol}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleToggle(item.symbol);
-                                            }}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                padding: '8px 12px',
-                                                margin: '2px 0',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                                backgroundColor: isSelected ? '#667eea' : 'transparent',
-                                                color: isSelected ? 'white' : '#1f2937',
-                                                transition: 'background-color 0.15s',
-                                                userSelect: 'none'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                                            }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => { }} // 空函数，实际通过div的onClick处理
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{
-                                                    marginRight: '10px',
-                                                    cursor: 'pointer',
-                                                    width: '16px',
-                                                    height: '16px',
-                                                    pointerEvents: 'none' // 禁用checkbox本身的点击，完全通过div处理
-                                                }}
-                                            />
-                                            <span style={{ flex: 1, fontSize: '14px', fontWeight: '500' }}>
-                                                {item.symbol.replace('USDT', '')}
-                                            </span>
-                                            <span style={{
-                                                color: isSelected ? 'white' : color,
-                                                fontWeight: 'bold',
-                                                fontSize: '13px',
-                                                minWidth: '70px',
-                                                textAlign: 'right'
-                                            }}>
-                                                {pct > 0 ? '+' : ''}{pct.toFixed(2)}%
-                                            </span>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     return (
         <div className="backtest-module">
@@ -685,6 +691,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                             symbols={availableSymbols}
                             selectedSymbols={selectedSymbols}
                             onChange={setSelectedSymbols}
+                            loadingSymbols={loadingSymbols}
                         />
                     </div>
                 )}
