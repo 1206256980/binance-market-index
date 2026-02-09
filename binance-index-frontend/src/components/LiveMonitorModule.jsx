@@ -258,6 +258,10 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         const value = localStorage.getItem('lm_monitorHours');
         return value !== null ? parseInt(value) : 24;
     })
+    const [refreshInterval, setRefreshInterval] = useState(() => {
+        const value = localStorage.getItem('lm_refreshInterval');
+        return value !== null ? parseInt(value) : 30;
+    })
 
     // 手动选币相关
     const [selectedSymbols, setSelectedSymbols] = useState(() => {
@@ -277,7 +281,8 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         localStorage.setItem('lm_topN', topN)
         localStorage.setItem('lm_hourlyAmount', hourlyAmount)
         localStorage.setItem('lm_monitorHours', monitorHours)
-    }, [rankingHours, topN, hourlyAmount, monitorHours])
+        localStorage.setItem('lm_refreshInterval', refreshInterval)
+    }, [rankingHours, topN, hourlyAmount, monitorHours, refreshInterval])
 
     // 保存模式和选币到localStorage
     useEffect(() => {
@@ -342,6 +347,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
     const [expandedHours, setExpandedHours] = useState([])
     const [trackingData, setTrackingData] = useState(null) // 逐小时追踪数据
     const [expandedSnapshots, setExpandedSnapshots] = useState([]) // 逐小时追踪的展开状态
+    const [autoRefresh, setAutoRefresh] = useState(false) // 自动刷新开关
 
     // 价格指数图状态
     const [priceIndexData, setPriceIndexData] = useState(null)
@@ -367,12 +373,148 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         }
     }, [trackingData, priceIndexData])
 
+    // 自动刷新逻辑
+    useEffect(() => {
+        if (!autoRefresh || !result) {
+            return; // 没有开启自动刷新或没有数据时不执行
+        }
+
+        const intervalId = setInterval(async () => {
+            console.log(`⏰ 自动刷新: ${new Date().toLocaleTimeString()}`);
+
+            // 刷新主页面数据
+            await refreshMainData();
+
+            // 如果侧边栏打开，同时刷新侧边栏数据
+            if (trackingData) {
+                await refreshTrackingData();
+            }
+            if (priceIndexData) {
+                await refreshPriceIndexData();
+            }
+        }, refreshInterval * 1000);
+
+        return () => clearInterval(intervalId);
+    }, [autoRefresh, result, refreshInterval, trackingData, priceIndexData]);
+
+    // 刷新主页面数据
+    const refreshMainData = async () => {
+        try {
+            let res;
+
+            if (isBacktrackMode) {
+                // 回溯模式
+                let apiUrl = '/api/index/live-monitor';
+                const params = {
+                    rankingHours,
+                    topN,
+                    hourlyAmount,
+                    monitorHours,
+                    timezone: 'Asia/Shanghai',
+                    backtrackTime: backtrackTime.replace('T', ' ') + ':00'
+                };
+
+                if (mode === 'manual' && selectedSymbols.length > 0) {
+                    apiUrl = '/api/index/live-monitor/manual';
+                    params.symbols = selectedSymbols.join(',');
+                }
+
+                res = await axios.get(apiUrl, { params });
+            } else {
+                // 实时模式
+                if (mode === 'ranking') {
+                    const params = {
+                        rankingHours,
+                        topN,
+                        hourlyAmount,
+                        monitorHours,
+                        timezone: 'Asia/Shanghai'
+                    };
+                    res = await axios.get('/api/index/live-monitor', { params });
+                } else {
+                    if (selectedSymbols.length === 0) return;
+
+                    const params = {
+                        symbols: selectedSymbols.join(','),
+                        hourlyAmount,
+                        monitorHours,
+                        timezone: 'Asia/Shanghai'
+                    };
+                    res = await axios.get('/api/index/live-monitor/manual', { params });
+                }
+            }
+
+            if (res.data.success) {
+                setResult(res.data);
+            }
+        } catch (err) {
+            console.error('自动刷新主页面失败:', err);
+        }
+    };
+
+    // 刷新追踪数据
+    const refreshTrackingData = async () => {
+        if (!trackingData) return;
+
+        try {
+            const params = {
+                entryTime: trackingData.entryTime,
+                rankingHours,
+                topN,
+                totalAmount: hourlyAmount,
+                monitorHours,
+                timezone: 'Asia/Shanghai'
+            };
+
+            if (mode === 'manual' && selectedSymbols.length > 0) {
+                params.symbols = selectedSymbols.join(',');
+            }
+
+            const res = await axios.get('/api/index/live-monitor/hourly-tracking', { params });
+
+            if (res.data.success) {
+                setTrackingData(res.data.data);
+            }
+        } catch (err) {
+            console.error('自动刷新追踪数据失败:', err);
+        }
+    };
+
+    // 刷新价格指数数据
+    const refreshPriceIndexData = async () => {
+        if (!priceIndexData) return;
+
+        try {
+            const params = {
+                entryTime: priceIndexData.entryTime,
+                rankingHours,
+                topN,
+                granularity: priceIndexGranularity,
+                lookbackHours: 24,
+                timezone: 'Asia/Shanghai'
+            };
+
+            if (mode === 'manual' && selectedSymbols.length > 0) {
+                params.symbols = selectedSymbols.join(',');
+            }
+
+            const res = await axios.get('/api/index/live-monitor/price-index', { params });
+
+            if (res.data.success) {
+                setPriceIndexData(res.data.data);
+            }
+        } catch (err) {
+            console.error('自动刷新价格指数失败:', err);
+        }
+    };
+
     const runMonitor = async () => {
         setLoading(true)
         setError(null)
         setExpandedHours([]) // 重置展开行
         setIsBacktrackMode(false) // 点击开始监控时重置为实时模式
         setBacktrackTime('')
+        setAutoRefresh(false) // 重新开始时先关闭自动刷新
 
         try {
             let res;
@@ -745,6 +887,18 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     </select>
                 </div>
 
+                <div className="param-group">
+                    <label>刷新间隔 (秒)</label>
+                    <input
+                        type="number"
+                        min="5"
+                        max="300"
+                        value={refreshInterval}
+                        onChange={(e) => setRefreshInterval(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '' || isNaN(refreshInterval) || refreshInterval < 5) setRefreshInterval(30) }}
+                    />
+                </div>
+
                 <button
                     className={`backtest-btn ${loading ? 'loading' : ''}`}
                     onClick={runMonitor}
@@ -770,6 +924,54 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                             ⏪ 回溯模式: 查看 <strong>{result.backtrackTime?.replace('T', ' ')}</strong> 时刻的持仓情况
                         </div>
                     )}
+
+                    {/* 自动刷新控制 */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        padding: '12px 0',
+                        gap: '12px',
+                        borderBottom: '1px solid #e2e8f0',
+                        marginBottom: '16px'
+                    }}>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>
+                            🔄 自动刷新
+                        </span>
+                        <div
+                            onClick={() => setAutoRefresh(!autoRefresh)}
+                            style={{
+                                width: '48px',
+                                height: '24px',
+                                backgroundColor: autoRefresh ? '#10b981' : '#cbd5e1',
+                                borderRadius: '12px',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.3s',
+                            }}
+                        >
+                            <div style={{
+                                width: '20px',
+                                height: '20px',
+                                backgroundColor: 'white',
+                                borderRadius: '50%',
+                                position: 'absolute',
+                                top: '2px',
+                                left: autoRefresh ? '26px' : '2px',
+                                transition: 'left 0.3s',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }} />
+                        </div>
+                        <span style={{
+                            fontSize: '13px',
+                            color: autoRefresh ? '#10b981' : '#94a3b8',
+                            fontWeight: autoRefresh ? '600' : '400',
+                            minWidth: '80px'
+                        }}>
+                            {autoRefresh ? `每 ${refreshInterval}s` : '已暂停'}
+                        </span>
+                    </div>
+
                     {/* 汇总卡片 */}
                     <div className="result-summary">
                         <div className="summary-card">
