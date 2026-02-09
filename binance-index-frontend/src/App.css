@@ -4858,17 +4858,17 @@ body {
   transform: translateY(0);
 }
 
-/* ===== 宽版侧边栏（900px） ===== */
+/* ===== 宽版侧边栏（1100px） ===== */
 .sidebar-container.wide {
   width: 0;
 }
 
 .sidebar-container.wide.open {
-  width: 900px;
+  width: 1100px;
 }
 
 .sidebar-content-wrapper.wide {
-  width: 900px;
+  width: 1100px;
 }
 
 /* 颗粒度选择器 */
@@ -4915,6 +4915,6 @@ body {
 
 /* 宽版图表容器 */
 .sidebar-chart-container.wide {
-  padding: 24px;
+  padding: 32px;
   background: var(--bg-card);
 }

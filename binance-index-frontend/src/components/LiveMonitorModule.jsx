@@ -1402,7 +1402,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
 
                                 {/* 价格指数图表 */}
                                 <div className="sidebar-chart-container wide">
-                                    <ResponsiveContainer width="100%" height={400}>
+                                    <ResponsiveContainer width="100%" height={500}>
                                         <LineChart
                                             data={priceIndexData.priceIndexData}
                                             margin={{ top: 20, right: 30, left: 10, bottom: 60 }}
