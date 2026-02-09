@@ -2915,7 +2915,7 @@ public class IndexCalculatorService {
         LocalDateTime startHour = currentHour.minusHours(monitorHours - 1);
         log.info("监控区间({}): {} 至 {} (共{}个小时)", timezone, startHour, currentHour, monitorHours);
 
-        // 转换为UTC时间查询数据库
+        // 转换出场时间到UTC
         LocalDateTime nowUtc = now.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
         LocalDateTime exitTimeUtc = alignTo5Minutes(nowUtc);
         log.info("当前时间: {} ({}), UTC: {}, 出场时间(UTC): {}", now, timezone, nowUtc, exitTimeUtc);
@@ -2923,14 +2923,61 @@ public class IndexCalculatorService {
         List<String> allSymbols = binanceApiService.getAllUsdtSymbols();
         log.info("获取到 {} 个交易对", allSymbols.size());
 
-        // 获取出场价格（回溯模式使用历史价格，实时模式使用最新价格）
+        // --------------------------------------------------------------------------------
+        // 【性能重构】1. 宏观预拉取：一次性并行抓取所有币种在监控区间和涨幅榜区间所需的所有价格数据
+        // --------------------------------------------------------------------------------
+        LocalDateTime globalStartUtc = startHour.minusHours(rankingHours).atZone(userZone).withZoneSameInstant(utcZone)
+                .toLocalDateTime().minusMinutes(15);
+        LocalDateTime globalEndUtc = exitTimeUtc;
+
+        Map<String, TreeMap<LocalDateTime, Double>> symbolIndexMap = new HashMap<>();
+        try {
+            long fetchStart = System.currentTimeMillis();
+            List<Map.Entry<String, List<CoinPriceDTO>>> fetchedResults = waveCalculationPool
+                    .submit(() -> allSymbols.parallelStream()
+                            .map(symbol -> {
+                                List<CoinPriceDTO> prices = coinPriceRepository
+                                        .findDTOBySymbolInRangeOrderByTime(symbol, globalStartUtc, globalEndUtc);
+                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                            })
+                            .collect(Collectors.toList()))
+                    .get(60, TimeUnit.SECONDS);
+
+            for (Map.Entry<String, List<CoinPriceDTO>> entry : fetchedResults) {
+                TreeMap<LocalDateTime, Double> treeMap = new TreeMap<>();
+                for (CoinPriceDTO dto : entry.getValue()) {
+                    Double price = dto.getOpenPrice() != null ? dto.getOpenPrice() : dto.getPrice();
+                    if (price != null && price > 0)
+                        treeMap.put(dto.getTimestamp(), price);
+                }
+                symbolIndexMap.put(entry.getKey(), treeMap);
+            }
+            log.info("🚀 宏观预拉取解析完成，耗时 {}ms, 覆盖区间: {} 至 {}",
+                    (System.currentTimeMillis() - fetchStart), globalStartUtc, globalEndUtc);
+        } catch (Exception e) {
+            log.error("宏观并行拉取失败，降级使用传统模式将非常缓慢", e);
+        }
+
+        // 获取出场价格
         Map<String, Double> exitPrices;
         if (isBacktrackMode) {
-            exitPrices = getHistoricalPrices(exitTimeUtc, allSymbols);
-            log.info("回溯模式: 获取到 {} 个币种的历史出场价格", exitPrices.size());
+            // 优先从预拉取的索引中读取出场价
+            exitPrices = new HashMap<>();
+            for (String symbol : allSymbols) {
+                TreeMap<LocalDateTime, Double> treeMap = symbolIndexMap.get(symbol);
+                if (treeMap != null) {
+                    Map.Entry<LocalDateTime, Double> entry = treeMap.floorEntry(exitTimeUtc);
+                    if (entry != null && ChronoUnit.MINUTES.between(entry.getKey(), exitTimeUtc) <= 15) {
+                        exitPrices.put(symbol, entry.getValue());
+                    }
+                }
+            }
+            if (exitPrices.isEmpty()) {
+                exitPrices = getHistoricalPrices(exitTimeUtc, allSymbols);
+            }
+            log.info("回溯模式: 获取到 {} 个币种的出场价格 (Memory: {})", exitPrices.size(), !symbolIndexMap.isEmpty());
         } else {
             exitPrices = getExitPrices(exitTimeUtc, allSymbols);
-            log.info("实时模式: 获取到 {} 个币种的实时出场价格", exitPrices.size());
         }
 
         List<Map<String, Object>> hourlyResults = new ArrayList<>();
@@ -2941,14 +2988,13 @@ public class IndexCalculatorService {
 
         for (int i = 0; i < monitorHours; i++) {
             LocalDateTime entryHour = startHour.plusHours(i);
-
-            // 转换为UTC时间查询数据库
             LocalDateTime entryHourUtc = entryHour.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
             LocalDateTime rankingStartUtc = entryHourUtc.minusHours(rankingHours);
 
             try {
-                // 使用UTC时间计算涨幅榜
-                List<Map<String, Object>> ranking = calculateRankingAtHour(entryHourUtc, rankingStartUtc, allSymbols);
+                // 重构调用：优先使用预拉取的索引计算涨幅榜
+                List<Map<String, Object>> ranking = calculateRankingAtHourFromIndex(
+                        entryHourUtc, rankingStartUtc, allSymbols, symbolIndexMap);
 
                 if (ranking.isEmpty()) {
                     log.warn("小时 {} 无法计算涨幅榜，跳过", entryHour);
@@ -3095,11 +3141,47 @@ public class IndexCalculatorService {
         LocalDateTime exitTimeUtc = alignTo5Minutes(nowUtc);
         log.info("当前时间: {} ({}), UTC: {}, 出场时间(UTC): {}", now, timezone, nowUtc, exitTimeUtc);
 
+        // --------------------------------------------------------------------------------
+        // 【性能重构】1. 宏观预拉取：一次性并行抓取所选币种在监控区间所需的所有价格数据
+        // --------------------------------------------------------------------------------
+        LocalDateTime globalStartUtc = startHour.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime()
+                .minusMinutes(15);
+        LocalDateTime globalEndUtc = exitTimeUtc;
+
+        Map<String, TreeMap<LocalDateTime, Double>> symbolIndexMap = new HashMap<>();
+        try {
+            long fetchStart = System.currentTimeMillis();
+            List<Map.Entry<String, List<CoinPriceDTO>>> fetchedResults = waveCalculationPool
+                    .submit(() -> symbols.parallelStream()
+                            .map(symbol -> {
+                                List<CoinPriceDTO> prices = coinPriceRepository
+                                        .findDTOBySymbolInRangeOrderByTime(symbol, globalStartUtc, globalEndUtc);
+                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                            })
+                            .collect(Collectors.toList()))
+                    .get(60, TimeUnit.SECONDS);
+
+            for (Map.Entry<String, List<CoinPriceDTO>> entry : fetchedResults) {
+                TreeMap<LocalDateTime, Double> treeMap = new TreeMap<>();
+                for (CoinPriceDTO dto : entry.getValue()) {
+                    Double price = dto.getOpenPrice() != null ? dto.getOpenPrice() : dto.getPrice();
+                    if (price != null && price > 0)
+                        treeMap.put(dto.getTimestamp(), price);
+                }
+                symbolIndexMap.put(entry.getKey(), treeMap);
+            }
+            log.info("🚀 [手动模式] 宏观预拉取解析完成，耗时 {}ms, 币种数: {}",
+                    (System.currentTimeMillis() - fetchStart), symbols.size());
+        } catch (Exception e) {
+            log.error("宏观并行拉取失败", e);
+        }
+
         // 获取出场价格
         Map<String, Double> exitPrices;
         if (isBacktrackMode) {
-            exitPrices = getHistoricalPrices(exitTimeUtc, symbols);
-            log.info("回溯模式: 获取到 {} 个币种的历史出场价格", exitPrices.size());
+            // 优先从内存索引读取
+            exitPrices = getHistoricalPricesFromIndex(exitTimeUtc, symbols, symbolIndexMap);
+            log.info("回溯模式: 获取到 {} 个币种的历史出场价格 (Memory: {})", exitPrices.size(), !symbolIndexMap.isEmpty());
         } else {
             exitPrices = getExitPrices(exitTimeUtc, symbols);
             log.info("实时模式: 获取到 {} 个币种的实时出场价格", exitPrices.size());
@@ -3119,8 +3201,8 @@ public class IndexCalculatorService {
             LocalDateTime entryHourUtc = entryHour.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
             try {
-                // 获取入场价格
-                Map<String, Double> entryPrices = getHistoricalPrices(entryHourUtc, symbols);
+                // 重构调用：优先使用预拉取的索引获取入场价
+                Map<String, Double> entryPrices = getHistoricalPricesFromIndex(entryHourUtc, symbols, symbolIndexMap);
 
                 if (entryPrices.isEmpty()) {
                     log.warn("小时 {} 无法获取入场价格，跳过", entryHour);
@@ -3268,6 +3350,33 @@ public class IndexCalculatorService {
     }
 
     /**
+     * 【重构版】获取历史价格 - 从内存索引读取
+     */
+    private Map<String, Double> getHistoricalPricesFromIndex(
+            LocalDateTime targetTimeUtc,
+            List<String> symbols,
+            Map<String, TreeMap<LocalDateTime, Double>> symbolIndexMap) {
+
+        if (symbolIndexMap == null || symbolIndexMap.isEmpty()) {
+            return getHistoricalPrices(targetTimeUtc, symbols);
+        }
+
+        Map<String, Double> prices = new HashMap<>();
+        int toleranceMinutes = 15;
+
+        for (String symbol : symbols) {
+            TreeMap<LocalDateTime, Double> treeMap = symbolIndexMap.get(symbol);
+            if (treeMap != null) {
+                Map.Entry<LocalDateTime, Double> entry = treeMap.floorEntry(targetTimeUtc);
+                if (entry != null && ChronoUnit.MINUTES.between(entry.getKey(), targetTimeUtc) <= toleranceMinutes) {
+                    prices.put(symbol, entry.getValue());
+                }
+            }
+        }
+        return prices;
+    }
+
+    /**
      * 获取历史价格（用于逐小时追踪）
      * 查询指定时间点或最接近的历史价格
      * 使用开盘价作为平仓价（符合实际交易场景）
@@ -3321,6 +3430,58 @@ public class IndexCalculatorService {
         }
 
         return prices;
+    }
+
+    /**
+     * 【重构版】计算指定小时的涨幅榜 - 从内存索引读取价格
+     */
+    private List<Map<String, Object>> calculateRankingAtHourFromIndex(
+            LocalDateTime hourUtc,
+            LocalDateTime rankingStartUtc,
+            List<String> symbols,
+            Map<String, TreeMap<LocalDateTime, Double>> symbolIndexMap) {
+
+        if (symbolIndexMap == null || symbolIndexMap.isEmpty()) {
+            return calculateRankingAtHour(hourUtc, rankingStartUtc, symbols);
+        }
+
+        List<Map<String, Object>> ranking = new ArrayList<>();
+        int toleranceMinutes = 15;
+
+        for (String symbol : symbols) {
+            TreeMap<LocalDateTime, Double> treeMap = symbolIndexMap.get(symbol);
+            if (treeMap == null)
+                continue;
+
+            // 获取起始点价格
+            Map.Entry<LocalDateTime, Double> startEntry = treeMap.floorEntry(rankingStartUtc);
+            if (startEntry == null
+                    || ChronoUnit.MINUTES.between(startEntry.getKey(), rankingStartUtc) > toleranceMinutes) {
+                continue;
+            }
+            double startPrice = startEntry.getValue();
+
+            // 获取当前点价格
+            Map.Entry<LocalDateTime, Double> currentEntry = treeMap.floorEntry(hourUtc);
+            if (currentEntry == null || ChronoUnit.MINUTES.between(currentEntry.getKey(), hourUtc) > toleranceMinutes) {
+                continue;
+            }
+            double currentPrice = currentEntry.getValue();
+
+            if (startPrice <= 0)
+                continue;
+
+            double change = ((currentPrice - startPrice) / startPrice) * 100.0;
+
+            Map<String, Object> coin = new HashMap<>();
+            coin.put("symbol", symbol);
+            coin.put("price", currentPrice);
+            coin.put("change", change);
+            ranking.add(coin);
+        }
+
+        ranking.sort((a, b) -> Double.compare((double) b.get("change"), (double) a.get("change")));
+        return ranking;
     }
 
     /**
