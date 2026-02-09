@@ -887,18 +887,6 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                     </select>
                 </div>
 
-                <div className="param-group">
-                    <label>刷新间隔 (秒)</label>
-                    <input
-                        type="number"
-                        min="5"
-                        max="300"
-                        value={refreshInterval}
-                        onChange={(e) => setRefreshInterval(e.target.value === '' ? '' : parseInt(e.target.value))}
-                        onBlur={(e) => { if (e.target.value === '' || isNaN(refreshInterval) || refreshInterval < 5) setRefreshInterval(30) }}
-                    />
-                </div>
-
                 <button
                     className={`backtest-btn ${loading ? 'loading' : ''}`}
                     onClick={runMonitor}
@@ -962,14 +950,23 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                 boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                             }} />
                         </div>
-                        <span style={{
-                            fontSize: '13px',
-                            color: autoRefresh ? '#10b981' : '#94a3b8',
-                            fontWeight: autoRefresh ? '600' : '400',
-                            minWidth: '80px'
-                        }}>
-                            {autoRefresh ? `每 ${refreshInterval}s` : '已暂停'}
-                        </span>
+                        <input
+                            type="number"
+                            min="5"
+                            max="300"
+                            value={refreshInterval}
+                            onChange={(e) => setRefreshInterval(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(refreshInterval) || refreshInterval < 5) setRefreshInterval(30) }}
+                            style={{
+                                width: '60px',
+                                padding: '4px 8px',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '6px',
+                                fontSize: '13px',
+                                textAlign: 'center'
+                            }}
+                        />
+                        <span style={{ fontSize: '13px', color: '#64748b' }}>秒</span>
                     </div>
 
                     {/* 汇总卡片 */}
