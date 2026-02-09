@@ -4020,6 +4020,43 @@ public class IndexCalculatorService {
 
         log.info("成功获取 {} 个价格指数数据点", priceIndexData.size());
 
+        // 5. 【实时性增强】追加一个由币安官方 API 提供的实时采样点
+        // 如果查询的 endTime 是现在，或者最后一个点的时间距离现在很近
+        LocalDateTime nowUtc = LocalDateTime.now(utcZone);
+        if (endTimeUtc.isAfter(nowUtc.minusMinutes(granularity))) {
+            try {
+                log.info("🚀 正在从币安 API 获取实时采集点...");
+                Map<String, Double> latestPrices = binanceApiService.getAllLatestPrices();
+
+                double realTimeTotalRatio = 0.0;
+                int realTimeValidCount = 0;
+
+                for (String symbol : symbols) {
+                    Double currentPrice = latestPrices.get(symbol);
+                    Double basePrice = basePrices.get(symbol);
+                    if (currentPrice != null && basePrice != null && basePrice > 0) {
+                        realTimeTotalRatio += currentPrice / basePrice;
+                        realTimeValidCount++;
+                    }
+                }
+
+                if (realTimeValidCount > 0) {
+                    double realTimeIndex = (realTimeTotalRatio / realTimeValidCount) * 100.0;
+                    LocalDateTime nowLocal = nowUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime();
+
+                    Map<String, Object> realTimePoint = new HashMap<>();
+                    realTimePoint.put("time", nowLocal.toString().replace("T", " "));
+                    realTimePoint.put("priceIndex", Math.round(realTimeIndex * 100) / 100.0);
+                    realTimePoint.put("isEntryPoint", false);
+                    realTimePoint.put("isRealTime", true); // 标记这是一个实时的点
+                    priceIndexData.add(realTimePoint);
+                    log.info("成功追加实时采样点: {}, 指数: {}", nowLocal, realTimeIndex);
+                }
+            } catch (Exception e) {
+                log.warn("获取实时行情失败，跳过实时点追加: {}", e.getMessage());
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("entryTime", entryTime.toString().replace("T", " "));
         result.put("granularity", granularity);
