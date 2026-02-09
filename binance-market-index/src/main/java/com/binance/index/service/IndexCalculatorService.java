@@ -3916,6 +3916,9 @@ public class IndexCalculatorService {
             endTime = now;
         }
 
+        LocalDateTime startTimeUtc = startTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime endTimeUtc = endTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+
         log.info("时间范围({}): {} 至 {}", timezone, startTime, endTime);
 
         // 2. 并行分流拉取每个币种的价格数据 (参考单边上行接口模式)
@@ -3932,7 +3935,9 @@ public class IndexCalculatorService {
                                 List<com.binance.index.dto.CoinPriceDTO> prices = coinPriceRepository
                                         .findDTOBySymbolInRangeOrderByTime(
                                                 symbol, queryStartUtc, endTimeUtc);
-                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                                Map.Entry<String, List<com.binance.index.dto.CoinPriceDTO>> entry = new AbstractMap.SimpleEntry<>(
+                                        symbol, prices);
+                                return entry;
                             })
                             .collect(Collectors.toList()))
                     .get(60, TimeUnit.SECONDS);
@@ -3960,9 +3965,6 @@ public class IndexCalculatorService {
             }
             symbolIndexMap.put(entry.getKey(), treeMap);
         }
-
-        // 获取所有可用时间点并排序，用于查找“最接近”的时间点
-        List<LocalDateTime> sortedAvailableTimes = new ArrayList<>(priceIndexMap.keySet());
 
         // 生成目标时间点列表
         List<LocalDateTime> targetTimePoints = new ArrayList<>();
