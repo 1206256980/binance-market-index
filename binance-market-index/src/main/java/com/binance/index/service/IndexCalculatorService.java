@@ -2938,7 +2938,8 @@ public class IndexCalculatorService {
                             .map(symbol -> {
                                 List<CoinPriceDTO> prices = coinPriceRepository
                                         .findDTOBySymbolInRangeOrderByTime(symbol, globalStartUtc, globalEndUtc);
-                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                                return (Map.Entry<String, List<CoinPriceDTO>>) new AbstractMap.SimpleEntry<>(symbol,
+                                        prices);
                             })
                             .collect(Collectors.toList()))
                     .get(60, TimeUnit.SECONDS);
@@ -3156,7 +3157,8 @@ public class IndexCalculatorService {
                             .map(symbol -> {
                                 List<CoinPriceDTO> prices = coinPriceRepository
                                         .findDTOBySymbolInRangeOrderByTime(symbol, globalStartUtc, globalEndUtc);
-                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                                return (Map.Entry<String, List<CoinPriceDTO>>) new AbstractMap.SimpleEntry<>(symbol,
+                                        prices);
                             })
                             .collect(Collectors.toList()))
                     .get(60, TimeUnit.SECONDS);
