@@ -3916,23 +3916,49 @@ public class IndexCalculatorService {
             endTime = now;
         }
 
-        LocalDateTime startTimeUtc = startTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
-        LocalDateTime endTimeUtc = endTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
-
         log.info("时间范围({}): {} 至 {}", timezone, startTime, endTime);
 
-        // 2. 批量拉取所有相关币种在时间范围内的价格数据 (优化核心)
-        // 范围稍微扩大10分钟，确保边缘数据能找到最接近的价格
-        List<CoinPrice> allPricesInRange = coinPriceRepository.findBySymbolsInRange(
-                symbols, startTimeUtc.minusMinutes(10), endTimeUtc);
+        // 2. 并行分流拉取每个币种的价格数据 (参考单边上行接口模式)
+        // 范围提前15分钟，确保边界数据能找到“最接近的前值”
+        LocalDateTime queryStartUtc = startTimeUtc.minusMinutes(15);
+        Map<String, List<com.binance.index.dto.CoinPriceDTO>> symbolDataMap = new HashMap<>();
 
-        log.info("批量拉取到 {} 条价格记录", allPricesInRange.size());
+        try {
+            long fetchStart = System.currentTimeMillis();
+            // 使用专用的并行线程池执行分币种查询
+            List<Map.Entry<String, List<com.binance.index.dto.CoinPriceDTO>>> fetchedResults = waveCalculationPool
+                    .submit(() -> symbols.parallelStream()
+                            .map(symbol -> {
+                                List<com.binance.index.dto.CoinPriceDTO> prices = coinPriceRepository
+                                        .findDTOBySymbolInRangeOrderByTime(
+                                                symbol, queryStartUtc, endTimeUtc);
+                                return new AbstractMap.SimpleEntry<>(symbol, prices);
+                            })
+                            .collect(Collectors.toList()))
+                    .get(60, TimeUnit.SECONDS);
 
-        // 3. 构建内存索引：Map<Timestamp, Map<Symbol, Price>>
-        Map<LocalDateTime, Map<String, Double>> priceIndexMap = new TreeMap<>();
-        for (CoinPrice cp : allPricesInRange) {
-            priceIndexMap.computeIfAbsent(cp.getTimestamp(), k -> new HashMap<>())
-                    .put(cp.getSymbol(), cp.getOpenPrice() != null ? cp.getOpenPrice() : cp.getPrice());
+            for (Map.Entry<String, List<com.binance.index.dto.CoinPriceDTO>> entry : fetchedResults) {
+                symbolDataMap.put(entry.getKey(), entry.getValue());
+            }
+            log.info("并行分流拉取完成，耗时 {}ms, 币种数: {}", (System.currentTimeMillis() - fetchStart), symbolDataMap.size());
+        } catch (Exception e) {
+            log.error("并行拉取价格数据失败", e);
+            Map<String, Object> result = new HashMap<>();
+            result.put("error", "获取价格数据失败: " + e.getMessage());
+            return result;
+        }
+
+        // 3. 构建时间索引映射：Map<String, TreeMap<Timestamp, Price>>
+        Map<String, TreeMap<LocalDateTime, Double>> symbolIndexMap = new HashMap<>();
+        for (Map.Entry<String, List<com.binance.index.dto.CoinPriceDTO>> entry : symbolDataMap.entrySet()) {
+            TreeMap<LocalDateTime, Double> treeMap = new TreeMap<>();
+            for (com.binance.index.dto.CoinPriceDTO dto : entry.getValue()) {
+                Double price = dto.getOpenPrice() != null ? dto.getOpenPrice() : dto.getPrice();
+                if (price != null && price > 0) {
+                    treeMap.put(dto.getTimestamp(), price);
+                }
+            }
+            symbolIndexMap.put(entry.getKey(), treeMap);
         }
 
         // 获取所有可用时间点并排序，用于查找“最接近”的时间点
@@ -3940,10 +3966,10 @@ public class IndexCalculatorService {
 
         // 生成目标时间点列表
         List<LocalDateTime> targetTimePoints = new ArrayList<>();
-        LocalDateTime current = startTime;
-        while (!current.isAfter(endTime)) {
-            targetTimePoints.add(current);
-            current = current.plusMinutes(granularity);
+        LocalDateTime currentPoint = startTime;
+        while (!currentPoint.isAfter(endTime)) {
+            targetTimePoints.add(currentPoint);
+            currentPoint = currentPoint.plusMinutes(granularity);
         }
 
         log.info("共 {} 个目标时间点（颗粒度: {}分钟）", targetTimePoints.size(), granularity);
@@ -3954,24 +3980,27 @@ public class IndexCalculatorService {
         for (LocalDateTime timePoint : targetTimePoints) {
             LocalDateTime timePointUtc = timePoint.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
-            // 在内存索引中查找最接近的时间点价格
-            Map<String, Double> pricesAtTime = findClosestPricesFromIndex(timePointUtc, priceIndexMap,
-                    sortedAvailableTimes);
-
-            if (pricesAtTime == null || pricesAtTime.isEmpty()) {
-                continue;
-            }
-
             double totalRatio = 0.0;
             int validCount = 0;
 
             for (String symbol : symbols) {
-                Double currentPrice = pricesAtTime.get(symbol);
                 Double basePrice = basePrices.get(symbol);
+                if (basePrice == null || basePrice <= 0)
+                    continue;
 
-                if (currentPrice != null && currentPrice > 0 && basePrice != null && basePrice > 0) {
-                    totalRatio += currentPrice / basePrice;
-                    validCount++;
+                // 从该币种的 TreeMap 中寻找不晚于 targetPoint 的最近价格
+                TreeMap<LocalDateTime, Double> treeMap = symbolIndexMap.get(symbol);
+                if (treeMap == null)
+                    continue;
+
+                Map.Entry<LocalDateTime, Double> floorEntry = treeMap.floorEntry(timePointUtc);
+
+                if (floorEntry != null) {
+                    // 检查时间容差 (允许15分钟容差)
+                    if (java.time.Duration.between(floorEntry.getKey(), timePointUtc).toMinutes() <= 15) {
+                        totalRatio += floorEntry.getValue() / basePrice;
+                        validCount++;
+                    }
                 }
             }
 
@@ -3996,34 +4025,6 @@ public class IndexCalculatorService {
         result.put("priceIndexData", priceIndexData);
 
         return result;
-    }
-
-    /**
-     * 从内存索引中查找最接近目标时间的价格数据
-     */
-    private Map<String, Double> findClosestPricesFromIndex(LocalDateTime targetTimeUtc,
-            Map<LocalDateTime, Map<String, Double>> priceIndexMap,
-            List<LocalDateTime> sortedAvailableTimes) {
-        if (priceIndexMap.containsKey(targetTimeUtc)) {
-            return priceIndexMap.get(targetTimeUtc);
-        }
-
-        // 查找最接近且不晚于目标时间的时间点 (由于 sortedAvailableTimes 已排序，可以使用二分或简单遍历)
-        LocalDateTime closestTime = null;
-        for (LocalDateTime time : sortedAvailableTimes) {
-            if (time.isAfter(targetTimeUtc)) {
-                break;
-            }
-            closestTime = time;
-        }
-
-        if (closestTime != null) {
-            // 检查时间差距，避免数据太旧 (比如颗粒度可能为5分钟，允许一定容差)
-            if (java.time.Duration.between(closestTime, targetTimeUtc).toMinutes() <= 15) {
-                return priceIndexMap.get(closestTime);
-            }
-        }
-        return null;
     }
 
     /**
