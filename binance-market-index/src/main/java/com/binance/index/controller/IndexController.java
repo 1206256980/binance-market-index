@@ -1702,4 +1702,64 @@ public class IndexController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 保存实时监控选择的币种
+     */
+    @PostMapping("/live-monitor/selected-symbols")
+    public ResponseEntity<Map<String, Object>> saveLiveMonitorSymbols(
+            @RequestBody Map<String, Object> request) {
+        log.info("========== 开始调用 /live-monitor/selected-symbols (POST) 接口 ==========");
+
+        Map<String, Object> response = new HashMap<>();
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> symbols = (List<String>) request.get("symbols");
+
+            if (symbols == null) {
+                response.put("success", false);
+                response.put("message", "symbols参数不能为空");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            indexCalculatorService.saveLiveMonitorSymbols(symbols);
+
+            response.put("success", true);
+            response.put("message", "保存成功");
+            response.put("count", symbols.size());
+            log.info("保存实时监控币种成功，共{}个", symbols.size());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("保存实时监控币种失败", e);
+            response.put("success", false);
+            response.put("message", "保存失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 获取实时监控选择的币种
+     */
+    @GetMapping("/live-monitor/selected-symbols")
+    public ResponseEntity<Map<String, Object>> getLiveMonitorSymbols() {
+        log.info("========== 开始调用 /live-monitor/selected-symbols (GET) 接口 ==========");
+
+        Map<String, Object> response = new HashMap<>();
+        try {
+            List<String> symbols = indexCalculatorService.getLiveMonitorSymbols();
+
+            response.put("success", true);
+            response.put("symbols", symbols);
+            response.put("count", symbols.size());
+            log.info("获取实时监控币种成功，共{}个", symbols.size());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("获取实时监控币种失败", e);
+            response.put("success", false);
+            response.put("message", "获取失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }

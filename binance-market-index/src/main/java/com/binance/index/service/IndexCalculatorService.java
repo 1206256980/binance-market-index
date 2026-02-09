@@ -44,6 +44,9 @@ public class IndexCalculatorService {
     private final BasePriceRepository basePriceRepository;
     private final ExecutorService executorService;
 
+    // 实时监控选择的币种（全局变量）
+    private List<String> liveMonitorSelectedSymbols = new ArrayList<>();
+
     @Autowired(required = false)
     private KlineService klineService;
 
@@ -3974,5 +3977,21 @@ public class IndexCalculatorService {
         result.put("priceIndexData", priceIndexData);
 
         return result;
+    }
+
+    /**
+     * 保存实时监控选择的币种到内存
+     */
+    public void saveLiveMonitorSymbols(List<String> symbols) {
+        this.liveMonitorSelectedSymbols = new ArrayList<>(symbols);
+        log.info("保存实时监控币种配置成功: 币种数={}", symbols.size());
+    }
+
+    /**
+     * 从内存获取实时监控选择的币种
+     */
+    public List<String> getLiveMonitorSymbols() {
+        log.info("获取实时监控币种配置: 币种数={}", liveMonitorSelectedSymbols.size());
+        return new ArrayList<>(liveMonitorSelectedSymbols);
     }
 }

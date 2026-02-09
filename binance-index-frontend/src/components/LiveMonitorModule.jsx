@@ -284,18 +284,42 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         localStorage.setItem('lm_mode', mode)
     }, [mode])
 
+    // 保存选币到后端（防抖）
     useEffect(() => {
-        if (selectedSymbols.length > 0) {
-            localStorage.setItem('lm_selectedSymbols', JSON.stringify(selectedSymbols))
-        }
-    }, [selectedSymbols])
+        if (mode === 'manual' && selectedSymbols.length > 0) {
+            const timer = setTimeout(async () => {
+                try {
+                    await axios.post('/api/index/live-monitor/selected-symbols', {
+                        symbols: selectedSymbols
+                    })
+                    console.log('保存选择币种成功')
+                } catch (error) {
+                    console.error('保存选择币种失败:', error)
+                }
+            }, 500) // 500ms防抖
 
-    // 获取所有可用币种
+            return () => clearTimeout(timer)
+        }
+    }, [selectedSymbols, mode])
+
+    // 获取所有可用币种和已保存的选择
     useEffect(() => {
         if (mode === 'manual') {
             fetchAvailableSymbols()
+            fetchSavedSymbols() // 从后端获取已保存的币种
         }
     }, [mode])
+
+    const fetchSavedSymbols = async () => {
+        try {
+            const res = await axios.get('/api/index/live-monitor/selected-symbols')
+            if (res.data.success && res.data.symbols) {
+                setSelectedSymbols(res.data.symbols)
+            }
+        } catch (error) {
+            console.error('获取已保存币种失败:', error)
+        }
+    }
 
     const fetchAvailableSymbols = async () => {
         setLoadingSymbols(true)
