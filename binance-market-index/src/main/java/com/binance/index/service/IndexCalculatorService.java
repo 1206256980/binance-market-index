@@ -3898,8 +3898,8 @@ public class IndexCalculatorService {
             log.info("做空币种: {}", symbols);
         }
 
-        // 获取入场时刻的基准价格
-        Map<String, Double> basePrices = getHistoricalPrices(entryTimeUtc, allSymbols);
+        // 1. 获取入场时刻的基准价格 (只针对 symbols)
+        Map<String, Double> basePrices = getHistoricalPrices(entryTimeUtc, symbols);
         if (basePrices.isEmpty()) {
             Map<String, Object> result = new HashMap<>();
             result.put("error", "无法获取入场时刻的基准价格");
@@ -3916,36 +3916,57 @@ public class IndexCalculatorService {
             endTime = now;
         }
 
+        LocalDateTime startTimeUtc = startTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+        LocalDateTime endTimeUtc = endTime.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
+
         log.info("时间范围({}): {} 至 {}", timezone, startTime, endTime);
 
-        // 生成时间点列表
-        List<LocalDateTime> timePoints = new ArrayList<>();
+        // 2. 批量拉取所有相关币种在时间范围内的价格数据 (优化核心)
+        // 范围稍微扩大10分钟，确保边缘数据能找到最接近的价格
+        List<CoinPrice> allPricesInRange = coinPriceRepository.findBySymbolsInRange(
+                symbols, startTimeUtc.minusMinutes(10), endTimeUtc);
+
+        log.info("批量拉取到 {} 条价格记录", allPricesInRange.size());
+
+        // 3. 构建内存索引：Map<Timestamp, Map<Symbol, Price>>
+        Map<LocalDateTime, Map<String, Double>> priceIndexMap = new TreeMap<>();
+        for (CoinPrice cp : allPricesInRange) {
+            priceIndexMap.computeIfAbsent(cp.getTimestamp(), k -> new HashMap<>())
+                    .put(cp.getSymbol(), cp.getOpenPrice() != null ? cp.getOpenPrice() : cp.getPrice());
+        }
+
+        // 获取所有可用时间点并排序，用于查找“最接近”的时间点
+        List<LocalDateTime> sortedAvailableTimes = new ArrayList<>(priceIndexMap.keySet());
+
+        // 生成目标时间点列表
+        List<LocalDateTime> targetTimePoints = new ArrayList<>();
         LocalDateTime current = startTime;
         while (!current.isAfter(endTime)) {
-            timePoints.add(current);
+            targetTimePoints.add(current);
             current = current.plusMinutes(granularity);
         }
 
-        log.info("共 {} 个时间点（颗粒度: {}分钟）", timePoints.size(), granularity);
+        log.info("共 {} 个目标时间点（颗粒度: {}分钟）", targetTimePoints.size(), granularity);
 
-        // 获取各时间点的价格并计算指数
+        // 4. 计算各时间点的价格指数
         List<Map<String, Object>> priceIndexData = new ArrayList<>();
 
-        for (LocalDateTime timePoint : timePoints) {
+        for (LocalDateTime timePoint : targetTimePoints) {
             LocalDateTime timePointUtc = timePoint.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime();
 
-            // 获取该时间点的价格
-            Map<String, Double> prices = getHistoricalPrices(timePointUtc, allSymbols);
-            if (prices.isEmpty()) {
+            // 在内存索引中查找最接近的时间点价格
+            Map<String, Double> pricesAtTime = findClosestPricesFromIndex(timePointUtc, priceIndexMap,
+                    sortedAvailableTimes);
+
+            if (pricesAtTime == null || pricesAtTime.isEmpty()) {
                 continue;
             }
 
-            // 计算价格指数（以入场价为基准 = 100）
             double totalRatio = 0.0;
             int validCount = 0;
 
             for (String symbol : symbols) {
-                Double currentPrice = prices.get(symbol);
+                Double currentPrice = pricesAtTime.get(symbol);
                 Double basePrice = basePrices.get(symbol);
 
                 if (currentPrice != null && currentPrice > 0 && basePrice != null && basePrice > 0) {
@@ -3954,18 +3975,16 @@ public class IndexCalculatorService {
                 }
             }
 
-            if (validCount == 0) {
-                continue;
+            if (validCount > 0) {
+                double priceIndex = (totalRatio / validCount) * 100.0;
+                boolean isEntryPoint = timePoint.equals(entryTime);
+
+                Map<String, Object> dataPoint = new HashMap<>();
+                dataPoint.put("time", timePoint.toString().replace("T", " "));
+                dataPoint.put("priceIndex", Math.round(priceIndex * 100) / 100.0);
+                dataPoint.put("isEntryPoint", isEntryPoint);
+                priceIndexData.add(dataPoint);
             }
-
-            double priceIndex = (totalRatio / validCount) * 100.0;
-            boolean isEntryPoint = timePoint.equals(entryTime);
-
-            Map<String, Object> dataPoint = new HashMap<>();
-            dataPoint.put("time", timePoint.toString().replace("T", " "));
-            dataPoint.put("priceIndex", Math.round(priceIndex * 100) / 100.0);
-            dataPoint.put("isEntryPoint", isEntryPoint);
-            priceIndexData.add(dataPoint);
         }
 
         log.info("成功获取 {} 个价格指数数据点", priceIndexData.size());
@@ -3977,6 +3996,34 @@ public class IndexCalculatorService {
         result.put("priceIndexData", priceIndexData);
 
         return result;
+    }
+
+    /**
+     * 从内存索引中查找最接近目标时间的价格数据
+     */
+    private Map<String, Double> findClosestPricesFromIndex(LocalDateTime targetTimeUtc,
+            Map<LocalDateTime, Map<String, Double>> priceIndexMap,
+            List<LocalDateTime> sortedAvailableTimes) {
+        if (priceIndexMap.containsKey(targetTimeUtc)) {
+            return priceIndexMap.get(targetTimeUtc);
+        }
+
+        // 查找最接近且不晚于目标时间的时间点 (由于 sortedAvailableTimes 已排序，可以使用二分或简单遍历)
+        LocalDateTime closestTime = null;
+        for (LocalDateTime time : sortedAvailableTimes) {
+            if (time.isAfter(targetTimeUtc)) {
+                break;
+            }
+            closestTime = time;
+        }
+
+        if (closestTime != null) {
+            // 检查时间差距，避免数据太旧 (比如颗粒度可能为5分钟，允许一定容差)
+            if (java.time.Duration.between(closestTime, targetTimeUtc).toMinutes() <= 15) {
+                return priceIndexMap.get(closestTime);
+            }
+        }
+        return null;
     }
 
     /**
