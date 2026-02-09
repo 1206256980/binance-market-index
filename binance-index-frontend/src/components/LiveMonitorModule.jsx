@@ -1483,6 +1483,19 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                             </g>
                                                         );
                                                     }
+                                                    if (payload.isRealTime) {
+                                                        return (
+                                                            <g key={`realtime-${payload.time}`}>
+                                                                {/* 呼吸灯动效背景 */}
+                                                                <circle cx={cx} cy={cy} r={8} fill="#0ecb81" opacity={0.4}>
+                                                                    <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite" />
+                                                                    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
+                                                                </circle>
+                                                                <circle cx={cx} cy={cy} r={5} fill="#0ecb81" stroke="#fff" strokeWidth={2} />
+                                                                <text x={cx} y={cy - 12} textAnchor="middle" fill="#0ecb81" fontSize={10} fontWeight="bold">最新</text>
+                                                            </g>
+                                                        );
+                                                    }
                                                     return <circle key={`dot-${payload.time}`} cx={cx} cy={cy} r={2} fill="#667eea" />;
                                                 }}
                                                 activeDot={{ r: 5 }}

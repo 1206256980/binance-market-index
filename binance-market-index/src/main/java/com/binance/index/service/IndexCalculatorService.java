@@ -4044,13 +4044,17 @@ public class IndexCalculatorService {
                     double realTimeIndex = (realTimeTotalRatio / realTimeValidCount) * 100.0;
                     LocalDateTime nowLocal = nowUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime();
 
+                    // 格式化时间，去除秒和毫秒，保持与历史点一致 (yyyy-MM-dd HH:mm)
+                    String formattedTime = nowLocal
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
                     Map<String, Object> realTimePoint = new HashMap<>();
-                    realTimePoint.put("time", nowLocal.toString().replace("T", " "));
+                    realTimePoint.put("time", formattedTime);
                     realTimePoint.put("priceIndex", Math.round(realTimeIndex * 100) / 100.0);
                     realTimePoint.put("isEntryPoint", false);
                     realTimePoint.put("isRealTime", true); // 标记这是一个实时的点
                     priceIndexData.add(realTimePoint);
-                    log.info("成功追加实时采样点: {}, 指数: {}", nowLocal, realTimeIndex);
+                    log.info("成功追加实时采样点: {}, 指数: {}", formattedTime, realTimeIndex);
                 }
             } catch (Exception e) {
                 log.warn("获取实时行情失败，跳过实时点追加: {}", e.getMessage());
