@@ -356,6 +356,12 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         return value !== null ? parseInt(value) : 15; // 默认 15 分钟
     })
 
+    // 使用 ref 跟踪最新值，避免 setInterval 闭包过时问题
+    const trackingDataRef = useRef(trackingData);
+    const priceIndexDataRef = useRef(priceIndexData);
+    useEffect(() => { trackingDataRef.current = trackingData; }, [trackingData]);
+    useEffect(() => { priceIndexDataRef.current = priceIndexData; }, [priceIndexData]);
+
     // 价格指数颗粒度缓存到 localStorage
     useEffect(() => {
         localStorage.setItem('lm_priceIndexGranularity', priceIndexGranularity)
@@ -385,17 +391,17 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
             // 刷新主页面数据
             await refreshMainData();
 
-            // 如果侧边栏打开，同时刷新侧边栏数据
-            if (trackingData) {
+            // 如果侧边栏打开，同时刷新侧边栏数据（通过 ref 读取最新值）
+            if (trackingDataRef.current) {
                 await refreshTrackingData();
             }
-            if (priceIndexData) {
+            if (priceIndexDataRef.current) {
                 await refreshPriceIndexData();
             }
         }, refreshInterval * 1000);
 
         return () => clearInterval(intervalId);
-    }, [autoRefresh, result, refreshInterval, trackingData, priceIndexData]);
+    }, [autoRefresh, result, refreshInterval]);
 
     // 刷新主页面数据
     const refreshMainData = async () => {
