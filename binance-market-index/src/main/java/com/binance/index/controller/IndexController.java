@@ -890,7 +890,8 @@ public class IndexController {
             @RequestParam(defaultValue = "30") int days,
             @RequestParam(required = false) String entryHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
-            @RequestParam(required = false) String holdHours) {
+            @RequestParam(required = false) String holdHours,
+            @RequestParam(defaultValue = "100") int limit) {
         log.info("------------------------- 开始调用 /backtest/optimize 接口-------------------------");
         Map<String, Object> response = new HashMap<>();
 
@@ -1075,8 +1076,12 @@ public class IndexController {
                     (Double) b.get("totalProfit"),
                     (Double) a.get("totalProfit")));
 
-            List<Map<String, Object>> sortedResults = allResults.stream()
-                    .collect(java.util.stream.Collectors.toList());
+            List<Map<String, Object>> sortedResults;
+            if (limit > 0 && allResults.size() > limit) {
+                sortedResults = allResults.subList(0, limit);
+            } else {
+                sortedResults = allResults;
+            }
 
             response.put("success", true);
             response.put("params", Map.of(

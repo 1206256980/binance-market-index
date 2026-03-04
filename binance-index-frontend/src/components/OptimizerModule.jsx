@@ -24,9 +24,13 @@ const OptimizerModule = memo(function OptimizerModule() {
         const saved = localStorage.getItem('opt_selectedHoldHours')
         return saved ? JSON.parse(saved) : [24, 48, 72]
     })
+    const [resultLimit, setResultLimit] = useState(() => {
+        const value = localStorage.getItem('opt_resultLimit');
+        return value !== null ? parseInt(value) : 100;
+    })
 
     // 配置项
-    const holdHourOptions = [1, 2, 4, 8, 12, 24, 48, 72, 96, 120, 168]
+    const holdHourOptions = [24, 48, 72, 96, 120, 168]
 
     // 状态
     const [loading, setLoading] = useState(false)
@@ -48,7 +52,8 @@ const OptimizerModule = memo(function OptimizerModule() {
         localStorage.setItem('opt_days', days.toString());
         localStorage.setItem('opt_selectedHours', JSON.stringify(selectedHours));
         localStorage.setItem('opt_selectedHoldHours', JSON.stringify(selectedHoldHours));
-    }, [totalAmount, days, selectedHours, selectedHoldHours])
+        localStorage.setItem('opt_resultLimit', resultLimit.toString());
+    }, [totalAmount, days, selectedHours, selectedHoldHours, resultLimit])
 
     // 侧边栏打开时锁定body滚动
     useEffect(() => {
@@ -107,6 +112,7 @@ const OptimizerModule = memo(function OptimizerModule() {
                     days,
                     entryHours: selectedHours.join(','),
                     holdHours: selectedHoldHours.join(','),
+                    limit: resultLimit,
                     useApi: true,
                     timezone: 'Asia/Shanghai'
                 }
@@ -295,6 +301,18 @@ const OptimizerModule = memo(function OptimizerModule() {
                                 </span>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="param-item">
+                        <label>条数</label>
+                        <input
+                            type="number"
+                            value={resultLimit}
+                            onChange={(e) => setResultLimit(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={(e) => { if (e.target.value === '' || isNaN(resultLimit)) setResultLimit(100) }}
+                            title="返回结果条数，-1表示全部"
+                            style={{ width: '60px' }}
+                        />
                     </div>
 
                     <button
