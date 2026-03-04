@@ -520,7 +520,6 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
         setExpandedHours([]) // 重置展开行
         setIsBacktrackMode(false) // 点击开始监控时重置为实时模式
         setBacktrackTime('')
-        setAutoRefresh(false) // 重新开始时先关闭自动刷新
 
         try {
             let res;
