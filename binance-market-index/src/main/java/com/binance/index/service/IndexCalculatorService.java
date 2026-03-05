@@ -4228,7 +4228,6 @@ public class IndexCalculatorService {
         // ========== 6. 计算各币种多周期涨幅表现 ==========
         log.info("📊 计算各币种多周期涨幅表现...");
         long perfStart = System.currentTimeMillis();
-        List<Map<String, Object>> coinPerformance = new ArrayList<>();
 
         // 计算1d/3d/7d的起始时间点（UTC，对齐到5分钟）
         LocalDateTime now1 = alignTo5Minutes(LocalDateTime.now(utcZone));
@@ -4238,59 +4237,67 @@ public class IndexCalculatorService {
                 alignTo5Minutes(now1.minusDays(7)) // 7d
         };
         String[] prefixes = { "1d", "3d", "7d" };
+        final LocalDateTime finalNow1 = now1;
 
-        for (String symbol : symbols) {
-            Double currentPrice = coinLatestPrices.get(symbol);
-            if (currentPrice == null || currentPrice <= 0)
-                continue;
+        // 每个币种一个线程，并行查询
+        List<CompletableFuture<Map<String, Object>>> futures = symbols.stream()
+                .filter(symbol -> {
+                    Double p = coinLatestPrices.get(symbol);
+                    return p != null && p > 0;
+                })
+                .map(symbol -> CompletableFuture.supplyAsync(() -> {
+                    Double currentPrice = coinLatestPrices.get(symbol);
+                    Map<String, Object> perf = new HashMap<>();
+                    perf.put("symbol", symbol);
+                    perf.put("currentPrice", currentPrice);
 
-            Map<String, Object> perf = new HashMap<>();
-            perf.put("symbol", symbol);
-            perf.put("currentPrice", currentPrice);
-
-            // 计算入场涨幅
-            Double entryPrice = basePrices.get(symbol);
-            if (entryPrice != null && entryPrice > 0) {
-                perf.put("entryPrice", entryPrice);
-                double entryChange = Math.abs(entryPrice - currentPrice) / entryPrice * 100.0;
-                perf.put("entryChange", Math.round(entryChange * 100) / 100.0);
-                perf.put("entryDirection", entryPrice > currentPrice ? "profit" : "loss");
-            }
-
-            // 逐个周期查询（每个查询走 symbol+timestamp 复合索引，极快）
-            for (int i = 0; i < periodStarts.length; i++) {
-                try {
-                    // 查起始价格
-                    List<CoinPrice> startPrices = coinPriceRepository.findBySymbolAndTimestamp(symbol, periodStarts[i]);
-                    Double startPrice = null;
-                    if (!startPrices.isEmpty()) {
-                        CoinPrice cp = startPrices.get(0);
-                        startPrice = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice()
-                                : cp.getPrice();
+                    // 计算入场涨幅
+                    Double entryPrice = basePrices.get(symbol);
+                    if (entryPrice != null && entryPrice > 0) {
+                        perf.put("entryPrice", entryPrice);
+                        double entryChange = Math.abs(entryPrice - currentPrice) / entryPrice * 100.0;
+                        perf.put("entryChange", Math.round(entryChange * 100) / 100.0);
+                        perf.put("entryDirection", entryPrice > currentPrice ? "profit" : "loss");
                     }
 
-                    if (startPrice != null && startPrice > 0) {
-                        // 当前涨幅
-                        double currentChange = ((currentPrice - startPrice) / startPrice) * 100.0;
-                        perf.put(prefixes[i] + "Change", Math.round(currentChange * 100) / 100.0);
+                    // 逐个周期查询
+                    for (int i = 0; i < periodStarts.length; i++) {
+                        try {
+                            List<CoinPrice> startPrices = coinPriceRepository.findBySymbolAndTimestamp(symbol,
+                                    periodStarts[i]);
+                            Double startPrice = null;
+                            if (!startPrices.isEmpty()) {
+                                CoinPrice cp = startPrices.get(0);
+                                startPrice = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice()
+                                        : cp.getPrice();
+                            }
 
-                        // 最高涨幅
-                        Double maxHigh = coinPriceRepository.findMaxHighPriceBySymbolInRange(symbol, periodStarts[i],
-                                now1);
-                        if (maxHigh != null && maxHigh > 0) {
-                            double maxChange = ((maxHigh - startPrice) / startPrice) * 100.0;
-                            perf.put(prefixes[i] + "MaxChange", Math.round(maxChange * 100) / 100.0);
+                            if (startPrice != null && startPrice > 0) {
+                                double currentChange = ((currentPrice - startPrice) / startPrice) * 100.0;
+                                perf.put(prefixes[i] + "Change", Math.round(currentChange * 100) / 100.0);
+
+                                Double maxHigh = coinPriceRepository.findMaxHighPriceBySymbolInRange(symbol,
+                                        periodStarts[i], finalNow1);
+                                if (maxHigh != null && maxHigh > 0) {
+                                    double maxChange = ((maxHigh - startPrice) / startPrice) * 100.0;
+                                    perf.put(prefixes[i] + "MaxChange", Math.round(maxChange * 100) / 100.0);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("查询 {} {} 周期数据失败: {}", symbol, prefixes[i], e.getMessage());
                         }
                     }
-                } catch (Exception e) {
-                    log.warn("查询 {} {} 周期数据失败: {}", symbol, prefixes[i], e.getMessage());
-                }
-            }
 
-            coinPerformance.add(perf);
-        }
+                    return perf;
+                }, executorService))
+                .collect(java.util.stream.Collectors.toList());
 
-        log.info("📊 逐币种查询耗时: {}ms, {} 个币种", System.currentTimeMillis() - perfStart, coinPerformance.size());
+        // 等待所有线程完成
+        List<Map<String, Object>> coinPerformance = futures.stream()
+                .map(CompletableFuture::join)
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("📊 并行查询耗时: {}ms, {} 个币种", System.currentTimeMillis() - perfStart, coinPerformance.size());
 
         Map<String, Object> result = new HashMap<>();
         result.put("entryTime", entryTime.toString().replace("T", " "));
