@@ -4238,21 +4238,23 @@ public class IndexCalculatorService {
         };
         String[] prefixes = { "1d", "3d", "7d" };
         final LocalDateTime finalNow1 = now1;
+        final Map<String, Double> finalLatestPrices = coinLatestPrices;
+        final Map<String, Double> finalBasePrices = basePrices;
 
         // 每个币种一个线程，并行查询
         List<CompletableFuture<Map<String, Object>>> futures = symbols.stream()
                 .filter(symbol -> {
-                    Double p = coinLatestPrices.get(symbol);
+                    Double p = finalLatestPrices.get(symbol);
                     return p != null && p > 0;
                 })
                 .map(symbol -> CompletableFuture.supplyAsync(() -> {
-                    Double currentPrice = coinLatestPrices.get(symbol);
+                    Double currentPrice = finalLatestPrices.get(symbol);
                     Map<String, Object> perf = new HashMap<>();
                     perf.put("symbol", symbol);
                     perf.put("currentPrice", currentPrice);
 
                     // 计算入场涨幅
-                    Double entryPrice = basePrices.get(symbol);
+                    Double entryPrice = finalBasePrices.get(symbol);
                     if (entryPrice != null && entryPrice > 0) {
                         perf.put("entryPrice", entryPrice);
                         double entryChange = Math.abs(entryPrice - currentPrice) / entryPrice * 100.0;
