@@ -1516,6 +1516,86 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                     <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
                                         📈 指数&gt;100 = 币价上涨(亏损方向) | 📉 指数&lt;100 = 币价下跌(盈利方向)
                                     </div>
+
+                                    {/* 币种多周期涨幅表格 */}
+                                    {priceIndexData.coinPerformance && priceIndexData.coinPerformance.length > 0 && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '8px', paddingLeft: '4px' }}>
+                                                📋 币种涨幅概览
+                                            </div>
+                                            <div style={{ overflowX: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                    <thead>
+                                                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'left', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>币种</th>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'right', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>当前价格</th>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>入场涨幅</th>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>1天 (当前/最高)</th>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>3天 (当前/最高)</th>
+                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>7天 (当前/最高)</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {priceIndexData.coinPerformance.map((coin, idx) => {
+                                                            const formatChange = (val) => {
+                                                                if (val === undefined || val === null) return '--';
+                                                                return `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`;
+                                                            };
+                                                            const changeColor = (val) => {
+                                                                if (val === undefined || val === null) return '#94a3b8';
+                                                                return val >= 0 ? '#10b981' : '#ef4444';
+                                                            };
+                                                            const formatPrice = (p) => {
+                                                                if (!p) return '--';
+                                                                if (p < 0.001) return p.toFixed(8);
+                                                                if (p < 1) return p.toFixed(6);
+                                                                if (p < 100) return p.toFixed(4);
+                                                                return p.toFixed(2);
+                                                            };
+                                                            return (
+                                                                <tr key={coin.symbol} style={{
+                                                                    borderBottom: '1px solid #f1f5f9',
+                                                                    background: idx % 2 === 0 ? '#fff' : '#fafbfc'
+                                                                }}>
+                                                                    <td style={{ padding: '7px 6px', fontWeight: 600, color: '#334155' }}>
+                                                                        {coin.symbol.replace('USDT', '')}
+                                                                    </td>
+                                                                    <td style={{ padding: '7px 6px', textAlign: 'right', color: '#475569', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                        {formatPrice(coin.currentPrice)}
+                                                                    </td>
+                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                        {coin.entryChange !== undefined ? (
+                                                                            <span style={{
+                                                                                color: coin.entryDirection === 'profit' ? '#10b981' : '#ef4444',
+                                                                                fontWeight: 600
+                                                                            }}>
+                                                                                {coin.entryDirection === 'profit' ? '▼' : '▲'} +{coin.entryChange.toFixed(2)}%
+                                                                            </span>
+                                                                        ) : '--'}
+                                                                    </td>
+                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                        <span style={{ color: changeColor(coin['1dChange']) }}>{formatChange(coin['1dChange'])}</span>
+                                                                        <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
+                                                                        <span style={{ color: changeColor(coin['1dMaxChange']) }}>{formatChange(coin['1dMaxChange'])}</span>
+                                                                    </td>
+                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                        <span style={{ color: changeColor(coin['3dChange']) }}>{formatChange(coin['3dChange'])}</span>
+                                                                        <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
+                                                                        <span style={{ color: changeColor(coin['3dMaxChange']) }}>{formatChange(coin['3dMaxChange'])}</span>
+                                                                    </td>
+                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                        <span style={{ color: changeColor(coin['7dChange']) }}>{formatChange(coin['7dChange'])}</span>
+                                                                        <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
+                                                                        <span style={{ color: changeColor(coin['7dMaxChange']) }}>{formatChange(coin['7dMaxChange'])}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
