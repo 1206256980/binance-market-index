@@ -4184,43 +4184,44 @@ public class IndexCalculatorService {
         log.info("成功获取 {} 个价格指数数据点", priceIndexData.size());
 
         // 5. 【实时性增强】追加一个由币安官方 API 提供的实时采样点
+        // 获取实时价格（step 5 和 step 6 共用）
+        Map<String, Double> coinLatestPrices = new HashMap<>();
+        try {
+            log.info("🚀 正在从币安 API 获取实时价格...");
+            coinLatestPrices = binanceApiService.getAllLatestPrices();
+        } catch (Exception e) {
+            log.warn("获取实时价格失败: {}", e.getMessage());
+        }
+
         // 如果查询的 endTime 是现在，或者最后一个点的时间距离现在很近
         LocalDateTime nowUtc = LocalDateTime.now(utcZone);
-        if (endTimeUtc.isAfter(nowUtc.minusMinutes(granularity))) {
-            try {
-                log.info("🚀 正在从币安 API 获取实时采集点...");
-                Map<String, Double> latestPrices = binanceApiService.getAllLatestPrices();
+        if (endTimeUtc.isAfter(nowUtc.minusMinutes(granularity)) && !coinLatestPrices.isEmpty()) {
+            double realTimeTotalRatio = 0.0;
+            int realTimeValidCount = 0;
 
-                double realTimeTotalRatio = 0.0;
-                int realTimeValidCount = 0;
-
-                for (String symbol : symbols) {
-                    Double currentPrice = latestPrices.get(symbol);
-                    Double basePrice = basePrices.get(symbol);
-                    if (currentPrice != null && basePrice != null && basePrice > 0) {
-                        realTimeTotalRatio += currentPrice / basePrice;
-                        realTimeValidCount++;
-                    }
+            for (String symbol : symbols) {
+                Double currentPrice = coinLatestPrices.get(symbol);
+                Double basePrice = basePrices.get(symbol);
+                if (currentPrice != null && basePrice != null && basePrice > 0) {
+                    realTimeTotalRatio += currentPrice / basePrice;
+                    realTimeValidCount++;
                 }
+            }
 
-                if (realTimeValidCount > 0) {
-                    double realTimeIndex = (realTimeTotalRatio / realTimeValidCount) * 100.0;
-                    LocalDateTime nowLocal = nowUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime();
+            if (realTimeValidCount > 0) {
+                double realTimeIndex = (realTimeTotalRatio / realTimeValidCount) * 100.0;
+                LocalDateTime nowLocal = nowUtc.atZone(utcZone).withZoneSameInstant(userZone).toLocalDateTime();
 
-                    // 格式化时间，去除秒和毫秒，保持与历史点一致 (yyyy-MM-dd HH:mm)
-                    String formattedTime = nowLocal
-                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                String formattedTime = nowLocal
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
 
-                    Map<String, Object> realTimePoint = new HashMap<>();
-                    realTimePoint.put("time", formattedTime);
-                    realTimePoint.put("priceIndex", Math.round(realTimeIndex * 100) / 100.0);
-                    realTimePoint.put("isEntryPoint", false);
-                    realTimePoint.put("isRealTime", true); // 标记这是一个实时的点
-                    priceIndexData.add(realTimePoint);
-                    log.info("成功追加实时采样点: {}, 指数: {}", formattedTime, realTimeIndex);
-                }
-            } catch (Exception e) {
-                log.warn("获取实时行情失败，跳过实时点追加: {}", e.getMessage());
+                Map<String, Object> realTimePoint = new HashMap<>();
+                realTimePoint.put("time", formattedTime);
+                realTimePoint.put("priceIndex", Math.round(realTimeIndex * 100) / 100.0);
+                realTimePoint.put("isEntryPoint", false);
+                realTimePoint.put("isRealTime", true);
+                priceIndexData.add(realTimePoint);
+                log.info("成功追加实时采样点: {}, 指数: {}", formattedTime, realTimeIndex);
             }
         }
 
@@ -4229,52 +4230,43 @@ public class IndexCalculatorService {
         long perfStart = System.currentTimeMillis();
         List<Map<String, Object>> coinPerformance = new ArrayList<>();
 
-        // 复用step5的实时价格（如果没有则重新获取）
-        Map<String, Double> coinLatestPrices;
-        try {
-            coinLatestPrices = binanceApiService.getAllLatestPrices();
-        } catch (Exception e) {
-            log.warn("获取实时价格失败: {}", e.getMessage());
-            coinLatestPrices = new HashMap<>();
-        }
-
         // 计算1d/3d/7d的起始时间点（UTC，对齐到5分钟）
         LocalDateTime now1 = alignTo5Minutes(LocalDateTime.now(utcZone));
         LocalDateTime start1d = alignTo5Minutes(now1.minusHours(24));
         LocalDateTime start3d = alignTo5Minutes(now1.minusDays(3));
         LocalDateTime start7d = alignTo5Minutes(now1.minusDays(7));
 
-        // 批量查询各周期内的最高价（3次批量查询）
+        // 批量查询各周期内的最高价（只查目标币种，不查全表）
         Map<String, Double> maxPrices1d = new HashMap<>();
         Map<String, Double> maxPrices3d = new HashMap<>();
         Map<String, Double> maxPrices7d = new HashMap<>();
 
-        // 批量查询各周期起始时间点的价格（3次批量查询，替代N×3次单币种查询）
+        // 批量查询各周期起始时间点的价格（只查目标币种）
         Map<String, Double> startPrices1d = new HashMap<>();
         Map<String, Double> startPrices3d = new HashMap<>();
         Map<String, Double> startPrices7d = new HashMap<>();
 
         try {
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolInRange(start1d, now1)) {
+            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start1d, now1)) {
                 maxPrices1d.put((String) row[0], (Double) row[1]);
             }
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolInRange(start3d, now1)) {
+            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start3d, now1)) {
                 maxPrices3d.put((String) row[0], (Double) row[1]);
             }
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolInRange(start7d, now1)) {
+            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start7d, now1)) {
                 maxPrices7d.put((String) row[0], (Double) row[1]);
             }
 
-            // 批量查询3个时间点的所有币种价格
-            for (CoinPrice cp : coinPriceRepository.findByTimestamp(start1d)) {
+            // 批量查询3个时间点的目标币种价格
+            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start1d)) {
                 Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
                 startPrices1d.put(cp.getSymbol(), price);
             }
-            for (CoinPrice cp : coinPriceRepository.findByTimestamp(start3d)) {
+            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start3d)) {
                 Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
                 startPrices3d.put(cp.getSymbol(), price);
             }
-            for (CoinPrice cp : coinPriceRepository.findByTimestamp(start7d)) {
+            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start7d)) {
                 Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
                 startPrices7d.put(cp.getSymbol(), price);
             }

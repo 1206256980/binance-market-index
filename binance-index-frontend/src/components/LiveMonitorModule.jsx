@@ -1524,7 +1524,7 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 📋 币种涨幅概览
                                             </div>
                                             <div style={{ overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', lineHeight: '1.6' }}>
                                                     <thead>
                                                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                                                             <th style={{ padding: '10px 8px', textAlign: 'left', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>币种</th>
@@ -1560,10 +1560,10 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                                     <td style={{ padding: '9px 8px', fontWeight: 600, color: '#334155' }}>
                                                                         {coin.symbol.replace('USDT', '')}
                                                                     </td>
-                                                                    <td style={{ padding: '9px 8px', textAlign: 'right', color: '#475569', fontFamily: 'monospace', fontSize: '13px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'right', color: '#475569', fontFamily: 'monospace', fontSize: '15px' }}>
                                                                         {formatPrice(coin.currentPrice)}
                                                                     </td>
-                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '15px' }}>
                                                                         {coin.entryChange !== undefined ? (
                                                                             <span style={{
                                                                                 color: coin.entryDirection === 'profit' ? '#10b981' : '#ef4444',
@@ -1573,17 +1573,17 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                                             </span>
                                                                         ) : '--'}
                                                                     </td>
-                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '15px' }}>
                                                                         <span style={{ color: changeColor(coin['1dChange']) }}>{formatChange(coin['1dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['1dMaxChange']) }}>{formatChange(coin['1dMaxChange'])}</span>
                                                                     </td>
-                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '15px' }}>
                                                                         <span style={{ color: changeColor(coin['3dChange']) }}>{formatChange(coin['3dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['3dMaxChange']) }}>{formatChange(coin['3dMaxChange'])}</span>
                                                                     </td>
-                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '15px' }}>
                                                                         <span style={{ color: changeColor(coin['7dChange']) }}>{formatChange(coin['7dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['7dMaxChange']) }}>{formatChange(coin['7dMaxChange'])}</span>
