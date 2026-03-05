@@ -1524,15 +1524,15 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                 📋 币种涨幅概览
                                             </div>
                                             <div style={{ overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                                                     <thead>
                                                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'left', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>币种</th>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'right', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>当前价格</th>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>入场涨幅</th>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>1天 (当前/最高)</th>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>3天 (当前/最高)</th>
-                                                            <th style={{ padding: '8px 6px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>7天 (当前/最高)</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>币种</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'right', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>当前价格</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>入场涨幅</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>1天 (当前/最高)</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>3天 (当前/最高)</th>
+                                                            <th style={{ padding: '10px 8px', textAlign: 'center', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>7天 (当前/最高)</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1557,13 +1557,13 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                                     borderBottom: '1px solid #f1f5f9',
                                                                     background: idx % 2 === 0 ? '#fff' : '#fafbfc'
                                                                 }}>
-                                                                    <td style={{ padding: '7px 6px', fontWeight: 600, color: '#334155' }}>
+                                                                    <td style={{ padding: '9px 8px', fontWeight: 600, color: '#334155' }}>
                                                                         {coin.symbol.replace('USDT', '')}
                                                                     </td>
-                                                                    <td style={{ padding: '7px 6px', textAlign: 'right', color: '#475569', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'right', color: '#475569', fontFamily: 'monospace', fontSize: '13px' }}>
                                                                         {formatPrice(coin.currentPrice)}
                                                                     </td>
-                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
                                                                         {coin.entryChange !== undefined ? (
                                                                             <span style={{
                                                                                 color: coin.entryDirection === 'profit' ? '#10b981' : '#ef4444',
@@ -1573,17 +1573,17 @@ const LiveMonitorModule = memo(function LiveMonitorModule() {
                                                                             </span>
                                                                         ) : '--'}
                                                                     </td>
-                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
                                                                         <span style={{ color: changeColor(coin['1dChange']) }}>{formatChange(coin['1dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['1dMaxChange']) }}>{formatChange(coin['1dMaxChange'])}</span>
                                                                     </td>
-                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
                                                                         <span style={{ color: changeColor(coin['3dChange']) }}>{formatChange(coin['3dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['3dMaxChange']) }}>{formatChange(coin['3dMaxChange'])}</span>
                                                                     </td>
-                                                                    <td style={{ padding: '7px 6px', textAlign: 'center', fontFamily: 'monospace', fontSize: '11px' }}>
+                                                                    <td style={{ padding: '9px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '13px' }}>
                                                                         <span style={{ color: changeColor(coin['7dChange']) }}>{formatChange(coin['7dChange'])}</span>
                                                                         <span style={{ color: '#cbd5e1', margin: '0 2px' }}>/</span>
                                                                         <span style={{ color: changeColor(coin['7dMaxChange']) }}>{formatChange(coin['7dMaxChange'])}</span>
