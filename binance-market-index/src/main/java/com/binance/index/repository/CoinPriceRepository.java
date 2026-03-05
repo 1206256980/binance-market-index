@@ -85,6 +85,16 @@ public interface CoinPriceRepository extends JpaRepository<CoinPrice, Long> {
                         @Param("timestamp") LocalDateTime timestamp);
 
         /**
+         * 获取单个币种在时间区间内的最高价（走symbol+timestamp复合索引，极快）
+         */
+        @Query("SELECT MAX(cp.highPrice) FROM CoinPrice cp " +
+                        "WHERE cp.symbol = :symbol " +
+                        "AND cp.timestamp >= :startTime AND cp.timestamp <= :endTime")
+        Double findMaxHighPriceBySymbolInRange(@Param("symbol") String symbol,
+                        @Param("startTime") LocalDateTime startTime,
+                        @Param("endTime") LocalDateTime endTime);
+
+        /**
          * 获取时间区间内每个币种的最低价（使用K线最低价）
          */
         @Query("SELECT cp.symbol, MIN(cp.lowPrice) FROM CoinPrice cp " +

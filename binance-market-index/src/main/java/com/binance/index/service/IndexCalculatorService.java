@@ -4232,53 +4232,12 @@ public class IndexCalculatorService {
 
         // 计算1d/3d/7d的起始时间点（UTC，对齐到5分钟）
         LocalDateTime now1 = alignTo5Minutes(LocalDateTime.now(utcZone));
-        LocalDateTime start1d = alignTo5Minutes(now1.minusHours(24));
-        LocalDateTime start3d = alignTo5Minutes(now1.minusDays(3));
-        LocalDateTime start7d = alignTo5Minutes(now1.minusDays(7));
-
-        // 批量查询各周期内的最高价（只查目标币种，不查全表）
-        Map<String, Double> maxPrices1d = new HashMap<>();
-        Map<String, Double> maxPrices3d = new HashMap<>();
-        Map<String, Double> maxPrices7d = new HashMap<>();
-
-        // 批量查询各周期起始时间点的价格（只查目标币种）
-        Map<String, Double> startPrices1d = new HashMap<>();
-        Map<String, Double> startPrices3d = new HashMap<>();
-        Map<String, Double> startPrices7d = new HashMap<>();
-
-        try {
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start1d, now1)) {
-                maxPrices1d.put((String) row[0], (Double) row[1]);
-            }
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start3d, now1)) {
-                maxPrices3d.put((String) row[0], (Double) row[1]);
-            }
-            for (Object[] row : coinPriceRepository.findMaxPricesBySymbolsInRange(symbols, start7d, now1)) {
-                maxPrices7d.put((String) row[0], (Double) row[1]);
-            }
-
-            // 批量查询3个时间点的目标币种价格
-            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start1d)) {
-                Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
-                startPrices1d.put(cp.getSymbol(), price);
-            }
-            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start3d)) {
-                Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
-                startPrices3d.put(cp.getSymbol(), price);
-            }
-            for (CoinPrice cp : coinPriceRepository.findBySymbolsAndTimestamp(symbols, start7d)) {
-                Double price = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice() : cp.getPrice();
-                startPrices7d.put(cp.getSymbol(), price);
-            }
-        } catch (Exception e) {
-            log.warn("批量查询价格失败: {}", e.getMessage());
-        }
-
-        log.info("📊 批量查询耗时: {}ms", System.currentTimeMillis() - perfStart);
-
-        Map<String, Double>[] startPriceMaps = new Map[] { startPrices1d, startPrices3d, startPrices7d };
-        Map<String, Double>[] maxPriceMaps = new Map[] { maxPrices1d, maxPrices3d, maxPrices7d };
-        int[][] periods = { { 1, 24 }, { 3, 72 }, { 7, 168 } };
+        LocalDateTime[] periodStarts = {
+                alignTo5Minutes(now1.minusHours(24)), // 1d
+                alignTo5Minutes(now1.minusDays(3)), // 3d
+                alignTo5Minutes(now1.minusDays(7)) // 7d
+        };
+        String[] prefixes = { "1d", "3d", "7d" };
 
         for (String symbol : symbols) {
             Double currentPrice = coinLatestPrices.get(symbol);
@@ -4298,27 +4257,40 @@ public class IndexCalculatorService {
                 perf.put("entryDirection", entryPrice > currentPrice ? "profit" : "loss");
             }
 
-            // 计算各周期涨幅（直接从批量查询结果中取值，无需再查DB）
-            for (int i = 0; i < periods.length; i++) {
-                String prefix = periods[i][0] + "d";
-                Double startPrice = startPriceMaps[i].get(symbol);
-
-                if (startPrice != null && startPrice > 0) {
-                    double currentChange = ((currentPrice - startPrice) / startPrice) * 100.0;
-                    perf.put(prefix + "Change", Math.round(currentChange * 100) / 100.0);
-
-                    Double maxHigh = maxPriceMaps[i].get(symbol);
-                    if (maxHigh != null && maxHigh > 0) {
-                        double maxChange = ((maxHigh - startPrice) / startPrice) * 100.0;
-                        perf.put(prefix + "MaxChange", Math.round(maxChange * 100) / 100.0);
+            // 逐个周期查询（每个查询走 symbol+timestamp 复合索引，极快）
+            for (int i = 0; i < periodStarts.length; i++) {
+                try {
+                    // 查起始价格
+                    List<CoinPrice> startPrices = coinPriceRepository.findBySymbolAndTimestamp(symbol, periodStarts[i]);
+                    Double startPrice = null;
+                    if (!startPrices.isEmpty()) {
+                        CoinPrice cp = startPrices.get(0);
+                        startPrice = (cp.getOpenPrice() != null && cp.getOpenPrice() > 0) ? cp.getOpenPrice()
+                                : cp.getPrice();
                     }
+
+                    if (startPrice != null && startPrice > 0) {
+                        // 当前涨幅
+                        double currentChange = ((currentPrice - startPrice) / startPrice) * 100.0;
+                        perf.put(prefixes[i] + "Change", Math.round(currentChange * 100) / 100.0);
+
+                        // 最高涨幅
+                        Double maxHigh = coinPriceRepository.findMaxHighPriceBySymbolInRange(symbol, periodStarts[i],
+                                now1);
+                        if (maxHigh != null && maxHigh > 0) {
+                            double maxChange = ((maxHigh - startPrice) / startPrice) * 100.0;
+                            perf.put(prefixes[i] + "MaxChange", Math.round(maxChange * 100) / 100.0);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("查询 {} {} 周期数据失败: {}", symbol, prefixes[i], e.getMessage());
                 }
             }
 
             coinPerformance.add(perf);
         }
 
-        log.info("📊 币种多周期涨幅计算完成，共 {} 个币种", coinPerformance.size());
+        log.info("📊 逐币种查询耗时: {}ms, {} 个币种", System.currentTimeMillis() - perfStart, coinPerformance.size());
 
         Map<String, Object> result = new HashMap<>();
         result.put("entryTime", entryTime.toString().replace("T", " "));
