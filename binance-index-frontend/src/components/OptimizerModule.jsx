@@ -28,6 +28,10 @@ const OptimizerModule = memo(function OptimizerModule() {
         const value = localStorage.getItem('opt_resultLimit');
         return value !== null ? parseInt(value) : 100;
     })
+    const [selectedRankingHours, setSelectedRankingHours] = useState(() => {
+        const saved = localStorage.getItem('opt_selectedRankingHours');
+        return saved ? saved : 'all'; // 'all', '24', '48', '72', '168'
+    })
 
     // 配置项
     const holdHourOptions = [24, 48, 72, 96, 120, 168]
@@ -53,7 +57,8 @@ const OptimizerModule = memo(function OptimizerModule() {
         localStorage.setItem('opt_selectedHours', JSON.stringify(selectedHours));
         localStorage.setItem('opt_selectedHoldHours', JSON.stringify(selectedHoldHours));
         localStorage.setItem('opt_resultLimit', resultLimit.toString());
-    }, [totalAmount, days, selectedHours, selectedHoldHours, resultLimit])
+        localStorage.setItem('opt_selectedRankingHours', selectedRankingHours);
+    }, [totalAmount, days, selectedHours, selectedHoldHours, resultLimit, selectedRankingHours])
 
     // 侧边栏打开时锁定body滚动
     useEffect(() => {
@@ -112,6 +117,7 @@ const OptimizerModule = memo(function OptimizerModule() {
                     days,
                     entryHours: selectedHours.join(','),
                     holdHours: selectedHoldHours.join(','),
+                    rankingHours: selectedRankingHours,
                     limit: resultLimit,
                     useApi: true,
                     timezone: 'Asia/Shanghai'
@@ -255,6 +261,29 @@ const OptimizerModule = memo(function OptimizerModule() {
                         />
                     </div>
 
+                    <div className="param-item">
+                        <label>涨幅榜周期</label>
+                        <select
+                            value={selectedRankingHours}
+                            onChange={(e) => setSelectedRankingHours(e.target.value)}
+                            style={{
+                                padding: '6px 8px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                fontSize: '13px',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                background: '#fff'
+                            }}
+                        >
+                            <option value="all">全部</option>
+                            <option value="24">24小时</option>
+                            <option value="48">48小时</option>
+                            <option value="72">72小时</option>
+                            <option value="168">7天</option>
+                        </select>
+                    </div>
+
                     <div className="divider-v"></div>
 
                     <div className="hour-selection-compact">
@@ -295,7 +324,7 @@ const OptimizerModule = memo(function OptimizerModule() {
                                     key={h}
                                     className={`hour-tag ${selectedHoldHours.includes(h) ? 'active' : ''}`}
                                     onClick={() => toggleHoldHour(h)}
-                                    style={{ minWidth: '32px' }}
+                                    style={{ minWidth: '24px', padding: '4px 8px' }}
                                 >
                                     {h}
                                 </span>

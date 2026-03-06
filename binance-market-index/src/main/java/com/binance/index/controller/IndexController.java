@@ -891,6 +891,7 @@ public class IndexController {
             @RequestParam(required = false) String entryHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
             @RequestParam(required = false) String holdHours,
+            @RequestParam(required = false) String rankingHours,
             @RequestParam(defaultValue = "100") int limit) {
         log.info("------------------------- 开始调用 /backtest/optimize 接口-------------------------");
         Map<String, Object> response = new HashMap<>();
@@ -908,7 +909,19 @@ public class IndexController {
 
         try {
             // 定义参数范围
-            int[] rankingHoursOptions = { 24, 48, 72, 168 };
+            int[] rankingHoursOptions;
+            if (rankingHours != null && !rankingHours.trim().isEmpty() && !rankingHours.equalsIgnoreCase("all")) {
+                try {
+                    rankingHoursOptions = java.util.Arrays.stream(rankingHours.split(","))
+                            .map(String::trim)
+                            .mapToInt(Integer::parseInt)
+                            .toArray();
+                } catch (Exception e) {
+                    rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+                }
+            } else {
+                rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+            }
             int[] topNOptions = { 5, 10, 15, 20, 30 };
             int[] entryHourOptions;
             int[] holdHoursOptions;
