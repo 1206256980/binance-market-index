@@ -264,7 +264,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                         <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
                                     </div>
                                     <div className="best-profit">
-                                        最高盈利: <span className="value">+{dayData.rankings[0].profit.toFixed(2)}U</span>
+                                        最高盈利: <span className="value" style={{ color: dayData.rankings[0].profit >= 0 ? '#22c55e' : '#ef4444' }}>{dayData.rankings[0].profit > 0 ? '+' : ''}{dayData.rankings[0].profit.toFixed(2)}U</span>
                                         {dailyWinLoss[dayData.date] && (
                                             <span style={{ marginLeft: '12px', fontSize: '12px', fontWeight: '400' }}>
                                                 <span style={{ color: '#22c55e' }}>赚 {dailyWinLoss[dayData.date].win}</span>
