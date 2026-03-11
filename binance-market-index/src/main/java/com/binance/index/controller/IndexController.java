@@ -1133,10 +1133,12 @@ public class IndexController {
             @RequestParam int holdHours,
             @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int pageSize) {
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) String rankingHours,
+            @RequestParam(defaultValue = "20") int topNLimit) {
         log.info(
-                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entries={}, hold={} h, page={}, pageSize={}) -------------------------",
-                entryHours, holdHours, page, pageSize);
+                "------------------------- 开始调用 /backtest/optimize-daily 接口 (entries={}, hold={} h, ranking={}, topNLimit={}, page={}, pageSize={}) -------------------------",
+                entryHours, holdHours, rankingHours, topNLimit, page, pageSize);
         Map<String, Object> response = new HashMap<>();
 
         try {
@@ -1146,8 +1148,20 @@ public class IndexController {
                     .mapToInt(Integer::parseInt)
                     .toArray();
 
-            // 定义参数范围 (固定对比涨幅榜和TopN)
-            int[] rankingHoursOptions = { 24, 48, 72, 168 };
+            // 解析涨幅榜周期
+            int[] rankingHoursOptions;
+            if (rankingHours != null && !rankingHours.trim().isEmpty() && !rankingHours.equalsIgnoreCase("all")) {
+                try {
+                    rankingHoursOptions = java.util.Arrays.stream(rankingHours.split(","))
+                            .map(String::trim)
+                            .mapToInt(Integer::parseInt)
+                            .toArray();
+                } catch (Exception e) {
+                    rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+                }
+            } else {
+                rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+            }
             int[] topNOptions = { 5, 10, 15, 20 };
 
             // 生成组合 (增加 entryHour 维度)
@@ -1165,7 +1179,7 @@ public class IndexController {
             // 预加载外提
             Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = null;
 
-            int maxRankingHours = 168;
+            int maxRankingHours = java.util.Arrays.stream(rankingHoursOptions).max().orElse(168);
             java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
             java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
             java.time.LocalDate today = java.time.LocalDate.now(userZone);
@@ -1225,6 +1239,14 @@ public class IndexController {
                     .collect(java.util.stream.Collectors.toList());
 
             long endTime = System.currentTimeMillis();
+
+            // 按 totalProfit 排序并限制返回条数
+            allResults.sort((a, b) -> Double.compare(
+                    ((Number) b.get("totalProfit")).doubleValue(),
+                    ((Number) a.get("totalProfit")).doubleValue()));
+            if (topNLimit > 0 && allResults.size() > topNLimit) {
+                allResults = allResults.subList(0, topNLimit);
+            }
 
             // ===== 分页处理：对每个组合的 dailyResults 进行分页 =====
             // 先收集所有日期并排序（倒序，最新日期在前）

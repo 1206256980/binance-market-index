@@ -24,6 +24,14 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         const val = localStorage.getItem('daily_opt_holdHours');
         return val ? parseInt(val) : 24;
     })
+    const [selectedRankingHours, setSelectedRankingHours] = useState(() => {
+        const val = localStorage.getItem('daily_opt_rankingHours');
+        return val || 'all';
+    })
+    const [topNLimit, setTopNLimit] = useState(() => {
+        const val = localStorage.getItem('daily_opt_topNLimit');
+        return val ? parseInt(val) : 20;
+    })
 
     // 运行状态
     const [loading, setLoading] = useState(false)
@@ -33,7 +41,6 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [pagination, setPagination] = useState(null) // 后端分页元数据
     const [selectedStrategy, setSelectedStrategy] = useState(null) // 当前选中的策略详情 { date, strategy }
     const daysPerPage = 10
-    const topNLimit = 20 // 结合用户之前的需求，保持 Top 20
 
     // 自动保存参数到 localStorage
     const selectDefaultHours = () => setSelectedEntryHours([0, 12, 18, 22]);
@@ -45,7 +52,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         localStorage.setItem('daily_opt_days', days)
         localStorage.setItem('daily_opt_entryHours', JSON.stringify(selectedEntryHours))
         localStorage.setItem('daily_opt_holdHours', holdHours)
-    }, [totalAmount, days, selectedEntryHours, holdHours])
+        localStorage.setItem('daily_opt_rankingHours', selectedRankingHours)
+        localStorage.setItem('daily_opt_topNLimit', topNLimit)
+    }, [totalAmount, days, selectedEntryHours, holdHours, selectedRankingHours, topNLimit])
 
     // 侧边栏打开时锁定body滚动
     useEffect(() => {
@@ -78,6 +87,8 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                     days,
                     entryHours: selectedEntryHours.join(','),
                     holdHours,
+                    rankingHours: selectedRankingHours,
+                    topNLimit,
                     timezone: 'Asia/Shanghai',
                     page,
                     pageSize: daysPerPage
@@ -195,6 +206,32 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                             className="input-field"
                             value={holdHours}
                             onChange={e => setHoldHours(e.target.value)}
+                        />
+                    </div>
+                    <div className="param-item">
+                        <label>涨幅榜周期</label>
+                        <select
+                            className="input-field"
+                            value={selectedRankingHours}
+                            onChange={e => setSelectedRankingHours(e.target.value)}
+                            style={{ padding: '6px 8px', cursor: 'pointer' }}
+                        >
+                            <option value="all">全部</option>
+                            <option value="24">24小时</option>
+                            <option value="48">48小时</option>
+                            <option value="72">72小时</option>
+                            <option value="168">7天</option>
+                        </select>
+                    </div>
+                    <div className="param-item">
+                        <label>Top前几</label>
+                        <input
+                            type="number"
+                            className="input-field"
+                            value={topNLimit}
+                            onChange={e => setTopNLimit(e.target.value === '' ? '' : parseInt(e.target.value))}
+                            onBlur={e => { if (e.target.value === '' || isNaN(topNLimit)) setTopNLimit(20) }}
+                            style={{ width: '60px' }}
                         />
                     </div>
                     <div className="action-item">
