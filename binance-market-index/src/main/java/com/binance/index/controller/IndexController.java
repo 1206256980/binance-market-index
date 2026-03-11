@@ -1240,6 +1240,38 @@ public class IndexController {
 
             long endTime = System.currentTimeMillis();
 
+            // ===== 在截取 topN 之前，先统计每天全部组合的赚/亏数量 =====
+            Map<String, Map<String, Object>> dailyWinLoss = new HashMap<>();
+            for (Map<String, Object> combo : allResults) {
+                @SuppressWarnings("unchecked")
+                List<com.binance.index.dto.BacktestDailyResult> dailyResults = (List<com.binance.index.dto.BacktestDailyResult>) combo
+                        .get("dailyResults");
+                if (dailyResults != null) {
+                    for (com.binance.index.dto.BacktestDailyResult dr : dailyResults) {
+                        dailyWinLoss.computeIfAbsent(dr.getDate(), k -> {
+                            Map<String, Object> m = new HashMap<>();
+                            m.put("win", 0);
+                            m.put("lose", 0);
+                            m.put("total", 0);
+                            return m;
+                        });
+                        Map<String, Object> counts = dailyWinLoss.get(dr.getDate());
+                        counts.put("total", (int) counts.get("total") + 1);
+                        if (dr.getTotalProfit() >= 0) {
+                            counts.put("win", (int) counts.get("win") + 1);
+                        } else {
+                            counts.put("lose", (int) counts.get("lose") + 1);
+                        }
+                    }
+                }
+            }
+            // 计算胜率百分比
+            for (Map<String, Object> counts : dailyWinLoss.values()) {
+                int total = (int) counts.get("total");
+                int win = (int) counts.get("win");
+                counts.put("winRate", total > 0 ? Math.round(win * 10000.0 / total) / 100.0 : 0.0);
+            }
+
             // 按 totalProfit 排序并限制返回条数
             allResults.sort((a, b) -> Double.compare(
                     ((Number) b.get("totalProfit")).doubleValue(),
@@ -1287,6 +1319,7 @@ public class IndexController {
 
             response.put("success", true);
             response.put("combinations", allResults);
+            response.put("dailyWinLoss", dailyWinLoss);
             response.put("timeTakenMs", endTime - startTime);
             // 分页元数据
             response.put("pagination", Map.of(

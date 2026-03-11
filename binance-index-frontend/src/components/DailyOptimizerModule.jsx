@@ -40,6 +40,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [currentPage, setCurrentPage] = useState(1) // 天数分页
     const [pagination, setPagination] = useState(null) // 后端分页元数据
     const [selectedStrategy, setSelectedStrategy] = useState(null) // 当前选中的策略详情 { date, strategy }
+    const [dailyWinLoss, setDailyWinLoss] = useState({}) // 后端返回的每日赢亏统计
     const daysPerPage = 10
 
     // 自动保存参数到 localStorage
@@ -97,6 +98,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
             if (resp.data.success) {
                 setRawData(resp.data.combinations)
                 setPagination(resp.data.pagination)
+                setDailyWinLoss(resp.data.dailyWinLoss || {})
                 setCurrentPage(page)
             } else {
                 setError(resp.data.message)
@@ -263,11 +265,17 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                     </div>
                                     <div className="best-profit">
                                         最高盈利: <span className="value">+{dayData.rankings[0].profit.toFixed(2)}U</span>
-                                        <span style={{ marginLeft: '12px', fontSize: '12px', fontWeight: '400' }}>
-                                            <span style={{ color: '#22c55e' }}>赚 {dayData.rankings.filter(r => r.profit >= 0).length}</span>
-                                            <span style={{ margin: '0 4px', color: '#999' }}>/</span>
-                                            <span style={{ color: '#ef4444' }}>亏 {dayData.rankings.filter(r => r.profit < 0).length}</span>
-                                        </span>
+                                        {dailyWinLoss[dayData.date] && (
+                                            <span style={{ marginLeft: '12px', fontSize: '12px', fontWeight: '400' }}>
+                                                <span style={{ color: '#22c55e' }}>赚 {dailyWinLoss[dayData.date].win}</span>
+                                                <span style={{ margin: '0 4px', color: '#999' }}>/</span>
+                                                <span style={{ color: '#ef4444' }}>亏 {dailyWinLoss[dayData.date].lose}</span>
+                                                <span style={{ margin: '0 4px', color: '#999' }}>|</span>
+                                                <span style={{ color: dailyWinLoss[dayData.date].winRate >= 50 ? '#22c55e' : '#ef4444', fontWeight: '500' }}>
+                                                    {dailyWinLoss[dayData.date].winRate}%
+                                                </span>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
