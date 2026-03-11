@@ -226,6 +226,11 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                     </div>
                                     <div className="best-profit">
                                         最高盈利: <span className="value">+{dayData.rankings[0].profit.toFixed(2)}U</span>
+                                        <span style={{ marginLeft: '12px', fontSize: '12px', fontWeight: '400' }}>
+                                            <span style={{ color: '#22c55e' }}>赚 {dayData.rankings.filter(r => r.profit >= 0).length}</span>
+                                            <span style={{ margin: '0 4px', color: '#999' }}>/</span>
+                                            <span style={{ color: '#ef4444' }}>亏 {dayData.rankings.filter(r => r.profit < 0).length}</span>
+                                        </span>
                                     </div>
                                 </div>
 
