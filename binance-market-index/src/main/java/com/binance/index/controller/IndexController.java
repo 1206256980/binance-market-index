@@ -1281,18 +1281,9 @@ public class IndexController {
             }
 
             // ===== 分页处理：对每个组合的 dailyResults 进行分页 =====
-            // 先收集所有日期并排序（倒序，最新日期在前）
+            // 使用 dailyWinLoss 的全量日期（不受 topN 截取影响，与折线图一致）
             java.util.Set<String> allDates = new java.util.TreeSet<>(java.util.Collections.reverseOrder());
-            for (Map<String, Object> combo : allResults) {
-                @SuppressWarnings("unchecked")
-                List<com.binance.index.dto.BacktestDailyResult> dailyResults = (List<com.binance.index.dto.BacktestDailyResult>) combo
-                        .get("dailyResults");
-                if (dailyResults != null) {
-                    for (com.binance.index.dto.BacktestDailyResult dr : dailyResults) {
-                        allDates.add(dr.getDate());
-                    }
-                }
-            }
+            allDates.addAll(dailyWinLoss.keySet());
 
             List<String> sortedDates = new java.util.ArrayList<>(allDates);
             int totalDays = sortedDates.size();
