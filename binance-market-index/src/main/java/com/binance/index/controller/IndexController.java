@@ -1272,14 +1272,6 @@ public class IndexController {
                 counts.put("winRate", total > 0 ? Math.round(win * 10000.0 / total) / 100.0 : 0.0);
             }
 
-            // 按 totalProfit 排序并限制返回条数
-            allResults.sort((a, b) -> Double.compare(
-                    ((Number) b.get("totalProfit")).doubleValue(),
-                    ((Number) a.get("totalProfit")).doubleValue()));
-            if (topNLimit > 0 && allResults.size() > topNLimit) {
-                allResults = allResults.subList(0, topNLimit);
-            }
-
             // ===== 分页处理：对每个组合的 dailyResults 进行分页 =====
             // 使用 dailyWinLoss 的全量日期（不受 topN 截取影响，与折线图一致）
             java.util.Set<String> allDates = new java.util.TreeSet<>(java.util.Collections.reverseOrder());
