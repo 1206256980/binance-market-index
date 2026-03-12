@@ -2585,7 +2585,8 @@ public class IndexCalculatorService {
     public com.binance.index.dto.BacktestResult runShortTopNBacktestApi(
             int entryHour, int entryMinute, double amountPerCoin, int days, int rankingHours, int holdHours,
             int topN, String timezone, boolean skipPreload,
-            Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap) {
+            Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap,
+            Map<String, Double> sharedLatestPrices) {
 
         if (klineService == null) {
             log.error("KlineService未初始化，无法使用API回测");
@@ -2610,19 +2611,19 @@ public class IndexCalculatorService {
 
         log.info("回测日期范围: {} 至 {}", startDate, endDate);
 
-        // 获取实时最新价格作为未平仓交易的平仓价（与实时监控一致，使用API实时价格）
-        Map<String, Double> tempLatestMap = Collections.emptyMap();
-        try {
-            tempLatestMap = binanceApiService.getAllLatestPrices();
-            log.info("获取到实时API最新价格，币种数量: {}", tempLatestMap.size());
-        } catch (Exception e) {
-            log.warn("获取实时价格失败，回退到数据库最新K线价格: {}", e.getMessage());
+        // 使用外部传入的实时价格，避免每个并行任务重复调用API导致429限流
+        Map<String, Double> tempLatestMap;
+        if (sharedLatestPrices != null && !sharedLatestPrices.isEmpty()) {
+            tempLatestMap = sharedLatestPrices;
+        } else {
+            // 没有传入时，从数据库获取最新K线价格（不调API，避免限流）
+            tempLatestMap = Collections.emptyMap();
             LocalDateTime latestHourTime = klineService.getHourlyKlineRepository().findLatestTimestamp();
             if (latestHourTime != null) {
                 tempLatestMap = klineService.getHourlyKlineRepository().findAllByOpenTime(latestHourTime).stream()
                         .collect(Collectors.toMap(com.binance.index.entity.HourlyKline::getSymbol,
                                 com.binance.index.entity.HourlyKline::getOpenPrice, (a, b) -> a));
-                log.info("回退到数据库最新K线价格时间点: {}, 币种数量: {}", latestHourTime, tempLatestMap.size());
+                log.info("使用数据库最新K线价格，时间点: {}, 币种数量: {}", latestHourTime, tempLatestMap.size());
             }
         }
         final Map<String, Double> latestHourlyPriceMap = tempLatestMap;

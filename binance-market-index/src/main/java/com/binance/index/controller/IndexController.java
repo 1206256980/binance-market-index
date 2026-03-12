@@ -829,6 +829,15 @@ public class IndexController {
             return ResponseEntity.badRequest().body(response);
         }
 
+        // 获取实时最新价格（只调一次，所有并行任务共享）
+        Map<String, Double> optLatestPrices = null;
+        try {
+            optLatestPrices = binanceApiService.getAllLatestPrices();
+        } catch (Exception e) {
+            log.warn("策略优化器获取实时价格失败: {}", e.getMessage());
+        }
+        final Map<String, Double> sharedOptLatestPrices = optLatestPrices;
+
         try {
             // 计算每币金额 = 总金额 / 做空数量
             double amountPerCoin = totalAmount / topN;
@@ -838,7 +847,7 @@ public class IndexController {
             // 使用币安API获取历史数据（支持更长时间范围）
             result = indexCalculatorService.runShortTopNBacktestApi(
                     entryHour, entryMinute, amountPerCoin, days, rankingHours, holdHours, topN, timezone, false,
-                    null);
+                    null, sharedOptLatestPrices);
 
             response.put("success", true);
             response.put("params", Map.of(
@@ -1044,6 +1053,15 @@ public class IndexController {
 
             // --- 优化结束 ---
 
+            // 获取实时最新价格（只调一次，所有并行任务共享）
+            Map<String, Double> optLatestPrices = null;
+            try {
+                optLatestPrices = binanceApiService.getAllLatestPrices();
+            } catch (Exception e) {
+                log.warn("策略优化器获取实时价格失败: {}", e.getMessage());
+            }
+            final Map<String, Double> sharedOptLatestPrices = optLatestPrices;
+
             // 使用并行流执行回测
             final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
             List<Map<String, Object>> allResults = combinations.parallelStream()
@@ -1059,7 +1077,7 @@ public class IndexController {
                         // 使用极致优化版，传入预先抓取的全局价格图，实现 0 DB 竞态
                         backtestResult = indexCalculatorService.runShortTopNBacktestApi(
                                 eHour, 0, amountPerCoin, days, rHours, hHours, tN, timezone, true,
-                                pricesForTask);
+                                pricesForTask, sharedOptLatestPrices);
 
                         Map<String, Object> res = new HashMap<>();
                         res.put("rankingHours", rHours);
@@ -1214,6 +1232,16 @@ public class IndexController {
 
             sharedPriceMap = indexCalculatorService.getKlineService().getBulkPricesAtTimes(allRequiredTimesUtc);
 
+            // 获取实时最新价格（只调一次，所有并行任务共享，避免429限流）
+            Map<String, Double> latestPricesOnce = null;
+            try {
+                latestPricesOnce = binanceApiService.getAllLatestPrices();
+                log.info("💰 每日战报: 获取实时价格成功，币种数: {}", latestPricesOnce.size());
+            } catch (Exception e) {
+                log.warn("获取实时价格失败，将回退到DB价格: {}", e.getMessage());
+            }
+            final Map<String, Double> sharedLatestPrices = latestPricesOnce;
+
             // 并行执行
             final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
             List<Map<String, Object>> allResults = combinations.parallelStream()
@@ -1226,7 +1254,7 @@ public class IndexController {
                         com.binance.index.dto.BacktestResult backtestResult = indexCalculatorService
                                 .runShortTopNBacktestApi(
                                         eHour, 0, amountPerCoin, days, rHours, holdHours, tN, timezone, true,
-                                        pricesForTask);
+                                        pricesForTask, sharedLatestPrices);
 
                         Map<String, Object> res = new HashMap<>();
                         res.put("entryHour", eHour);
