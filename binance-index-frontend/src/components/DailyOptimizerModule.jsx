@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts'
 
 /**
  * 每日策略优化器模块
@@ -248,6 +249,72 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                 </div>
                 {error && <div className="error-banner">{error}</div>}
             </div>
+
+            {/* 胜率趋势图 - 使用全量 dailyWinLoss 数据，不受分页影响 */}
+            {Object.keys(dailyWinLoss).length > 0 && (
+                <div style={{
+                    background: 'var(--bg-card, #fff)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    padding: '20px',
+                    marginBottom: '20px'
+                }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: 'var(--text-primary, #1e293b)' }}>
+                        📈 每日胜率趋势（全部 {Object.keys(dailyWinLoss).length} 天）
+                    </div>
+                    <ResponsiveContainer width="100%" height={200}>
+                        <AreaChart data={Object.keys(dailyWinLoss).sort().map(date => ({
+                            date: date.slice(5), // MM-DD
+                            fullDate: date,
+                            winRate: dailyWinLoss[date].winRate,
+                            win: dailyWinLoss[date].win,
+                            lose: dailyWinLoss[date].lose,
+                            total: dailyWinLoss[date].total
+                        }))} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                            <defs>
+                                <linearGradient id="winRateGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.02} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis
+                                dataKey="date"
+                                fontSize={11}
+                                tick={{ fill: '#94a3b8' }}
+                                interval={Math.max(0, Math.floor(Object.keys(dailyWinLoss).length / 10) - 1)}
+                            />
+                            <YAxis
+                                fontSize={11}
+                                tick={{ fill: '#94a3b8' }}
+                                domain={[0, 100]}
+                                tickFormatter={v => `${v}%`}
+                            />
+                            <Tooltip
+                                contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }}
+                                formatter={(value, name) => [`${value}%`, '胜率']}
+                                labelFormatter={(label, payload) => {
+                                    if (payload && payload[0]) {
+                                        const d = payload[0].payload;
+                                        return `${d.fullDate}  赚${d.win} / 亏${d.lose} (共${d.total})`;
+                                    }
+                                    return label;
+                                }}
+                            />
+                            <ReferenceLine y={50} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} />
+                            <Area
+                                type="monotone"
+                                dataKey="winRate"
+                                stroke="#22c55e"
+                                strokeWidth={2}
+                                fill="url(#winRateGradient)"
+                                dot={{ r: 3, fill: '#22c55e', strokeWidth: 0 }}
+                                activeDot={{ r: 5, fill: '#22c55e', stroke: '#fff', strokeWidth: 2 }}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
 
             {/* 战报内容 */}
             {paginatedRankings && (
