@@ -505,7 +505,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                             {viewAllDay && (
                                 <div className="sidebar-overlay" onClick={() => setViewAllDay(null)} />
                             )}
-                            <div className={`sidebar-container ${viewAllDay ? 'open' : ''}`} style={{ maxWidth: '960px' }} onClick={e => e.stopPropagation()}>
+                            <div className={`sidebar-container ${viewAllDay ? 'open' : ''}`} style={{ maxWidth: '1080px' }} onClick={e => e.stopPropagation()}>
                                 {viewAllDay && (() => {
                                     if (viewAllDay.loading) {
                                         return (
@@ -597,8 +597,8 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                                     {viewAllSortDir === 'desc' ? '↓' : '↑'}
                                                 </button>
                                             </div>
-                                            <div className="sidebar-body">
-                                                <div className="daily-trades">
+                                            <div className="sidebar-body" style={{ padding: '16px 20px 24px 20px', background: '#fff' }}>
+                                                <div className="daily-trades" style={{ border: '1px solid #eaeaea', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                                     {/* 表头 */}
                                                     <div className="trade-header" style={{ gridTemplateColumns: '40px 1.5fr 1fr 100px 80px', fontSize: '14px', padding: '12px 10px' }}>
                                                         <span>#</span>
