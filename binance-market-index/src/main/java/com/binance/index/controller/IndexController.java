@@ -1300,8 +1300,8 @@ public class IndexController {
                 counts.put("winRate", total > 0 ? Math.round(win * 10000.0 / total) / 100.0 : 0.0);
             }
 
-            // ===== 分页处理：对每个组合的 dailyResults 进行分页 =====
-            // 使用 dailyWinLoss 的全量日期（不受 topN 截取影响，与折线图一致）
+            // ===== 构建每日排行：按日期分组，每天独立排序取 topN =====
+            // 使用 dailyWinLoss 的全量日期（与折线图一致）
             java.util.Set<String> allDates = new java.util.TreeSet<>(java.util.Collections.reverseOrder());
             allDates.addAll(dailyWinLoss.keySet());
 
@@ -1312,24 +1312,48 @@ public class IndexController {
             // 计算当前页的日期范围
             int startIdx = (page - 1) * pageSize;
             int endIdx = Math.min(startIdx + pageSize, totalDays);
-            java.util.Set<String> currentPageDates = new java.util.HashSet<>(
-                    sortedDates.subList(startIdx, endIdx));
+            List<String> currentPageDates = sortedDates.subList(startIdx, endIdx);
 
-            // 过滤每个组合的 dailyResults，只保留当前页的日期
+            // 按日期分组，构建每日排行
+            Map<String, List<Map<String, Object>>> dateToEntries = new HashMap<>();
             for (Map<String, Object> combo : allResults) {
                 @SuppressWarnings("unchecked")
                 List<com.binance.index.dto.BacktestDailyResult> dailyResults = (List<com.binance.index.dto.BacktestDailyResult>) combo
                         .get("dailyResults");
-                if (dailyResults != null) {
-                    List<com.binance.index.dto.BacktestDailyResult> pagedResults = dailyResults.stream()
-                            .filter(dr -> currentPageDates.contains(dr.getDate()))
-                            .collect(java.util.stream.Collectors.toList());
-                    combo.put("dailyResults", pagedResults);
+                if (dailyResults == null)
+                    continue;
+                for (com.binance.index.dto.BacktestDailyResult dr : dailyResults) {
+                    if (!currentPageDates.contains(dr.getDate()))
+                        continue;
+                    Map<String, Object> entry = new HashMap<>();
+                    entry.put("entryHour", combo.get("entryHour"));
+                    entry.put("rankingHours", combo.get("rankingHours"));
+                    entry.put("topN", combo.get("topN"));
+                    entry.put("profit", dr.getTotalProfit());
+                    entry.put("winCount", dr.getWinCount());
+                    entry.put("loseCount", dr.getLoseCount());
+                    entry.put("trades", dr.getTrades());
+                    entry.put("isLive", dr.getTrades() != null && !dr.getTrades().isEmpty()
+                            && Boolean.TRUE.equals(dr.getTrades().get(0).getIsLive()));
+                    dateToEntries.computeIfAbsent(dr.getDate(), k -> new java.util.ArrayList<>()).add(entry);
+                }
+            }
+            // 每天独立排序并截取 topN
+            Map<String, List<Map<String, Object>>> dailyRankings = new java.util.LinkedHashMap<>();
+            for (String date : currentPageDates) {
+                List<Map<String, Object>> entries = dateToEntries.getOrDefault(date, new java.util.ArrayList<>());
+                entries.sort((a, b) -> Double.compare(
+                        ((Number) b.get("profit")).doubleValue(),
+                        ((Number) a.get("profit")).doubleValue()));
+                if (topNLimit > 0 && entries.size() > topNLimit) {
+                    dailyRankings.put(date, entries.subList(0, topNLimit));
+                } else {
+                    dailyRankings.put(date, entries);
                 }
             }
 
             response.put("success", true);
-            response.put("combinations", allResults);
+            response.put("dailyRankings", dailyRankings);
             response.put("dailyWinLoss", dailyWinLoss);
             response.put("timeTakenMs", endTime - startTime);
             // 分页元数据
@@ -1341,6 +1365,133 @@ public class IndexController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("每日策略优化失败", e);
+            response.put("success", false);
+            response.put("message", "执行失败: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 每日策略战报 - 查看某天全部策略排行（不限 topN）
+     */
+    @GetMapping("/backtest/optimize-daily-detail")
+    public ResponseEntity<Map<String, Object>> optimizeStrategyDailyDetail(
+            @RequestParam double totalAmount,
+            @RequestParam int days,
+            @RequestParam String entryHours,
+            @RequestParam(defaultValue = "24") int holdHours,
+            @RequestParam(defaultValue = "Asia/Shanghai") String timezone,
+            @RequestParam(required = false) String rankingHours,
+            @RequestParam String date) {
+        log.info("开始查询每日战报详情: date={}, entries={}, hold={}h, ranking={}", date, entryHours, holdHours, rankingHours);
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            int[] entryHourOptions = java.util.Arrays.stream(entryHours.split(","))
+                    .map(String::trim).mapToInt(Integer::parseInt).toArray();
+            int[] rankingHoursOptions;
+            if (rankingHours != null && !rankingHours.trim().isEmpty() && !rankingHours.equalsIgnoreCase("all")) {
+                try {
+                    rankingHoursOptions = java.util.Arrays.stream(rankingHours.split(","))
+                            .map(String::trim).mapToInt(Integer::parseInt).toArray();
+                } catch (Exception e) {
+                    rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+                }
+            } else {
+                rankingHoursOptions = new int[] { 24, 48, 72, 168 };
+            }
+            int[] topNOptions = { 5, 10, 15, 20 };
+
+            List<int[]> combinations = new java.util.ArrayList<>();
+            for (int eHour : entryHourOptions) {
+                for (int rHours : rankingHoursOptions) {
+                    for (int tN : topNOptions) {
+                        combinations.add(new int[] { eHour, rHours, tN });
+                    }
+                }
+            }
+
+            // 复用价格缓存
+            java.time.ZoneId userZone = java.time.ZoneId.of(timezone);
+            java.time.ZoneId utcZone = java.time.ZoneId.of("UTC");
+            java.time.LocalDate today = java.time.LocalDate.now(userZone);
+            java.time.LocalDate startDate = today.minusDays(days - 1);
+
+            java.util.Set<java.time.LocalDateTime> allRequiredTimesUtc = new java.util.LinkedHashSet<>();
+            for (int eHour : entryHourOptions) {
+                for (int hHours : new int[] { holdHours }) {
+                    for (java.time.LocalDate d = startDate; !d.isAfter(today); d = d.plusDays(1)) {
+                        java.time.LocalDateTime entryTimeLocal = d.atTime(eHour, 0);
+                        allRequiredTimesUtc
+                                .add(entryTimeLocal.atZone(userZone).withZoneSameInstant(utcZone).toLocalDateTime());
+                        allRequiredTimesUtc.add(entryTimeLocal.plusHours(hHours).atZone(userZone)
+                                .withZoneSameInstant(utcZone).toLocalDateTime());
+                        for (int rHours : rankingHoursOptions) {
+                            allRequiredTimesUtc.add(entryTimeLocal.minusHours(rHours).atZone(userZone)
+                                    .withZoneSameInstant(utcZone).toLocalDateTime());
+                        }
+                    }
+                }
+            }
+
+            Map<java.time.LocalDateTime, Map<String, Double>> sharedPriceMap = indexCalculatorService.getKlineService()
+                    .getBulkPricesAtTimes(allRequiredTimesUtc);
+
+            Map<String, Double> latestPrices = null;
+            try {
+                latestPrices = binanceApiService.getAllLatestPrices();
+            } catch (Exception e) {
+                log.warn("获取实时价格失败: {}", e.getMessage());
+            }
+            final Map<String, Double> sharedLatestPrices = latestPrices;
+            final Map<java.time.LocalDateTime, Map<String, Double>> pricesForTask = sharedPriceMap;
+
+            // 并行执行回测，只提取指定日期的数据
+            List<Map<String, Object>> allEntries = combinations.parallelStream()
+                    .map(combo -> {
+                        int eHour = combo[0];
+                        int rHours = combo[1];
+                        int tN = combo[2];
+                        double amountPerCoin = totalAmount / tN;
+
+                        com.binance.index.dto.BacktestResult backtestResult = indexCalculatorService
+                                .runShortTopNBacktestApi(
+                                        eHour, 0, amountPerCoin, days, rHours, holdHours, tN, timezone, true,
+                                        pricesForTask, sharedLatestPrices);
+
+                        // 只提取目标日期的结果
+                        if (backtestResult.getDailyResults() != null) {
+                            for (com.binance.index.dto.BacktestDailyResult dr : backtestResult.getDailyResults()) {
+                                if (dr.getDate().equals(date)) {
+                                    Map<String, Object> entry = new HashMap<>();
+                                    entry.put("entryHour", eHour);
+                                    entry.put("rankingHours", rHours);
+                                    entry.put("topN", tN);
+                                    entry.put("profit", dr.getTotalProfit());
+                                    entry.put("winCount", dr.getWinCount());
+                                    entry.put("loseCount", dr.getLoseCount());
+                                    entry.put("trades", dr.getTrades());
+                                    entry.put("isLive", dr.getTrades() != null && !dr.getTrades().isEmpty()
+                                            && Boolean.TRUE.equals(dr.getTrades().get(0).getIsLive()));
+                                    return entry;
+                                }
+                            }
+                        }
+                        return null;
+                    })
+                    .filter(java.util.Objects::nonNull)
+                    .sorted((a, b) -> Double.compare(
+                            ((Number) b.get("profit")).doubleValue(),
+                            ((Number) a.get("profit")).doubleValue()))
+                    .collect(java.util.stream.Collectors.toList());
+
+            response.put("success", true);
+            response.put("date", date);
+            response.put("rankings", allEntries);
+            response.put("totalCount", allEntries.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("每日战报详情查询失败", e);
             response.put("success", false);
             response.put("message", "执行失败: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);

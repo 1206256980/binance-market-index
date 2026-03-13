@@ -42,6 +42,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [pagination, setPagination] = useState(null) // 后端分页元数据
     const [selectedStrategy, setSelectedStrategy] = useState(null) // 当前选中的策略详情 { date, strategy }
     const [dailyWinLoss, setDailyWinLoss] = useState({}) // 后端返回的每日赢亏统计
+    const [viewAllDay, setViewAllDay] = useState(null) // 查看全部侧边栏: { date, rankings, loading }
+    const [viewAllSort, setViewAllSort] = useState('profit') // 'profit' | 'time'
+    const [expandedRows, setExpandedRows] = useState({}) // 展开的行
     const daysPerPage = 10
 
     // 自动保存参数到 localStorage
@@ -97,7 +100,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                 }
             })
             if (resp.data.success) {
-                setRawData(resp.data.combinations)
+                setRawData(resp.data.dailyRankings)
                 setPagination(resp.data.pagination)
                 setDailyWinLoss(resp.data.dailyWinLoss || {})
                 setCurrentPage(page)
@@ -111,42 +114,44 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
         }
     }
 
-    // 数据处理核心逻辑：将"组合列表 -> 每日结果" 转换为 "每日结果 -> 组合排行"
+    // 加载某天全部策略详情
+    const loadDayDetail = async (date) => {
+        setViewAllDay({ date, rankings: [], loading: true });
+        setViewAllSort('profit');
+        setExpandedRows({});
+        try {
+            const resp = await axios.get('/api/index/backtest/optimize-daily-detail', {
+                params: {
+                    totalAmount,
+                    days,
+                    entryHours: selectedEntryHours.join(','),
+                    holdHours,
+                    rankingHours: selectedRankingHours,
+                    timezone: 'Asia/Shanghai',
+                    date
+                }
+            });
+            if (resp.data.success) {
+                setViewAllDay({ date, rankings: resp.data.rankings, loading: false });
+            } else {
+                setViewAllDay(prev => prev ? { ...prev, loading: false } : null);
+            }
+        } catch (err) {
+            setViewAllDay(prev => prev ? { ...prev, loading: false } : null);
+        }
+    }
+
+    // 后端已经返回按日期分组的数据，直接转换格式
     const dailyRankings = useMemo(() => {
         if (!rawData) return null;
-
-        const dateMap = {};
-        rawData.forEach(combo => {
-            const label = `${combo.entryHour}:00 | ${combo.rankingHours}h | Top ${combo.topN}`;
-            combo.dailyResults.forEach(dr => {
-                if (!dateMap[dr.date]) {
-                    dateMap[dr.date] = [];
-                }
-                dateMap[dr.date].push({
-                    label,
-                    entryHour: combo.entryHour,
-                    rankingHours: combo.rankingHours,
-                    topN: combo.topN,
-                    profit: dr.totalProfit,
-                    winCount: dr.winCount,
-                    loseCount: dr.loseCount,
-                    isLive: dr.isLive,
-                    trades: dr.trades
-                });
-            });
-        });
-
-        // 对日期进行倒序排列（最近的日期在前）
-        const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
-
-        return sortedDates.map(date => {
-            // 对每一天内的策略按盈利从高到低排序
-            const rankings = dateMap[date].sort((a, b) => b.profit - a.profit);
-            return {
-                date,
-                rankings
-            };
-        });
+        // rawData 是 { date: entries[] } 的 map
+        return Object.keys(rawData).sort((a, b) => b.localeCompare(a)).map(date => ({
+            date,
+            rankings: rawData[date].map(entry => ({
+                ...entry,
+                label: `${entry.entryHour}:00 | ${entry.rankingHours}h | Top ${entry.topN}`
+            }))
+        }));
     }, [rawData]);
 
     // 使用后端分页，不再前端切片
@@ -347,7 +352,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                 </div>
 
                                 <div className="rank-list">
-                                    {dayData.rankings.slice(0, topNLimit).map((rank, idx) => {
+                                    {dayData.rankings.map((rank, idx) => {
                                         const isSelected = selectedStrategy?.date === dayData.date && selectedStrategy?.strategy === rank;
 
                                         return (
@@ -372,9 +377,13 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                             </div>
                                         );
                                     })}
-                                    {dayData.rankings.length > topNLimit && (
-                                        <div className="more-hint" style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: '#888' }}>
-                                            ... 还有 {dayData.rankings.length - topNLimit} 个组合未列出
+                                    {dayData.rankings.length >= topNLimit && (
+                                        <div
+                                            className="more-hint"
+                                            style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: 'var(--primary, #007bff)', cursor: 'pointer', fontWeight: '500' }}
+                                            onClick={() => loadDayDetail(dayData.date)}
+                                        >
+                                            📄 查看全部组合 →
                                         </div>
                                     )}
                                 </div>
@@ -483,6 +492,139 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        </>,
+                        document.body
+                    )}
+
+                    {/* 查看全部侧边栏 */}
+                    {createPortal(
+                        <>
+                            {viewAllDay && (
+                                <div className="sidebar-overlay" onClick={() => setViewAllDay(null)} />
+                            )}
+                            <div className={`sidebar-container ${viewAllDay ? 'open' : ''}`} style={{ maxWidth: '720px' }} onClick={e => e.stopPropagation()}>
+                                {viewAllDay && (() => {
+                                    if (viewAllDay.loading) {
+                                        return (
+                                            <div className="sidebar-content-wrapper">
+                                                <div className="sidebar-header">
+                                                    <div className="sidebar-title">
+                                                        <span>📋 {viewAllDay.date} 全部策略排行</span>
+                                                    </div>
+                                                    <button className="modal-close" onClick={() => setViewAllDay(null)}>✕</button>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px 20px', color: '#888' }}>
+                                                    正在加载全部策略数据...
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    const sorted = [...viewAllDay.rankings].sort((a, b) => {
+                                        if (viewAllSort === 'time') return a.entryHour - b.entryHour;
+                                        return b.profit - a.profit;
+                                    });
+                                    return (
+                                        <div className="sidebar-content-wrapper">
+                                            <div className="sidebar-header">
+                                                <div className="sidebar-title">
+                                                    <span>📋 {viewAllDay.date} 全部策略排行</span>
+                                                    <span className="sidebar-subtitle">
+                                                        共 {viewAllDay.rankings.length} 个组合
+                                                        {dailyWinLoss[viewAllDay.date] && (
+                                                            <> | <span style={{ color: '#22c55e' }}>赚 {dailyWinLoss[viewAllDay.date].win}</span> / <span style={{ color: '#ef4444' }}>亏 {dailyWinLoss[viewAllDay.date].lose}</span> | {dailyWinLoss[viewAllDay.date].winRate}%</>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <button className="modal-close" onClick={() => setViewAllDay(null)}>✕</button>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', padding: '0 20px 12px', borderBottom: '1px solid var(--border-color, #eee)' }}>
+                                                <button
+                                                    onClick={() => setViewAllSort('profit')}
+                                                    style={{
+                                                        padding: '4px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
+                                                        border: '1px solid ' + (viewAllSort === 'profit' ? 'var(--primary, #007bff)' : '#ddd'),
+                                                        background: viewAllSort === 'profit' ? 'var(--primary, #007bff)' : 'transparent',
+                                                        color: viewAllSort === 'profit' ? '#fff' : 'var(--text-secondary, #666)'
+                                                    }}
+                                                >按盈亏排序</button>
+                                                <button
+                                                    onClick={() => setViewAllSort('time')}
+                                                    style={{
+                                                        padding: '4px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
+                                                        border: '1px solid ' + (viewAllSort === 'time' ? 'var(--primary, #007bff)' : '#ddd'),
+                                                        background: viewAllSort === 'time' ? 'var(--primary, #007bff)' : 'transparent',
+                                                        color: viewAllSort === 'time' ? '#fff' : 'var(--text-secondary, #666)'
+                                                    }}
+                                                >按时间排序</button>
+                                            </div>
+                                            <div className="sidebar-body">
+                                                <div className="daily-trades">
+                                                    {/* 表头 */}
+                                                    <div className="trade-header" style={{ gridTemplateColumns: '40px 1fr 1fr 80px 80px' }}>
+                                                        <span>#</span>
+                                                        <span>策略组合</span>
+                                                        <span>胜/负</span>
+                                                        <span>盈亏</span>
+                                                        <span></span>
+                                                    </div>
+                                                    {sorted.map((rank, idx) => {
+                                                        const rowKey = `${rank.entryHour}-${rank.rankingHours}-${rank.topN}`;
+                                                        const isExpanded = expandedRows[rowKey];
+                                                        return (
+                                                            <React.Fragment key={rowKey}>
+                                                                <div
+                                                                    className={`trade-row ${rank.profit >= 0 ? '' : 'is-negative'}`}
+                                                                    style={{ gridTemplateColumns: '40px 1fr 1fr 80px 80px', cursor: 'pointer', borderLeft: `3px solid ${rank.profit >= 0 ? '#22c55e' : '#ef4444'}` }}
+                                                                    onClick={() => setExpandedRows(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
+                                                                >
+                                                                    <span style={{ color: '#999', fontSize: '12px' }}>{idx + 1}</span>
+                                                                    <span>
+                                                                        <span className="tag-e">{rank.entryHour}:00</span>
+                                                                        <span className="tag-h" style={{ marginLeft: '4px' }}>{rank.rankingHours}h</span>
+                                                                        <span className="tag-n" style={{ marginLeft: '4px' }}>Top {rank.topN}</span>
+                                                                        {rank.isLive && <span className="live-badge" style={{ marginLeft: '6px', fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
+                                                                    </span>
+                                                                    <span style={{ fontSize: '12px', color: '#888' }}>胜{rank.winCount}/负{rank.loseCount}</span>
+                                                                    <span className={rank.profit >= 0 ? 'p-up' : 'p-down'} style={{ fontWeight: '600' }}>
+                                                                        {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(2)}U
+                                                                    </span>
+                                                                    <span style={{ color: '#aaa', fontSize: '12px', textAlign: 'right' }}>{isExpanded ? '▲' : '▼'}</span>
+                                                                </div>
+                                                                {isExpanded && rank.trades && (
+                                                                    <div style={{ background: 'var(--bg-secondary, #f8f9fa)', padding: '8px 12px', borderRadius: '0 0 6px 6px', marginBottom: '4px' }}>
+                                                                        <div className="trade-header" style={{ fontSize: '11px' }}>
+                                                                            <span>币种</span>
+                                                                            <span>入场涨幅</span>
+                                                                            <span>开仓价</span>
+                                                                            <span>平仓价</span>
+                                                                            <span>盈亏%</span>
+                                                                            <span>盈亏U</span>
+                                                                        </div>
+                                                                        {rank.trades.map((trade, tIdx) => (
+                                                                            <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
+                                                                                <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
+                                                                                <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
+                                                                                <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
+                                                                                <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                                <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
+                                                                                    {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
+                                                                                </span>
+                                                                                <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
+                                                                                    {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </>,
                         document.body
