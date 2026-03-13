@@ -53,6 +53,19 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const selectAllHours = () => setSelectedEntryHours(Array.from({ length: 24 }, (_, i) => i));
     const selectNoneHours = () => setSelectedEntryHours([]);
 
+    // 侧边栏打开时锁定背景滚动
+    useEffect(() => {
+        const isPanelOpen = viewAllDay;
+        if (isPanelOpen) {
+            document.body.style.overflow = 'hidden'
+        } else {
+            document.body.style.overflow = ''
+        }
+        return () => {
+            document.body.style.overflow = ''
+        }
+    }, [viewAllDay])
+
     useEffect(() => {
         localStorage.setItem('daily_opt_amount', totalAmount)
         localStorage.setItem('daily_opt_days', days)
