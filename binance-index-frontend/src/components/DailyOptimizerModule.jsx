@@ -44,6 +44,7 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     const [dailyWinLoss, setDailyWinLoss] = useState({}) // 后端返回的每日赢亏统计
     const [viewAllDay, setViewAllDay] = useState(null) // 查看全部侧边栏: { date, rankings, loading }
     const [viewAllSort, setViewAllSort] = useState('profit') // 'profit' | 'time'
+    const [viewAllSortDir, setViewAllSortDir] = useState('desc') // 'desc' | 'asc'
     const [expandedRows, setExpandedRows] = useState({}) // 展开的行
     const daysPerPage = 10
 
@@ -117,7 +118,8 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
     // 加载某天全部策略详情
     const loadDayDetail = async (date) => {
         setViewAllDay({ date, rankings: [], loading: true });
-        setViewAllSort('profit');
+        setViewAllSort('time'); // 默认排序时间
+        setViewAllSortDir('desc'); // 默认倒序
         setExpandedRows({});
         try {
             const resp = await axios.get('/api/index/backtest/optimize-daily-detail', {
@@ -503,33 +505,40 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                             {viewAllDay && (
                                 <div className="sidebar-overlay" onClick={() => setViewAllDay(null)} />
                             )}
-                            <div className={`sidebar-container ${viewAllDay ? 'open' : ''}`} style={{ maxWidth: '720px' }} onClick={e => e.stopPropagation()}>
+                            <div className={`sidebar-container ${viewAllDay ? 'open' : ''}`} style={{ maxWidth: '960px' }} onClick={e => e.stopPropagation()}>
                                 {viewAllDay && (() => {
                                     if (viewAllDay.loading) {
                                         return (
                                             <div className="sidebar-content-wrapper">
                                                 <div className="sidebar-header">
                                                     <div className="sidebar-title">
-                                                        <span>📋 {viewAllDay.date} 全部策略排行</span>
+                                                        <span style={{ fontSize: '20px' }}>📋 {viewAllDay.date} 全部策略排行</span>
                                                     </div>
                                                     <button className="modal-close" onClick={() => setViewAllDay(null)}>✕</button>
                                                 </div>
-                                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px 20px', color: '#888' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px 20px', color: '#888', fontSize: '16px' }}>
                                                     正在加载全部策略数据...
                                                 </div>
                                             </div>
                                         );
                                     }
                                     const sorted = [...viewAllDay.rankings].sort((a, b) => {
-                                        if (viewAllSort === 'time') return a.entryHour - b.entryHour;
-                                        return b.profit - a.profit;
+                                        let res = 0;
+                                        if (viewAllSort === 'time') {
+                                            // 时间排序：入场时间先后
+                                            res = a.entryHour - b.entryHour;
+                                        } else {
+                                            // 盈亏排序
+                                            res = b.profit - a.profit;
+                                        }
+                                        return viewAllSortDir === 'desc' ? res : -res;
                                     });
                                     return (
                                         <div className="sidebar-content-wrapper">
                                             <div className="sidebar-header">
                                                 <div className="sidebar-title">
-                                                    <span>📋 {viewAllDay.date} 全部策略排行</span>
-                                                    <span className="sidebar-subtitle">
+                                                    <span style={{ fontSize: '20px' }}>📋 {viewAllDay.date} 全部策略排行</span>
+                                                    <span className="sidebar-subtitle" style={{ fontSize: '15px' }}>
                                                         共 {viewAllDay.rankings.length} 个组合
                                                         {dailyWinLoss[viewAllDay.date] && (
                                                             <> | <span style={{ color: '#22c55e' }}>赚 {dailyWinLoss[viewAllDay.date].win}</span> / <span style={{ color: '#ef4444' }}>亏 {dailyWinLoss[viewAllDay.date].lose}</span> | {dailyWinLoss[viewAllDay.date].winRate}%</>
@@ -538,30 +547,60 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                                 </div>
                                                 <button className="modal-close" onClick={() => setViewAllDay(null)}>✕</button>
                                             </div>
-                                            <div style={{ display: 'flex', gap: '8px', padding: '0 20px 12px', borderBottom: '1px solid var(--border-color, #eee)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px 16px', borderBottom: '1px solid var(--border-color, #eee)', background: '#fff' }}>
+                                                {/* 左侧：胶囊切换按钮 */}
+                                                <div style={{
+                                                    display: 'flex',
+                                                    background: '#f0f2f5',
+                                                    borderRadius: '6px',
+                                                    padding: '2px',
+                                                    gap: '2px'
+                                                }}>
+                                                    <button
+                                                        onClick={() => setViewAllSort('time')}
+                                                        style={{
+                                                            padding: '6px 16px', borderRadius: '4px', fontSize: '13px', cursor: 'pointer',
+                                                            border: 'none',
+                                                            background: viewAllSort === 'time' ? '#fff' : 'transparent',
+                                                            color: viewAllSort === 'time' ? '#000' : '#888',
+                                                            fontWeight: viewAllSort === 'time' ? '500' : 'normal',
+                                                            boxShadow: viewAllSort === 'time' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >时间</button>
+                                                    <button
+                                                        onClick={() => setViewAllSort('profit')}
+                                                        style={{
+                                                            padding: '6px 16px', borderRadius: '4px', fontSize: '13px', cursor: 'pointer',
+                                                            border: 'none',
+                                                            background: viewAllSort === 'profit' ? '#fff' : 'transparent',
+                                                            color: viewAllSort === 'profit' ? '#000' : '#888',
+                                                            fontWeight: viewAllSort === 'profit' ? '500' : 'normal',
+                                                            boxShadow: viewAllSort === 'profit' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >盈亏</button>
+                                                </div>
+
+                                                {/* 右侧：正序/倒序切换按钮 */}
                                                 <button
-                                                    onClick={() => setViewAllSort('profit')}
+                                                    onClick={() => setViewAllSortDir(viewAllSortDir === 'desc' ? 'asc' : 'desc')}
                                                     style={{
-                                                        padding: '4px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
-                                                        border: '1px solid ' + (viewAllSort === 'profit' ? 'var(--primary, #007bff)' : '#ddd'),
-                                                        background: viewAllSort === 'profit' ? 'var(--primary, #007bff)' : 'transparent',
-                                                        color: viewAllSort === 'profit' ? '#fff' : 'var(--text-secondary, #666)'
+                                                        width: '32px', height: '32px', borderRadius: '4px',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        border: '1px solid #ddd', background: '#fff', cursor: 'pointer',
+                                                        fontSize: '14px', color: '#666',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                                     }}
-                                                >按盈亏排序</button>
-                                                <button
-                                                    onClick={() => setViewAllSort('time')}
-                                                    style={{
-                                                        padding: '4px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer',
-                                                        border: '1px solid ' + (viewAllSort === 'time' ? 'var(--primary, #007bff)' : '#ddd'),
-                                                        background: viewAllSort === 'time' ? 'var(--primary, #007bff)' : 'transparent',
-                                                        color: viewAllSort === 'time' ? '#fff' : 'var(--text-secondary, #666)'
-                                                    }}
-                                                >按时间排序</button>
+                                                    title={viewAllSortDir === 'desc' ? "当前降序，点击切换升序" : "当前升序，点击切换降序"}
+                                                >
+                                                    {viewAllSortDir === 'desc' ? '↓' : '↑'}
+                                                </button>
                                             </div>
                                             <div className="sidebar-body">
                                                 <div className="daily-trades">
                                                     {/* 表头 */}
-                                                    <div className="trade-header" style={{ gridTemplateColumns: '40px 1fr 1fr 80px 80px' }}>
+                                                    <div className="trade-header" style={{ gridTemplateColumns: '40px 1.5fr 1fr 100px 80px', fontSize: '14px', padding: '12px 10px' }}>
                                                         <span>#</span>
                                                         <span>策略组合</span>
                                                         <span>胜/负</span>
@@ -575,43 +614,50 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                                             <React.Fragment key={rowKey}>
                                                                 <div
                                                                     className={`trade-row ${rank.profit >= 0 ? '' : 'is-negative'}`}
-                                                                    style={{ gridTemplateColumns: '40px 1fr 1fr 80px 80px', cursor: 'pointer', borderLeft: `3px solid ${rank.profit >= 0 ? '#22c55e' : '#ef4444'}` }}
+                                                                    style={{ gridTemplateColumns: '40px 1.5fr 1fr 100px 80px', cursor: 'pointer', borderLeft: `3px solid ${rank.profit >= 0 ? '#22c55e' : '#ef4444'}`, padding: '16px 10px', fontSize: '15px' }}
                                                                     onClick={() => setExpandedRows(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
                                                                 >
-                                                                    <span style={{ color: '#999', fontSize: '12px' }}>{idx + 1}</span>
+                                                                    <span style={{ color: '#999', fontSize: '14px' }}>{idx + 1}</span>
                                                                     <span>
-                                                                        <span className="tag-e">{rank.entryHour}:00</span>
-                                                                        <span className="tag-h" style={{ marginLeft: '4px' }}>{rank.rankingHours}h</span>
-                                                                        <span className="tag-n" style={{ marginLeft: '4px' }}>Top {rank.topN}</span>
-                                                                        {rank.isLive && <span className="live-badge" style={{ marginLeft: '6px', fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
+                                                                        <span className="tag-e" style={{ fontSize: '13px', padding: '2px 6px' }}>{rank.entryHour}:00</span>
+                                                                        <span className="tag-h" style={{ marginLeft: '6px', fontSize: '13px', padding: '2px 6px' }}>{rank.rankingHours}h</span>
+                                                                        <span className="tag-n" style={{ marginLeft: '6px', fontSize: '13px', padding: '2px 6px' }}>Top {rank.topN}</span>
+                                                                        {rank.isLive && <span className="live-badge" style={{ marginLeft: '8px', fontSize: '10px', padding: '2px 4px' }}>LIVE</span>}
                                                                     </span>
-                                                                    <span style={{ fontSize: '12px', color: '#888' }}>胜{rank.winCount}/负{rank.loseCount}</span>
-                                                                    <span className={rank.profit >= 0 ? 'p-up' : 'p-down'} style={{ fontWeight: '600' }}>
+                                                                    <span style={{ fontSize: '14px', color: '#888' }}>胜{rank.winCount}/负{rank.loseCount}</span>
+                                                                    <span className={rank.profit >= 0 ? 'p-up' : 'p-down'} style={{ fontWeight: '600', fontSize: '15px' }}>
                                                                         {rank.profit > 0 ? '+' : ''}{rank.profit.toFixed(2)}U
                                                                     </span>
-                                                                    <span style={{ color: '#aaa', fontSize: '12px', textAlign: 'right' }}>{isExpanded ? '▲' : '▼'}</span>
+                                                                    <span style={{ color: '#aaa', fontSize: '14px', textAlign: 'right' }}>{isExpanded ? '▲' : '▼'}</span>
                                                                 </div>
                                                                 {isExpanded && rank.trades && (
-                                                                    <div style={{ background: 'var(--bg-secondary, #f8f9fa)', padding: '8px 12px', borderRadius: '0 0 6px 6px', marginBottom: '4px' }}>
-                                                                        <div className="trade-header" style={{ fontSize: '11px' }}>
+                                                                    <div style={{ background: 'var(--bg-secondary, #f8f9fa)', padding: '12px 16px', borderRadius: '0 0 6px 6px', marginBottom: '8px' }}>
+                                                                        <div className="trade-header" style={{ fontSize: '14px', padding: '8px 0' }}>
                                                                             <span>币种</span>
                                                                             <span>入场涨幅</span>
                                                                             <span>开仓价</span>
                                                                             <span>平仓价</span>
-                                                                            <span>盈亏%</span>
-                                                                            <span>盈亏U</span>
+                                                                            <span>涨跌幅</span>
+                                                                            <span>盈亏</span>
                                                                         </div>
                                                                         {rank.trades.map((trade, tIdx) => (
-                                                                            <div key={tIdx} className={`trade-row ${trade.isLive ? 'is-live' : ''}`}>
-                                                                                <span className="trade-symbol">{trade.symbol.replace('USDT', '')}</span>
-                                                                                <span className="trade-change" style={{ color: 'var(--success)' }}>+{trade.change24h?.toFixed(2)}%</span>
-                                                                                <span>{trade.entryPrice < 1 ? trade.entryPrice.toFixed(6) : trade.entryPrice.toFixed(4)}</span>
-                                                                                <span>{trade.exitPrice < 1 ? trade.exitPrice.toFixed(6) : trade.exitPrice.toFixed(4)}</span>
+                                                                            <div
+                                                                                key={tIdx}
+                                                                                className={`trade-row ${trade.profitPercent >= 0 ? '' : 'is-negative'}`}
+                                                                                style={{ padding: '10px 0', fontSize: '15px', borderBottom: tIdx === rank.trades.length - 1 ? 'none' : '1px solid #eaeaea' }}
+                                                                            >
+                                                                                <span style={{ fontWeight: '600', color: 'var(--text-primary, #333)' }}>
+                                                                                    {trade.symbol.replace('USDT', '')}
+                                                                                    {trade.isLive && <span className="live-badge" style={{ marginLeft: '6px', fontSize: '11px', padding: '2px 4px' }}>LIVE</span>}
+                                                                                </span>
+                                                                                <span>{trade.change24h > 0 ? '+' : ''}{trade.change24h.toFixed(2)}%</span>
+                                                                                <span style={{ fontFamily: 'monospace' }}>{trade.entryPrice.toFixed(4)}</span>
+                                                                                <span style={{ fontFamily: 'monospace' }}>{trade.exitPrice?.toFixed(4) || '-'}</span>
                                                                                 <span className={trade.profitPercent >= 0 ? 'p-up' : 'p-down'}>
                                                                                     {trade.profitPercent > 0 ? '+' : ''}{trade.profitPercent.toFixed(2)}%
                                                                                 </span>
-                                                                                <span className={trade.profit >= 0 ? 'p-up' : 'p-down'}>
-                                                                                    {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}
+                                                                                <span className={trade.profit >= 0 ? 'p-up' : 'p-down'} style={{ fontWeight: '500' }}>
+                                                                                    {trade.profit > 0 ? '+' : ''}{trade.profit.toFixed(2)}U
                                                                                 </span>
                                                                             </div>
                                                                         ))}
