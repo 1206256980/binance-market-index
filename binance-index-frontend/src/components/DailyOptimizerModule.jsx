@@ -603,7 +603,20 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                                     {viewAllSortDir === 'desc' ? '↓' : '↑'}
                                                 </button>
                                             </div>
-                                            <div className="sidebar-body" style={{ padding: '16px 20px 24px 20px', background: '#fff' }}>
+                                            <div
+                                                className="sidebar-body"
+                                                style={{ padding: '16px 20px 24px 20px', background: '#fff', overflowY: 'auto' }}
+                                                ref={(el) => {
+                                                    if (el) {
+                                                        el.style.setProperty('--scrollbar-width', '4px');
+                                                    }
+                                                }}
+                                            >
+                                                <style>{`
+                                                    .sidebar-body::-webkit-scrollbar { width: 4px; }
+                                                    .sidebar-body::-webkit-scrollbar-thumb { background: #dcdcdc; border-radius: 4px; }
+                                                    .sidebar-body::-webkit-scrollbar-track { background: transparent; }
+                                                `}</style>
                                                 <div className="daily-trades" style={{ border: '1px solid #eaeaea', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                                     {/* 表头 */}
                                                     <div className="trade-header" style={{ gridTemplateColumns: '40px 1.5fr 1fr 100px 80px', fontSize: '14px', padding: '12px 10px' }}>
