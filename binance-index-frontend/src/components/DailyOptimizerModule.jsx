@@ -330,12 +330,18 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                         {paginatedRankings.map(dayData => (
                             <div key={dayData.date} className="day-report-card">
                                 <div className="day-report-header">
-                                    <div className="date-info" style={{ display: 'flex', alignItems: 'center' }}>
-                                        <span className="date-tag">
+                                    <div className="date-info" style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap' }}>
+                                        <span className="date-tag" style={{ whiteSpace: 'nowrap' }}>
                                             {dayData.date}
                                             {dayData.rankings.some(r => r.isLive) && <span className="live-badge" style={{ fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
                                         </span>
-                                        <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
+                                        <span className="champion-label" style={{
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            marginLeft: '8px',
+                                            marginRight: '8px'
+                                        }}>🥇 {dayData.rankings[0].label}</span>
                                         {dayData.rankings.length >= topNLimit && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); loadDayDetail(dayData.date); }}
@@ -604,19 +610,9 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                                 </button>
                                             </div>
                                             <div
-                                                className="sidebar-body"
+                                                className="sidebar-body custom-scrollbar"
                                                 style={{ padding: '16px 20px 24px 20px', background: '#fff', overflowY: 'auto' }}
-                                                ref={(el) => {
-                                                    if (el) {
-                                                        el.style.setProperty('--scrollbar-width', '4px');
-                                                    }
-                                                }}
                                             >
-                                                <style>{`
-                                                    .sidebar-body::-webkit-scrollbar { width: 4px; }
-                                                    .sidebar-body::-webkit-scrollbar-thumb { background: #dcdcdc; border-radius: 4px; }
-                                                    .sidebar-body::-webkit-scrollbar-track { background: transparent; }
-                                                `}</style>
                                                 <div className="daily-trades" style={{ border: '1px solid #eaeaea', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                                     {/* 表头 */}
                                                     <div className="trade-header" style={{ gridTemplateColumns: '40px 1.5fr 1fr 100px 80px', fontSize: '14px', padding: '12px 10px' }}>
