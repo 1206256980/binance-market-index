@@ -37,6 +37,9 @@ public class IndexCalculatorService {
 
     private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
 
+    // 用于防止并发同步K线数据
+    private final java.util.concurrent.atomic.AtomicBoolean isSyncingKline = new java.util.concurrent.atomic.AtomicBoolean(
+            false);
     private final BinanceApiService binanceApiService;
     private final MarketIndexRepository marketIndexRepository;
     private final CoinPriceRepository coinPriceRepository;
@@ -2852,28 +2855,37 @@ public class IndexCalculatorService {
     }
 
     public void syncKlineData(int days) {
-        log.info("开始手动同步K线数据: {} 天", days);
-
-        java.time.ZoneId userZone = java.time.ZoneId.of("Asia/Shanghai");
-        java.time.LocalDate today = java.time.LocalDate.now(userZone);
-        java.time.LocalDate endDate = today; // 同步到今天
-        java.time.LocalDate startDate = endDate.minusDays(days);
-
-        // 获取所有交易对
-        List<String> symbols = binanceApiService.getAllUsdtSymbols();
-        if (symbols.isEmpty()) {
-            log.warn("同步数据失败：无法获取交易对列表");
+        if (!isSyncingKline.compareAndSet(false, true)) {
+            log.warn("同步K线数据任务已经在运行中，跳过本次执行");
             return;
         }
 
-        // 预加载时间范围（从入场前24小时到持仓结束）
-        // 这里取一个宽泛的范围：早于开始日期1天，晚于结束日期1天
-        java.time.LocalDateTime preloadStart = startDate.atStartOfDay().minusDays(1);
-        java.time.LocalDateTime preloadEnd = endDate.atTime(23, 59, 59).plusDays(1);
+        try {
+            log.info("开始同步K线数据: {} 天", days);
 
-        log.info("🚀 启动数据同步: {} 至 {}", preloadStart, preloadEnd);
-        klineService.preloadKlines(preloadStart, preloadEnd, symbols);
-        log.info("✅ 数据同步完成");
+            java.time.ZoneId userZone = java.time.ZoneId.of("Asia/Shanghai");
+            java.time.LocalDate today = java.time.LocalDate.now(userZone);
+            java.time.LocalDate endDate = today; // 同步到今天
+            java.time.LocalDate startDate = endDate.minusDays(days);
+
+            // 获取所有交易对
+            List<String> symbols = binanceApiService.getAllUsdtSymbols();
+            if (symbols.isEmpty()) {
+                log.warn("同步数据失败：无法获取交易对列表");
+                return;
+            }
+
+            // 预加载时间范围（从入场前24小时到持仓结束）
+            // 这里取一个宽泛的范围：早于开始日期1天，晚于结束日期1天
+            java.time.LocalDateTime preloadStart = startDate.atStartOfDay().minusDays(1);
+            java.time.LocalDateTime preloadEnd = endDate.atTime(23, 59, 59).plusDays(1);
+
+            log.info("🚀 启动数据同步: {} 至 {}", preloadStart, preloadEnd);
+            klineService.preloadKlines(preloadStart, preloadEnd, symbols);
+            log.info("✅ 数据同步完成");
+        } finally {
+            isSyncingKline.set(false);
+        }
     }
 
     /**
