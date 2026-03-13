@@ -330,12 +330,27 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                         {paginatedRankings.map(dayData => (
                             <div key={dayData.date} className="day-report-card">
                                 <div className="day-report-header">
-                                    <div className="date-info">
+                                    <div className="date-info" style={{ display: 'flex', alignItems: 'center' }}>
                                         <span className="date-tag">
                                             {dayData.date}
                                             {dayData.rankings.some(r => r.isLive) && <span className="live-badge" style={{ fontSize: '8px', padding: '0 3px' }}>LIVE</span>}
                                         </span>
                                         <span className="champion-label">🥇 {dayData.rankings[0].label}</span>
+                                        {dayData.rankings.length >= topNLimit && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); loadDayDetail(dayData.date); }}
+                                                style={{
+                                                    marginLeft: 'auto',
+                                                    padding: '2px 8px',
+                                                    fontSize: '12px',
+                                                    color: 'var(--primary, #007bff)',
+                                                    background: 'transparent',
+                                                    border: '1px solid var(--primary, #007bff)',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >查看全部</button>
+                                        )}
                                     </div>
                                     <div className="best-profit">
                                         最高盈利: <span className="value" style={{ color: dayData.rankings[0].profit >= 0 ? '#22c55e' : '#ef4444' }}>{dayData.rankings[0].profit > 0 ? '+' : ''}{dayData.rankings[0].profit.toFixed(2)}U</span>
@@ -379,15 +394,6 @@ const DailyOptimizerModule = memo(function DailyOptimizerModule() {
                                             </div>
                                         );
                                     })}
-                                    {dayData.rankings.length >= topNLimit && (
-                                        <div
-                                            className="more-hint"
-                                            style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: 'var(--primary, #007bff)', cursor: 'pointer', fontWeight: '500' }}
-                                            onClick={() => loadDayDetail(dayData.date)}
-                                        >
-                                            📄 查看全部组合 →
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         ))}
